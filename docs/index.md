@@ -13,4 +13,6 @@
 
 ## Features
 
--   TODO
+-   Mask PlanetScope strips against their UDM rasters using efficient GDAL workflows.
+-   Build seamless mosaics with pre-tuned Orfeo Toolbox parameters and RAM hints.
+-   Run everything from a single CLI (`plaknit`) that works cross-platform.
