@@ -17,8 +17,10 @@ jobs:
 
       - name: Install deps
         run: |
-          python -m pip install --upgrade pip
-          pip install mkdocs mkdocs-material mkdocstrings[python] mkdocs-jupyter
+            python -m pip install --upgrade pip
+            pip install mkdocs mkdocs-material mkdocstrings[python] mkdocs-jupyter \
+                        mkdocs-git-revision-date-plugin
+
 
       - name: Build site
         run: mkdocs build --strict
