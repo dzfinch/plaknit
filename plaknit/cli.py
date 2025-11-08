@@ -1,19 +1,16 @@
-"""Console script for plaknit."""
-import argparse
-import sys
+"""Console script entry point for plaknit."""
+
+from __future__ import annotations
+
+from typing import Optional, Sequence
+
+from . import mosaic as mosaic_cli
 
 
-def main():
-    """Console script for plaknit."""
-    parser = argparse.ArgumentParser()
-    parser.add_argument('_', nargs='*')
-    args = parser.parse_args()
-
-    print("Arguments: " + str(args._))
-    print("Replace this message by putting your code into "
-          "plaknit.cli.main")
-    return 0
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    """Delegate to the mosaic workflow CLI."""
+    return mosaic_cli.main(argv)
 
 
-if __name__ == "__main__":
-    sys.exit(main())  # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
