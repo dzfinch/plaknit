@@ -1,60 +1,51 @@
 [project]
 name = "plaknit"
 version = "0.0.1"
-dynamic = [
-    "dependencies",
-]
 description = "Processing Large-Scale PlanetScope Data"
 readme = "README.md"
 requires-python = ">=3.8"
-keywords = [
-    "plaknit",
-]
-license = {text = "MIT License"}
-authors = [
-  {name = "Dryver Finch", email = "dryver2206@gmail.com"},
-]
+keywords = ["plaknit"]
+license = { text = "MIT License" }
+authors = [{ name = "Dryver Finch", email = "dryver2206@gmail.com" }]
 classifiers = [
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Natural Language :: English",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Natural Language :: English",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
 ]
+dynamic = ["dependencies"]
 
 [project.entry-points."console_scripts"]
 plaknit = "plaknit.cli:main"
 
 [project.optional-dependencies]
+extra = ["pandas"]
+# If you want "all" to include every extra, list them explicitly (no self-deps):
 all = [
-    "plaknit[extra]",
+  "pandas",
 ]
 
-extra = [
-    "pandas",
-]
+[project.urls]
+Homepage = "https://github.com/dzfinch/plaknit"
+Issues = "https://github.com/dzfinch/plaknit/issues"
+Documentation = "https://dzfinch.github.io/plaknit/"
 
-
-[tool]
 [tool.setuptools.packages.find]
 include = ["plaknit*"]
 exclude = ["docs*"]
 
 [tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
-
-
-[tool.distutils.bdist_wheel]
-universal = true
-
+dependencies = { file = ["requirements.txt"] }
 
 [tool.bumpversion]
 current_version = "0.0.1"
 commit = true
 tag = true
+tag_name = "v{new_version}"
 
 [[tool.bumpversion.files]]
 filename = "pyproject.toml"
@@ -66,17 +57,10 @@ filename = "plaknit/__init__.py"
 search = '__version__ = "{current_version}"'
 replace = '__version__ = "{new_version}"'
 
-
 [tool.flake8]
-exclude = [
-    "docs",
-]
+exclude = ["docs"]
 max-line-length = 88
 
-
-[project.urls]
-Homepage = "https://github.com/dzfinch/plaknit"
-
 [build-system]
-requires = ["setuptools>=64", "setuptools_scm>=8"]
+requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
