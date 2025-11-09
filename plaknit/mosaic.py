@@ -82,7 +82,9 @@ class MosaicWorkflow:
             masked_paths = inputs
         else:
             if not job.udms:
-                raise ValueError("UDM rasters are required unless --skip-masking is provided.")
+                raise ValueError(
+                    "UDM rasters are required unless --skip-masking is provided."
+                )
             udms = self._expand(job.udms, label="UDMs")
             if len(inputs) != len(udms):
                 raise ValueError(
@@ -172,7 +174,9 @@ class MosaicWorkflow:
         masked_paths.sort()
         return masked_paths
 
-    def _mask_single_strip(self, strip_path: Path, udm_path: Path, masked_path: Path) -> Path:
+    def _mask_single_strip(
+        self, strip_path: Path, udm_path: Path, masked_path: Path
+    ) -> Path:
         cmd = [
             "gdal_calc.py",
             "-A",
