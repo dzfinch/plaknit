@@ -57,3 +57,35 @@ For rasters stored in two separate files, call
 `plaknit.normalized_difference_from_files("nir.tif", "red.tif")`. Each helper
 returns the calculated array so you can continue working with NumPy while
 optionally persisting the results back to disk.
+
+## Random Forest classification
+
+`plaknit.classify` adds scalable training + inference utilities that lean on
+`geopandas`, `rasterio`, and scikit-learn. A minimal workflow:
+
+```python
+from plaknit import train_rf, predict_rf
+
+# Train using polygons that carry a "class_id" field
+rf = train_rf(
+    image_path="planet_stack.tif",
+    shapefile_path="training_data.geojson",
+    label_column="class_id",
+    model_out="planet_rf.joblib",
+    n_estimators=600,
+    n_jobs=32,
+)
+
+# Apply the model to another stack (writes a GeoTIFF of class IDs)
+predict_rf(
+    image_path="planet_stack_2024.tif",
+    model_path="planet_rf.joblib",
+    output_path="planet_stack_2024_classified.tif",
+)
+```
+
+Training data are sampled window-by-window beneath each polygon, keeping RAM
+usage bounded. Prediction streams over raster blocks (or user-defined tile
+sizes) so the same code works on laptops and HPC nodes alike. Classified
+rasters store numeric class IDs; inspect `rf.label_decoder` to map each ID back
+to its original label.

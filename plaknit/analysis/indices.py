@@ -86,9 +86,7 @@ def normalized_difference_from_raster(
     with rasterio.open(dataset_path) as src:
         numerator = src.read(numerator_band, out_dtype="float32")
         denominator = src.read(denominator_band, out_dtype="float32")
-        index = normalized_difference(
-            numerator, denominator, nodata_value=src.nodata
-        )
+        index = normalized_difference(numerator, denominator, nodata_value=src.nodata)
 
         if dst_path is not None:
             _write_raster(src, np.nan_to_num(index), dst_path, dtype=dtype)
