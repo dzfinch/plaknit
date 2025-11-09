@@ -1,14 +1,10 @@
-"""Top-level package for plaknit."""
+"""Raster analysis helpers."""
 
-from .analysis import (
+from .indices import (
     normalized_difference,
     normalized_difference_from_files,
     normalized_difference_from_raster,
 )
-
-__author__ = """Dryver Finch"""
-__email__ = "dryver2206@gmail.com"
-__version__ = "0.0.1"
 
 __all__ = [
     "normalized_difference",

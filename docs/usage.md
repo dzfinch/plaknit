@@ -36,3 +36,24 @@ prefer to pin the interpreter.
 The CLI guarantees the same behavior as the original script, but it now lives
 inside the package so you can version and redistribute the workflow alongside
 the rest of your tooling.
+
+## Normalized difference analysis
+
+`plaknit` also exposes helpers that wrap `rasterio` so you can build spectral
+indices without leaving Python:
+
+```python
+from plaknit import normalized_difference_from_raster
+
+ndvi = normalized_difference_from_raster(
+    "planet_strip.tif",
+    numerator_band=4,      # NIR
+    denominator_band=3,    # Red
+    dst_path="planet_strip_ndvi.tif",
+)
+```
+
+For rasters stored in two separate files, call
+`plaknit.normalized_difference_from_files("nir.tif", "red.tif")`. Each helper
+returns the calculated array so you can continue working with NumPy while
+optionally persisting the results back to disk.
