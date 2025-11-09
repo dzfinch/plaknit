@@ -31,7 +31,9 @@ def _log(message: str) -> None:
         print(message)
 
 
-def _nodata_pixel_mask(samples: np.ndarray, nodata_value: Optional[float]) -> np.ndarray:
+def _nodata_pixel_mask(
+    samples: np.ndarray, nodata_value: Optional[float]
+) -> np.ndarray:
     """Return a boolean mask of pixels touching nodata."""
 
     if nodata_value is None:
@@ -125,7 +127,9 @@ def train_rf(
         if src.crs is None:
             raise ValueError("Raster must have a valid CRS.")
         if gdf.crs is None:
-            warnings.warn("Vector training data lacks CRS. Assuming raster CRS.", UserWarning)
+            warnings.warn(
+                "Vector training data lacks CRS. Assuming raster CRS.", UserWarning
+            )
             gdf.set_crs(src.crs, inplace=True)
         else:
             gdf = gdf.to_crs(src.crs)
@@ -140,7 +144,9 @@ def train_rf(
         X, y = _collect_training_samples(src, gdf, code_column)
         y = y.astype("int32", copy=False)
 
-    _log(f"[bold cyan]Training RandomForest on {X.shape[0]:,} samples ({X.shape[1]} bands)...")
+    _log(
+        f"[bold cyan]Training RandomForest on {X.shape[0]:,} samples ({X.shape[1]} bands)..."
+    )
     rf = RandomForestClassifier(
         n_estimators=n_estimators,
         max_depth=max_depth,
@@ -151,8 +157,13 @@ def train_rf(
     rf.fit(X, y)
     rf.label_decoder = decoder  # type: ignore[attr-defined]
     if decoder:
-        mapping_preview = ", ".join(f"{code}:{label}" for code, label in list(decoder.items())[:10])
-        _log(f"[green]Label codes => classes: {mapping_preview}" + (" ..." if len(decoder) > 10 else ""))
+        mapping_preview = ", ".join(
+            f"{code}:{label}" for code, label in list(decoder.items())[:10]
+        )
+        _log(
+            f"[green]Label codes => classes: {mapping_preview}"
+            + (" ..." if len(decoder) > 10 else "")
+        )
     _log("[green]Training complete. Saving model...")
 
     model_out = Path(model_out)
@@ -200,7 +211,9 @@ def predict_rf(
             if block_shape:
                 block_h, block_w = block_shape
 
-                def custom_windows() -> Iterable[Tuple[Tuple[int, int], windows.Window]]:
+                def custom_windows() -> (
+                    Iterable[Tuple[Tuple[int, int], windows.Window]]
+                ):
                     for row_off in range(0, src.height, block_h):
                         for col_off in range(0, src.width, block_w):
                             yield (
@@ -213,7 +226,9 @@ def predict_rf(
                                 ),
                             )
 
-                window_iter: Iterable[Tuple[Tuple[int, int], windows.Window]] = custom_windows()
+                window_iter: Iterable[Tuple[Tuple[int, int], windows.Window]] = (
+                    custom_windows()
+                )
             else:
                 window_iter = src.block_windows(1)
 
@@ -225,7 +240,9 @@ def predict_rf(
                 samples = block.reshape(src.count, -1).T
                 valid = ~_nodata_pixel_mask(samples, src.nodata)
 
-                predictions = np.full(samples.shape[0], nodata_value, dtype=profile["dtype"])
+                predictions = np.full(
+                    samples.shape[0], nodata_value, dtype=profile["dtype"]
+                )
                 if np.any(valid):
                     preds = model.predict(samples[valid])
                     predictions[valid] = preds.astype(profile["dtype"], copy=False)

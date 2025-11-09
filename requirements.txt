@@ -1,6 +1,6 @@
+geopandas
+joblib
 numpy
 rasterio
-geopandas
-scikit-learn
-joblib
 rich
+scikit-learn
