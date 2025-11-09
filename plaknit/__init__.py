@@ -9,7 +9,7 @@ from .classify import predict_rf, train_rf
 
 __author__ = """Dryver Finch"""
 __email__ = "dryver2206@gmail.com"
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 
 __all__ = [
     "normalized_difference",
