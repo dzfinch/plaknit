@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Sequence, Union
+from typing import Optional, Union
 
 import numpy as np
 import rasterio
@@ -19,17 +19,7 @@ def normalized_difference(
     *,
     nodata_value: Optional[float] = None,
 ) -> np.ndarray:
-    """Compute the normalized difference of two arrays.
-
-    Parameters
-    ----------
-    numerator, denominator:
-        Arrays representing the two bands to compare. They must share the same
-        shape; values are promoted to ``float32`` internally.
-    nodata_value:
-        When provided, any pixel equal to ``nodata_value`` in either band is
-        masked out in the final array (set to ``np.nan``).
-    """
+    """Compute the normalized difference of two arrays."""
 
     num = np.asarray(numerator, dtype="float32")
     den = np.asarray(denominator, dtype="float32")
@@ -69,19 +59,7 @@ def normalized_difference_from_raster(
     dst_path: Optional[PathLike] = None,
     dtype: str = "float32",
 ) -> np.ndarray:
-    """Compute normalized difference from two bands inside the same raster.
-
-    Parameters
-    ----------
-    dataset_path:
-        Path to the raster readable by rasterio.
-    numerator_band, denominator_band:
-        1-based band indices identifying the two inputs.
-    dst_path:
-        Optional path to persist the computed index as a single-band raster.
-    dtype:
-        Data type used when writing the output dataset.
-    """
+    """Compute normalized difference from two bands inside the same raster."""
 
     with rasterio.open(dataset_path) as src:
         numerator = src.read(numerator_band, out_dtype="float32")
