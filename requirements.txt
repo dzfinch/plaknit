@@ -1,2 +1,6 @@
 numpy
 rasterio
+geopandas
+scikit-learn
+joblib
+rich
