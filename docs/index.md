@@ -1,5 +1,9 @@
 # Welcome to plaknit
 
+<p align="center">
+  <img src="images/plaknit_logo.png" alt="plaknit logo" width="280">
+</p>
+
 
 [![image](https://img.shields.io/pypi/v/plaknit.svg)](https://pypi.python.org/pypi/plaknit)
 
