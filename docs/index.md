@@ -34,3 +34,9 @@ planet-scale questions -- not chasing temp files or re-learning OTB flags.
 -   Build seamless mosaics with pre-tuned Orfeo Toolbox parameters and RAM hints.
 -   Run everything from a single CLI (`plaknit`) that works cross-platform.
 -   Train and apply Random Forest classifiers on multi-band stacks directly from Python.
+
+## Need to run on HPC?
+
+See [Running plaknit on HPC with Singularity/Apptainer](hpcenv.md) for a
+copy-pasteable recipe that uses persistent virtual environments and SLURM batch
+jobs inside containerized OTB builds.

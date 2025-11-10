@@ -75,6 +75,7 @@ nav:
     - Home: index.md
     - Installation: installation.md
     - Usage: usage.md
+    - HPC Environments: hpcenv.md
     - Contributing: contributing.md
     - FAQ: faq.md
     - Changelog: changelog.md
