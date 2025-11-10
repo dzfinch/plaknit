@@ -1,214 +1,218 @@
 ---
 title: Running plaknit on HPC
-description: Step-by-step guidance for launching plaknit inside Singularity/Apptainer containers.
+description: Tested workflow for running plaknit in an OTB-enabled Singularity/Apptainer container.
 ---
 
-# Run plaknit on HPC with Singularity/Apptainer
+# Run plaknit inside Singularity/Apptainer
 
-Use this guide when you need to execute the [`plaknit` CLI](usage.md) on a shared
-cluster where Orfeo ToolBox (OTB) already lives inside a container image. It
-covers both an interactive smoke test and a SLURM batch workflow while keeping
-your Python environment on a writable filesystem.
+This walkthrough reflects the latest working recipe for launching the
+[`plaknit` CLI](usage.md) inside an **OTB-enabled Singularity/Apptainer**
+container on a shared HPC cluster. The emphasis is on keeping everything
+writable inside your project space while the container remains read-only.
 
-## Overview
+## Requirements
 
-- Install `plaknit` into a persistent virtual environment that sits outside the
-  read-only container image.
-- Bind your project data, scratch space, and virtual environments into the
-  container each time you launch it.
-- Run `plaknit` commands exactly as you would locally once the venv is active.
+- Writable project or scratch directory (for example `/blue/$USER/...`,
+  `/scratch/$USER`, or `/project/...`).
+- Singularity/Apptainer module available on the cluster.
+- Container image that already includes Orfeo ToolBox (OTB), GDAL, and Python
+  3.8 or newer.
 
-!!! tip "Use the same flags everywhere"
-    All CLI options described in [Usage](usage.md) work unchanged inside the
-    container. The only difference is how paths are mounted.
+!!! tip "Same CLI everywhere"
+    `plaknit` runs the same inside or outside the container. Once the venv is
+    active you can reuse the commands from [Usage](usage.md) verbatim.
 
-## Prerequisites
+## 1. Directory layout
 
-### Singularity/Apptainer modules
+Pick directories under the fast filesystem the cluster recommends:
 
 ```bash
-# Example -- adjust to the module names provided by your cluster
-module load apptainer   # or: module load singularity
+export PROJECT_DIR=/path/to/your/project
+export STRIPS=$PROJECT_DIR/data/strips
+export UDMS=$PROJECT_DIR/data/udms
+export OUTDIR=$PROJECT_DIR/output
+export VENVBASE=$PROJECT_DIR/venvs
+export PIPCACHE=$PROJECT_DIR/cache/pip
+export BOOT=$PROJECT_DIR/bootstrap
+export SIF=/path/to/your/otb_image.sif
+
+mkdir -p "$STRIPS" "$UDMS" "$OUTDIR" "$VENVBASE" "$PIPCACHE" "$BOOT"
 ```
 
-### OTB-enabled container image
+!!! note
+    Keep these assets under quota-friendly paths instead of `$HOME`, especially
+    on clusters that enforce small home-directory limits.
 
-You need a container that already bundles OTB, GDAL, and their dependencies.
-Store it somewhere quota-friendly and fast.
+## 2. Download get-pip (Python 3.8 example)
+
+Many OTB images ship Python without `pip`. Grab the version-specific bootstrap
+script so you can install `pip` in a writable prefix:
 
 ```bash
-export IMG_DIR=$HOME/containers
-mkdir -p "$IMG_DIR"
-
-# Replace the image reference with the one provided by your lab/cluster
-apptainer pull "$IMG_DIR/otb.sif" docker://<ORG>/<OTB_IMAGE>:<TAG>
+curl -fsSLo "$BOOT/get-pip.py" https://bootstrap.pypa.io/pip/3.8/get-pip.py
 ```
 
-### Project folders, scratch, and caches
+Use the matching URL for Python 3.9+ images.
+
+## 3. Install pip inside the container
 
 ```bash
-export PROJ=$HOME/projects/plaknit-demo
-export IMG_DIR_IN=$PROJ/strips
-export UDM_DIR_IN=$PROJ/udms
-export OUT_DIR=$PROJ/out
-export TMP_DIR=$PROJ/tmp        # Prefer node-local scratch when available
-export VENVS=$HOME/.venvs
-export PIPCACHE=$HOME/.cache/pip
+singularity exec \
+  --bind "$BOOT":/bootstrap \
+  --bind "$VENVBASE":/venvs \
+  "$SIF" bash -lc '
+    set -euo pipefail
+    mkdir -p /venvs/piproot
+    python3 /bootstrap/get-pip.py --prefix /venvs/piproot
 
-mkdir -p "$PROJ" "$IMG_DIR_IN" "$UDM_DIR_IN" "$OUT_DIR" "$TMP_DIR" "$VENVS" "$PIPCACHE"
+    PYVER=$(python3 -c '\''import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")'\'')
+    export PYTHONPATH=/venvs/piproot/lib/python${PYVER}/site-packages
+    export PATH=/venvs/piproot/bin:$PATH
+
+    pip --version
+  '
 ```
 
-## Interactive smoke test
+This keeps every Python artifact inside `$PROJECT_DIR/venvs`.
 
-1. Export the paths that will be reused in batch jobs:
-
-    ```bash
-    export SIF=$IMG_DIR/otb.sif
-    export VENV=$VENVS/plaknit
-    ```
-
-2. Launch an interactive shell inside the container with your binds:
-
-    ```bash
-    apptainer shell \
-      --bind "$PROJ":/work \
-      --bind "$VENVS":/venvs \
-      --bind "$PIPCACHE":/pipcache \
-      "$SIF"
-    ```
-
-3. Inside the container:
-
-    ```bash
-    python3 -m venv /venvs/plaknit
-    source /venvs/plaknit/bin/activate
-    python -m pip install --upgrade pip
-    pip install --cache-dir /pipcache plaknit
-
-    plaknit --help
-    ```
-
-Run a small command (for example `plaknit mosaic ...`) to confirm OTB access
-before moving on to batch jobs.
-
-## Batch run with SLURM
-
-Create `run_plaknit.slurm` alongside your project:
+## 4. Create the persistent plaknit virtualenv
 
 ```bash
-cat <<'EOF' > run_plaknit.slurm
-#!/bin/bash
-#SBATCH --job-name=plaknit-mosaic
-#SBATCH --partition=standard
-#SBATCH --account=<ACCOUNT>
-#SBATCH --nodes=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=150G
-#SBATCH --time=08:00:00
-#SBATCH --output=slurm-%j.log
-
-set -euo pipefail
-module load apptainer
-
-export PROJ=$HOME/projects/plaknit-demo
-export VENVS=$HOME/.venvs
-export PIPCACHE=$HOME/.cache/pip
-export SIF=$HOME/containers/otb.sif
-
-apptainer exec \
-  --bind "$PROJ":/work \
-  --bind "$VENVS":/venvs \
+singularity exec \
+  --bind "$VENVBASE":/venvs \
   --bind "$PIPCACHE":/pipcache \
   "$SIF" bash -lc '
     set -euo pipefail
+    PYVER=$(python3 -c '\''import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")'\'')
+    export PYTHONPATH=/venvs/piproot/lib/python${PYVER}/site-packages
+    export PATH=/venvs/piproot/bin:$PATH
+
+    pip install --cache-dir /pipcache virtualenv
+    virtualenv --python=python3 /venvs/plaknit
     source /venvs/plaknit/bin/activate
+    pip install --cache-dir /pipcache plaknit
 
-    # Optional sanity checks
-    command -v otbcli_Mosaic >/dev/null && echo "OTB present"
+    echo "[verify] python -> $(which python)"
+    echo "[verify] plaknit -> $(which plaknit)"
+    plaknit --version || plaknit --help
+  '
+```
 
-    plaknit mosaic \
-      --inputs /work/strips \
-      --udms   /work/udms \
-      --output /work/out/final_mosaic.tif \
-      --tmpdir /work/tmp \
+The venv now lives at `$PROJECT_DIR/venvs/plaknit` and can be reused across jobs.
+
+## 5. Interactive validation run
+
+```bash
+singularity exec \
+  --bind "$STRIPS":/data/strips \
+  --bind "$UDMS":/data/udms \
+  --bind "$OUTDIR":/data/output \
+  --bind "${SLURM_TMPDIR:-/tmp}":/localscratch \
+  --bind "$VENVBASE":/venvs \
+  "$SIF" bash -lc '
+    set -euo pipefail
+
+    export OTB_APPLICATION_PATH=/app/otb/lib/otb/applications
+    export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${SLURM_CPUS_PER_TASK:-8}
+    export OTB_MAX_RAM_HINT=131072
+    export GDAL_CACHEMAX=4096
+    mkdir -p /localscratch/tmp
+
+    /venvs/plaknit/bin/plaknit \
+      --inputs /data/strips \
+      --udms /data/udms \
+      --output /data/output/final_mosaic.tif \
+      --tmpdir /localscratch/tmp \
       --ram 131072 \
       --jobs ${SLURM_CPUS_PER_TASK:-8} \
       -vv
   '
-EOF
+```
+
+Adjust RAM, jobs, and scratch paths to match your cluster defaults.
+
+## 6. SLURM batch script
+
+`plaknit_mosaic.slurm`:
+
+```bash
+#!/usr/bin/env bash
+#SBATCH -J plaknit_mosaic
+#SBATCH -A <account>
+#SBATCH -p <partition>
+#SBATCH -c 8
+#SBATCH --mem=140G
+#SBATCH -t 12:00:00
+#SBATCH -o slurm-%j.out
+#SBATCH -e slurm-%j.err
+
+set -euo pipefail
+
+PROJECT_DIR=/path/to/your/project
+STRIPS=$PROJECT_DIR/data/strips
+UDMS=$PROJECT_DIR/data/udms
+OUTDIR=$PROJECT_DIR/output
+VENVBASE=$PROJECT_DIR/venvs
+SIF=/path/to/your/otb_image.sif
+
+singularity exec \
+  --bind "$STRIPS":/data/strips \
+  --bind "$UDMS":/data/udms \
+  --bind "$OUTDIR":/data/output \
+  --bind "${SLURM_TMPDIR:-/tmp}":/localscratch \
+  --bind "$VENVBASE":/venvs \
+  "$SIF" bash -lc '
+    set -euo pipefail
+
+    export OTB_APPLICATION_PATH=/app/otb/lib/otb/applications
+    export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${SLURM_CPUS_PER_TASK:-8}
+    export OTB_MAX_RAM_HINT=131072
+    export GDAL_CACHEMAX=4096
+    mkdir -p /localscratch/tmp
+
+    /venvs/plaknit/bin/plaknit \
+      --inputs /data/strips \
+      --udms /data/udms \
+      --output /data/output/final_mosaic.tif \
+      --tmpdir /localscratch/tmp \
+      --ram 131072 \
+      --jobs ${SLURM_CPUS_PER_TASK:-8} \
+      -vv
+  '
 ```
 
 Submit and monitor:
 
 ```bash
-sbatch run_plaknit.slurm
+sbatch plaknit_mosaic.slurm
 squeue -u "$USER"
 ```
 
-## Bind mounts and filesystem layout
+## 7. Common issues
 
-- Keep strip imagery and UDM rasters on read-only storage; mount them into the
-  container under `/work/strips` and `/work/udms`.
-- Mount a writable directory (project `out/` or node-local scratch) to `/work/out`
-  and `/work/tmp` for outputs and temp files.
-- Mount `$HOME/.venvs` and `$HOME/.cache/pip` into `/venvs` and `/pipcache`
-  for faster installs and reuse across jobs.
+| Problem | Cause | Fix |
+| --- | --- | --- |
+| `ensurepip` missing | Minimal Python build in container | Use the versioned `get-pip.py` download in Step 2. |
+| `pip` still not found | Python cannot see the custom prefix | Export `PYTHONPATH` and `PATH` that point to `/venvs/piproot`. |
+| `/venvs/plaknit/bin/activate` missing | venv not created or not bound | Mount `$VENVBASE` into the container before running commands. |
+| Wrong `plaknit` binary executes | Host `~/.local/bin` shadows container | Call `/venvs/plaknit/bin/plaknit` explicitly. |
+| `error: unrecognized arguments: mosaic` | CLI has no subcommands | Run `plaknit --inputs ...` directly; omit subcommand names. |
 
-## Performance guidance
+## 8. Validation checklist
 
-- Match `plaknit`'s `--ram` flag to the SLURM `--mem` request but leave headroom
-  for the OS and GDAL caches.
-- Set `--jobs` to `SLURM_CPUS_PER_TASK` and keep an eye on I/O contention.
-- Point `--tmpdir` to node-local SSDs when available and ensure that temp space
-  is cleaned up after the job.
-- Consider writing Cloud-Optimized GeoTIFFs downstream if your workflow needs
-  repeated reads.
+- [ ] `pip --version` runs successfully inside the container.
+- [ ] `/venvs/plaknit/bin/plaknit --version` prints the expected release.
+- [ ] `/data/strips`, `/data/udms`, and `/data/output` are visible inside the job.
+- [ ] The output mosaic (for example `final_mosaic.tif`) lands in `$OUTDIR`.
 
-## Troubleshooting
+## 9. Summary
 
-- **OTB not found**: confirm the container image actually ships OTB. If not,
-  rebuild or request an image that does.
-- **`pip install` fails**: verify that `/venvs` points to a writable path and
-  that you activated the virtual environment before installing.
-- **Raster driver errors**: always use Python from inside the container so
-  GDAL/Rasterio versions stay consistent.
-- **Slow throughput**: move `--tmpdir` to faster storage and limit `--jobs`
-  until per-node bandwidth stabilizes.
-- **OOM kills**: lower `--jobs`, tile the AOI into smaller chunks, or request
-  more memory.
+You now have a reproducible approach that:
 
-## Minimal quick start
+- Stores all Python artifacts under your project directory.
+- Uses an OTB-enabled container with a persistent `plaknit` venv.
+- Supports both interactive validation and SLURM batch execution.
+- Avoids `$HOME` pollution and keeps dependencies isolated.
 
-```bash
-module load apptainer
-
-export IMG_DIR=$HOME/containers
-export PROJ=$HOME/projects/plaknit-demo
-export VENVS=$HOME/.venvs
-export PIPCACHE=$HOME/.cache/pip
-mkdir -p "$IMG_DIR" "$PROJ"/{strips,udms,out,tmp} "$VENVS" "$PIPCACHE"
-
-apptainer pull "$IMG_DIR/otb.sif" docker://<ORG>/<OTB_IMAGE>:<TAG>
-
-apptainer exec \
-  --bind "$PROJ":/work --bind "$VENVS":/venvs --bind "$PIPCACHE":/pipcache \
-  "$IMG_DIR/otb.sif" bash -lc '
-  python3 -m venv /venvs/plaknit && source /venvs/plaknit/bin/activate && \
-  python -m pip install --upgrade pip && \
-  pip install --cache-dir /pipcache plaknit && \
-  plaknit --help
-'
-```
-
-Follow up by submitting the SLURM script from the previous section.
-
-## Adapting to your cluster
-
-- Swap `apptainer` for `singularity` if that is the binary on your system.
-- Replace partitions, accounts, and QoS settings in the SLURM script with the
-  values your cluster mandates.
-- Some centers provide a prebuilt OTB image -- if so, skip the `pull` command and
-  reference their path directly.
-- Use different bind locations when your organization exposes shared project
-  spaces via environment variables such as `$PROJECT`, `$SCRATCH`, or
-  `$LOCAL_SCRATCH`.
+If your site ships different modules or mount points, adjust the bind paths and
+SLURM directives but keep the same persistent-venv pattern.
