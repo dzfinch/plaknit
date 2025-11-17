@@ -6,14 +6,13 @@ import argparse
 import json
 import logging
 import os
+from base64 import b64encode
 from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
-import requests
 from pystac_client import Client
-from requests.auth import HTTPBasicAuth
 from shapely.geometry import box, mapping, shape
 from shapely.geometry.base import BaseGeometry
 from shapely.prepared import prep
@@ -55,9 +54,9 @@ def _require_api_key() -> str:
 
 
 def _open_planet_stac_client(api_key: str) -> Client:
-    session = requests.Session()
-    session.auth = HTTPBasicAuth(api_key, "")
-    return Client.open(PLANET_STAC_URL, session=session)
+    token = b64encode(f"{api_key}:".encode("utf-8")).decode("ascii")
+    headers = {"Authorization": f"Basic {token}"}
+    return Client.open(PLANET_STAC_URL, headers=headers)
 
 
 def _geometry_to_geojson(geometry: BaseGeometry) -> Dict[str, Any]:
