@@ -32,7 +32,9 @@ def test_submit_orders_for_plan_builds_correct_request(monkeypatch):
 
     fake_geom = box(0, 0, 1, 1)
     monkeypatch.setenv("PL_API_KEY", "test-key")
-    monkeypatch.setattr(orders, "load_aoi_geometry", lambda path: (fake_geom, "EPSG:4326"))
+    monkeypatch.setattr(
+        orders, "load_aoi_geometry", lambda path: (fake_geom, "EPSG:4326")
+    )
     monkeypatch.setattr(orders, "reproject_geometry", lambda geom, src, dst: geom)
 
     fake_client = _FakeOrdersClient()
@@ -59,7 +61,9 @@ def test_submit_orders_for_plan_builds_correct_request(monkeypatch):
     assert request["delivery"]["archive_type"] == "zip"
     tools = request["tools"]
     assert any("clip" in tool for tool in tools)
-    assert any(tool.get("harmonize", {}).get("target_sensor") == "Sentinel-2" for tool in tools)
+    assert any(
+        tool.get("harmonize", {}).get("target_sensor") == "Sentinel-2" for tool in tools
+    )
 
     assert result["2024-01"]["order_id"] == "order-abc"
     assert result["2024-02"]["order_id"] is None

@@ -354,7 +354,9 @@ def _plan_single_month(
         if scene_geom.is_empty:
             continue
 
-        scene_geom_projected = reproject_geometry(scene_geom, "EPSG:4326", TILE_PROJECTION)
+        scene_geom_projected = reproject_geometry(
+            scene_geom, "EPSG:4326", TILE_PROJECTION
+        )
         tile_indexes = _tiles_for_scene(scene_geom_projected, prepared_tiles)
         if not tile_indexes:
             continue
@@ -498,12 +500,20 @@ def build_plan_parser() -> argparse.ArgumentParser:
         prog="plaknit plan",
         description="Plan monthly PlanetScope composites and optionally submit orders.",
     )
-    parser.add_argument("--aoi", "-a", required=True, help="AOI file (.geojson/.json/.shp/.gpkg).")
+    parser.add_argument(
+        "--aoi", "-a", required=True, help="AOI file (.geojson/.json/.shp/.gpkg)."
+    )
     parser.add_argument("--start", "-s", required=True, help="Start date (YYYY-MM-DD).")
     parser.add_argument("--end", "-e", required=True, help="End date (YYYY-MM-DD).")
-    parser.add_argument("--item-type", default="PSScene", help="Planet item type (default: PSScene).")
-    parser.add_argument("--collection", help="Optional collection ID for the STAC search.")
-    parser.add_argument("--cloud-max", type=float, default=0.1, help="Maximum cloud fraction (0-1).")
+    parser.add_argument(
+        "--item-type", default="PSScene", help="Planet item type (default: PSScene)."
+    )
+    parser.add_argument(
+        "--collection", help="Optional collection ID for the STAC search."
+    )
+    parser.add_argument(
+        "--cloud-max", type=float, default=0.1, help="Maximum cloud fraction (0-1)."
+    )
     parser.add_argument(
         "--sun-elev-min",
         type=float,
@@ -552,7 +562,9 @@ def build_plan_parser() -> argparse.ArgumentParser:
         default="none",
         help="Harmonize target sensor (sentinel2) or disable (none).",
     )
-    parser.add_argument("--order", action="store_true", help="Submit Planet orders using the plan.")
+    parser.add_argument(
+        "--order", action="store_true", help="Submit Planet orders using the plan."
+    )
     parser.add_argument(
         "--order-prefix",
         default="plaknit_plan",
@@ -601,9 +613,7 @@ def _print_summary(
     sr_bands: int,
     harmonize: str,
 ) -> None:
-    header = (
-        "Month     Candidates  Filtered  Selected  Coverage  MinClearObs  SR-bands  Harmonize     Order ID"
-    )
+    header = "Month     Candidates  Filtered  Selected  Coverage  MinClearObs  SR-bands  Harmonize     Order ID"
     divider = "-" * len(header)
     print(header)
     print(divider)

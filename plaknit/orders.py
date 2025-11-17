@@ -23,7 +23,9 @@ def _get_logger() -> logging.Logger:
 def _require_api_key() -> str:
     api_key = os.environ.get("PL_API_KEY")
     if not api_key:
-        raise EnvironmentError("PL_API_KEY environment variable is required for orders.")
+        raise EnvironmentError(
+            "PL_API_KEY environment variable is required for orders."
+        )
     return api_key
 
 
