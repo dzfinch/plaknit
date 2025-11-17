@@ -4,3 +4,6 @@ numpy
 rasterio
 rich
 scikit-learn
+pystac-client
+planet
+requests

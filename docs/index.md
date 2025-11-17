@@ -34,6 +34,7 @@ planet-scale questions -- not chasing temp files or re-learning OTB flags.
 -   Build seamless mosaics with pre-tuned Orfeo Toolbox parameters and RAM hints.
 -   Run everything from a single CLI (`plaknit`) that works cross-platform.
 -   Train and apply Random Forest classifiers on multi-band stacks directly from Python.
+-   Plan PSScene acquisitions per month and submit Planet Orders API requests for clipped SR deliveries.
 
 ## Need to run on HPC?
 
