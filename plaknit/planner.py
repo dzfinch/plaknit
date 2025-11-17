@@ -20,7 +20,7 @@ from shapely.prepared import prep
 from .geometry import load_aoi_geometry, reproject_geometry
 from .orders import submit_orders_for_plan
 
-PLANET_STAC_URL = "https://api.planet.com/stac/v1"
+PLANET_STAC_URL = "https://api.planet.com/x/data/"
 PLAN_LOGGER_NAME = "plaknit.plan"
 TILE_PROJECTION = "EPSG:6933"
 DEPTH_TARGET_FRACTION = 0.95
