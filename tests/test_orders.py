@@ -2,11 +2,20 @@
 
 from __future__ import annotations
 
-from unittest import mock
+from contextlib import asynccontextmanager
 
 from shapely.geometry import box
 
 from plaknit import orders
+
+
+class _FakeOrdersClient:
+    def __init__(self):
+        self.requests: list[dict] = []
+
+    async def create_order(self, request: dict) -> dict:
+        self.requests.append(request)
+        return {"id": "order-abc"}
 
 
 def test_submit_orders_for_plan_builds_correct_request(monkeypatch):
@@ -26,9 +35,13 @@ def test_submit_orders_for_plan_builds_correct_request(monkeypatch):
     monkeypatch.setattr(orders, "load_aoi_geometry", lambda path: (fake_geom, "EPSG:4326"))
     monkeypatch.setattr(orders, "reproject_geometry", lambda geom, src, dst: geom)
 
-    orders_client = mock.MagicMock()
-    orders_client.create_order.return_value = {"id": "order-abc"}
-    monkeypatch.setattr(orders, "_get_orders_client", lambda key: orders_client)
+    fake_client = _FakeOrdersClient()
+
+    @asynccontextmanager
+    async def fake_context(api_key: str):
+        yield fake_client
+
+    monkeypatch.setattr(orders, "_orders_client_context", fake_context)
 
     result = orders.submit_orders_for_plan(
         plan=plan,
@@ -39,8 +52,8 @@ def test_submit_orders_for_plan_builds_correct_request(monkeypatch):
         archive_type="zip",
     )
 
-    assert orders_client.create_order.call_count == 1
-    request = orders_client.create_order.call_args[0][0]
+    assert len(fake_client.requests) == 1
+    request = fake_client.requests[0]
     assert request["name"] == "plaknit_plan_2024-01"
     assert request["products"][0]["product_bundle"] == "analytic_8b_sr_udm2"
     assert request["delivery"]["archive_type"] == "zip"
@@ -50,4 +63,3 @@ def test_submit_orders_for_plan_builds_correct_request(monkeypatch):
 
     assert result["2024-01"]["order_id"] == "order-abc"
     assert result["2024-02"]["order_id"] is None
-

@@ -101,14 +101,45 @@ def _generate_tiles(geometry: BaseGeometry, tile_size: int) -> List[BaseGeometry
     return tiles
 
 
+def _get_property(properties: Dict[str, Any], keys: Sequence[str]) -> Any:
+    """Return the first non-null property value for any key in keys."""
+    for key in keys:
+        if key in properties and properties[key] not in (None, ""):
+            return properties[key]
+    return None
+
+
 def _clear_fraction(properties: Dict[str, Any]) -> float:
-    if "clear_percent" in properties:
+    clear_value = _get_property(
+        properties,
+        [
+            "clear_percent",
+            "pl:clear_percent",
+            "pl_clear_percent",
+            "clear_fraction",
+            "pl:clear_fraction",
+        ],
+    )
+    if clear_value is not None:
         try:
-            return max(0.0, min(1.0, float(properties["clear_percent"]) / 100.0))
+            clear_float = float(clear_value)
+            if clear_float > 1:
+                clear_float /= 100.0
+            return max(0.0, min(1.0, clear_float))
         except (ValueError, TypeError):
             pass
 
-    cloud_value = properties.get("cloud_cover")
+    cloud_value = _get_property(
+        properties,
+        [
+            "cloud_cover",
+            "pl:cloud_cover",
+            "pl_cloud_cover",
+            "cloud_percent",
+            "pl:cloud_percent",
+            "pl_cloud_percent",
+        ],
+    )
     if cloud_value is not None:
         try:
             cloud_fraction = float(cloud_value)
@@ -290,7 +321,17 @@ def _plan_single_month(
     for item in items:
         properties = dict(item.properties)
         properties["id"] = item.id
-        cloud_value = properties.get("cloud_cover")
+        cloud_value = _get_property(
+            properties,
+            [
+                "cloud_cover",
+                "pl:cloud_cover",
+                "pl_cloud_cover",
+                "cloud_percent",
+                "pl:cloud_percent",
+                "pl_cloud_percent",
+            ],
+        )
         if cloud_value is not None and cloud_max is not None:
             try:
                 cloud_fraction = float(cloud_value)
@@ -386,8 +427,27 @@ def _plan_single_month(
             "collection": candidate.collection_id,
             "clear_fraction": candidate.clear_fraction,
             "properties": {
-                "cloud_cover": candidate.properties.get("cloud_cover"),
-                "clear_percent": candidate.properties.get("clear_percent"),
+                "cloud_cover": _get_property(
+                    candidate.properties,
+                    [
+                        "cloud_cover",
+                        "pl:cloud_cover",
+                        "pl_cloud_cover",
+                        "cloud_percent",
+                        "pl:cloud_percent",
+                        "pl_cloud_percent",
+                    ],
+                ),
+                "clear_percent": _get_property(
+                    candidate.properties,
+                    [
+                        "clear_percent",
+                        "pl:clear_percent",
+                        "pl_clear_percent",
+                        "clear_fraction",
+                        "pl:clear_fraction",
+                    ],
+                ),
                 "sun_elevation": candidate.properties.get("sun_elevation"),
                 "sun_azimuth": candidate.properties.get("sun_azimuth"),
                 "acquired": candidate.properties.get("acquired"),
