@@ -15,6 +15,38 @@ plaknit --inputs /data/strips/*.tif \
 You can also call the module directly with `python -m plaknit.mosaic` if you
 prefer to pin the interpreter.
 
+## Planning & Ordering Monthly Planet Composites
+
+`plaknit plan` runs on laptops or login nodes (no GDAL/OTB requirements) to
+query Planet's Data/STAC API, filter PSScene candidates, tile the AOI, and pick
+the smallest monthly set that meets both coverage and clear-observation
+targets. You can optionally submit one Planet order per month with clipped
+surface reflectance scenes (4- or 8-band SR + UDM2) and Sentinel-2
+harmonization.
+
+```bash
+plaknit plan \
+  --aoi aoi_bounds.gpkg \
+  --start 2024-01-01 \
+  --end 2024-06-30 \
+  --cloud-max 0.15 \
+  --sun-elev-min 35 \
+  --coverage-target 0.98 \
+  --min-clear-fraction 0.8 \
+  --min-clear-obs 3 \
+  --tile-size-m 1000 \
+  --sr-bands 8 \
+  --harmonize-to sentinel2 \
+  --out my_monthly_plan.json \
+  --order \
+  --order-prefix plk_demo
+```
+
+The summary table shows candidate/selected scenes, achieved coverage, clear
+observation depth, and any resulting order IDs. Orders deliver one ZIP per
+scene (no pre-mosaicking on Planet's side) so you can hand the outputs to
+`plaknit mosaic` or future composite builders on HPC.
+
 ## Required arguments
 
 - `--inputs / -il`: One or more GeoTIFFs or directories. Directories are

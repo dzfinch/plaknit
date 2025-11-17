@@ -1,6 +1,9 @@
 geopandas
 joblib
 numpy
+planet
+pystac-client
 rasterio
+requests
 rich
 scikit-learn
