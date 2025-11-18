@@ -32,9 +32,9 @@ planet-scale questions -- not chasing temp files or re-learning OTB flags.
 
 -   Mask PlanetScope strips against their UDM rasters using efficient GDAL workflows.
 -   Build seamless mosaics with pre-tuned Orfeo Toolbox parameters and RAM hints.
--   Run everything from a single CLI (`plaknit`) that works cross-platform.
+-   Run everything from a single CLI (`plaknit`) that works cross-platform (plan, order, mosaic).
 -   Train and apply Random Forest classifiers on multi-band stacks directly from Python.
--   Plan PSScene acquisitions per month and submit Planet Orders API requests for clipped SR deliveries.
+-   Plan PSScene acquisitions per month, auto-simplify ROIs to Planet’s 1,500-vertex limit, and submit resilient Planet Orders (skipping inaccessible scenes automatically).
 
 ## Need to run on HPC?
 

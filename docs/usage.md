@@ -47,6 +47,12 @@ observation depth, and any resulting order IDs. Orders deliver one ZIP per
 scene (no pre-mosaicking on Planet's side) so you can hand the outputs to
 `plaknit mosaic` or future composite builders on HPC.
 
+Planet limits STAC/Data AOI intersections to 1,500 vertices, so the planner
+automatically simplifies uploaded AOIs (while preserving topology) until they
+fit under that threshold and logs how many vertices were removed. Scenes that
+lack clear/cloud metadata are ignored during scoring so plans only rely on
+scenes with reliable quality fields.
+
 If you already saved a plan JSON/GeoJSON, submit the matching orders later
 without recomputing coverage:
 
@@ -61,7 +67,10 @@ plaknit order \
 ```
 
 The order subcommand loads the stored plan, clips to the provided AOI, and issues
-one order per month while reporting the returned order IDs.
+one order per month while reporting the returned order IDs. If Planet reports
+any “no access to assets …” errors, `plaknit order` automatically drops the
+inaccessible scene IDs and retries so the remaining items can still be
+delivered.
 
 ## Required arguments
 
