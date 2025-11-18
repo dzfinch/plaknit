@@ -696,9 +696,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     if args.instrument_types:
         instrument_filters: Optional[Sequence[str]] = tuple(
-            inst
-            for inst in args.instrument_types
-            if inst and inst.lower() != "none"
+            inst for inst in args.instrument_types if inst and inst.lower() != "none"
         )
         if not instrument_filters:
             instrument_filters = None
