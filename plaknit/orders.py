@@ -9,7 +9,7 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from shapely.geometry import mapping
 
@@ -86,6 +86,39 @@ def _print_order_summary(results: Dict[str, Dict[str, Any]]) -> None:
         print(f"{month:8}  {item_count:5d}  {order_id}")
 
 
+def _parse_error_payload(error: Exception) -> Optional[Dict[str, Any]]:
+    raw = str(error)
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+
+
+def _extract_inaccessible_item_ids(error: Exception) -> List[str]:
+    payload = _parse_error_payload(error)
+    if not payload:
+        return []
+
+    field = payload.get("field", {})
+    details = field.get("Details") or field.get("details") or []
+    inaccessible: List[str] = []
+    for detail in details:
+        message = detail.get("message")
+        if not message or "no access to assets" not in message:
+            continue
+        if "PSScene/" not in message:
+            continue
+        start = message.find("PSScene/") + len("PSScene/")
+        end = message.find("/", start)
+        item_id = message[start:end] if end != -1 else message[start:]
+        item_id = item_id.strip()
+        if item_id and item_id not in inaccessible:
+            inaccessible.append(item_id)
+    return inaccessible
+
+
 @asynccontextmanager
 async def _orders_client_context(api_key: str):
     from planet import Auth, Session
@@ -129,37 +162,68 @@ async def _submit_orders_async(
                 results[month] = {"order_id": None, "item_ids": []}
                 continue
 
-            order_tools = copy.deepcopy(tools)
-            order_request = {
-                "name": f"{order_prefix}_{month}",
-                "products": [
-                    {
-                        "item_ids": item_ids,
-                        "item_type": "PSScene",
-                        "product_bundle": bundle,
-                    }
-                ],
-                "tools": order_tools,
-                "delivery": {
-                    "archive_type": archive_type,
-                },
-            }
+            remaining_items = [item for item in items if item.get("id")]
+            order_result: Optional[Any] = None
 
-            try:
-                order = await client.create_order(order_request)
-            except Exception as exc:  # pragma: no cover - exercised via mocks
-                logger.error("Failed to submit order for %s: %s", month, exc)
-                results[month] = {"order_id": None, "item_ids": item_ids}
+            while remaining_items:
+                submit_item_ids = [item["id"] for item in remaining_items]
+                order_tools = copy.deepcopy(tools)
+                order_request = {
+                    "name": f"{order_prefix}_{month}",
+                    "products": [
+                        {
+                            "item_ids": submit_item_ids,
+                            "item_type": "PSScene",
+                            "product_bundle": bundle,
+                        }
+                    ],
+                    "tools": order_tools,
+                    "delivery": {
+                        "archive_type": archive_type,
+                    },
+                }
+
+                try:
+                    order_result = await client.create_order(order_request)
+                except Exception as exc:  # pragma: no cover - exercised via mocks
+                    inaccessible_ids = _extract_inaccessible_item_ids(exc)
+                    if not inaccessible_ids:
+                        logger.error("Failed to submit order for %s: %s", month, exc)
+                        results[month] = {"order_id": None, "item_ids": submit_item_ids}
+                        break
+
+                    logger.warning(
+                        "Removing %d inaccessible scene(s) for %s: %s",
+                        len(inaccessible_ids),
+                        month,
+                        ", ".join(inaccessible_ids),
+                    )
+                    remaining_items = [
+                        item
+                        for item in remaining_items
+                        if item["id"] not in inaccessible_ids
+                    ]
+                    if not remaining_items:
+                        logger.error(
+                            "Skipping order for %s: no accessible scenes remain.", month
+                        )
+                        results[month] = {"order_id": None, "item_ids": []}
+                        break
+                    continue
+                else:
+                    break
+
+            if order_result is None:
                 continue
 
             order_id = None
-            if isinstance(order, dict):
-                order_id = order.get("id")
+            if isinstance(order_result, dict):
+                order_id = order_result.get("id")
             else:
-                order_id = getattr(order, "id", None)
+                order_id = getattr(order_result, "id", None)
 
             logger.info("Submitted order for %s: %s", month, order_id)
-            results[month] = {"order_id": order_id, "item_ids": item_ids}
+            results[month] = {"order_id": order_id, "item_ids": submit_item_ids}
 
     return results
 

@@ -20,6 +20,31 @@ class _FakeOrdersClient:
         return {"id": "order-abc"}
 
 
+class _AccessErrorOrdersClient:
+    def __init__(self):
+        self.requests: list[dict] = []
+        self.first_attempt = True
+
+    async def create_order(self, request: dict) -> dict:
+        if self.first_attempt:
+            self.first_attempt = False
+            raise RuntimeError(
+                json.dumps(
+                    {
+                        "field": {
+                            "Details": [
+                                {
+                                    "message": "no access to assets: PSScene/item-2/[ortho_analytic_4b_sr]"
+                                }
+                            ]
+                        }
+                    }
+                )
+            )
+        self.requests.append(request)
+        return {"id": "order-success"}
+
+
 def test_submit_orders_for_plan_builds_correct_request(monkeypatch):
     plan = {
         "2024-01": {
@@ -69,6 +94,44 @@ def test_submit_orders_for_plan_builds_correct_request(monkeypatch):
 
     assert result["2024-01"]["order_id"] == "order-abc"
     assert result["2024-02"]["order_id"] is None
+
+
+def test_submit_orders_drops_inaccessible_scenes(monkeypatch):
+    plan = {
+        "2024-01": {
+            "items": [{"id": "item-1"}, {"id": "item-2"}],
+            "selected_count": 2,
+        }
+    }
+
+    fake_geom = box(0, 0, 1, 1)
+    monkeypatch.setenv("PL_API_KEY", "test-key")
+    monkeypatch.setattr(
+        orders, "load_aoi_geometry", lambda path: (fake_geom, "EPSG:4326")
+    )
+    monkeypatch.setattr(orders, "reproject_geometry", lambda geom, src, dst: geom)
+
+    fake_client = _AccessErrorOrdersClient()
+
+    @asynccontextmanager
+    async def fake_context(api_key: str):
+        yield fake_client
+
+    monkeypatch.setattr(orders, "_orders_client_context", fake_context)
+
+    result = orders.submit_orders_for_plan(
+        plan=plan,
+        aoi_path="aoi.geojson",
+        sr_bands=4,
+        harmonize_to=None,
+        order_prefix="demo",
+        archive_type="zip",
+    )
+
+    assert fake_client.requests, "Expected successful retry after dropping scenes."
+    request = fake_client.requests[-1]
+    assert request["products"][0]["item_ids"] == ["item-1"]
+    assert result["2024-01"]["item_ids"] == ["item-1"]
 
 
 def test_order_cli_reads_plan_and_submits(monkeypatch, tmp_path):
