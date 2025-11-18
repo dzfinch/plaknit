@@ -31,7 +31,27 @@
 - Random Forest training + inference utilities for classifying Planet stacks.
 - Planning workflow that searches Planet's STAC/Data API, scores scenes, and (optionally) submits Orders API requests for clipped SR bundles.
 
-## Planning & Ordering Monthly Planet Composites
+## Masking & Mosaicking CLI
+
+When the SR scenes land, run the bundled mosaic driver (no extra scripting
+required). Point it at the clipped strips, their UDMs, and the desired output
+path; the command handles GDAL masking + Orfeo Toolbox mosaicking with parallel
+workers and RAM hints:
+
+```bash
+plaknit \
+  --inputs /data/planet/strips/*.tif \
+  --udms /data/planet/strips/*.udm2.tif \
+  --output /data/mosaics/planet_mosaic_2024.tif \
+  --jobs 8 \
+  --ram 196608
+```
+
+Customize `--jobs`, `--ram`, or `--workdir/--tmpdir` as needed for your local or
+HPC environment. The CLI mirrors the legacy `mosaic_planet.py` workflow so you
+can keep using existing recipes with minimal tweaks.
+
+## Planning & Ordering Monthly Planet Composites (Beta)
 
 `plaknit plan` runs on your laptop or login node to query Planet's STAC/Data
 API, apply environmental filters (clouds, sun elevation), tile the AOI, and
