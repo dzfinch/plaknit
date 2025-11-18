@@ -136,6 +136,7 @@ async def _submit_orders_async(
     harmonize_to: str | None,
     order_prefix: str,
     archive_type: str,
+    single_archive: bool,
     api_key: str,
 ) -> dict:
     logger = _get_logger()
@@ -170,6 +171,8 @@ async def _submit_orders_async(
                 chunk = remaining_items[:PLANET_MAX_ITEMS_PER_ORDER]
                 submit_item_ids = [item["id"] for item in chunk]
                 order_tools = copy.deepcopy(tools)
+                delivery: dict[str, Any] = {"archive_type": archive_type}
+                delivery["single_archive"] = single_archive
                 order_request = {
                     "name": f"{order_prefix}_{month}",
                     "products": [
@@ -180,9 +183,7 @@ async def _submit_orders_async(
                         }
                     ],
                     "tools": order_tools,
-                    "delivery": {
-                        "archive_type": archive_type,
-                    },
+                    "delivery": delivery,
                 }
 
                 try:
@@ -242,6 +243,7 @@ def submit_orders_for_plan(
     harmonize_to: str | None = "sentinel2",
     order_prefix: str = "plaknit_plan",
     archive_type: str = "zip",
+    single_archive: bool = True,
 ) -> dict:
     """
     Submit Planet Orders API requests for each month in the plan.
@@ -256,6 +258,7 @@ def submit_orders_for_plan(
             harmonize_to=harmonize_to,
             order_prefix=order_prefix,
             archive_type=archive_type,
+            single_archive=single_archive,
             api_key=api_key,
         )
     )
@@ -299,6 +302,19 @@ def build_order_parser() -> argparse.ArgumentParser:
         help="Delivery archive type for orders (default: zip).",
     )
     parser.add_argument(
+        "--single-archive",
+        dest="single_archive",
+        action="store_true",
+        default=True,
+        help="Package all items into one archive (default: enabled).",
+    )
+    parser.add_argument(
+        "--no-single-archive",
+        dest="single_archive",
+        action="store_false",
+        help="Let Planet deliver separate archives per scene.",
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="count",
@@ -326,6 +342,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         harmonize_to=harmonize,
         order_prefix=args.order_prefix,
         archive_type=args.archive_type,
+        single_archive=args.single_archive,
     )
     _print_order_summary(results)
     return 0

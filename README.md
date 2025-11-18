@@ -38,7 +38,7 @@ API, apply environmental filters (clouds, sun elevation), tile the AOI, and
 select a minimal set of scenes per month that hit both coverage and clear
 observation depth targets. The same command can immediately turn those plans
 into Planet orders that deliver clipped surface reflectance scenes (4- or 8-band,
-optionally harmonized to Sentinel-2) as one ZIP per scene/bundle.
+optionally harmonized to Sentinel-2) as a single archive per month by default.
 
 ```bash
 plaknit plan \
@@ -77,6 +77,8 @@ plaknit order \
 
 `plaknit order` reuses the original AOI for clip/harmonization settings,
 applies optional harmonization, and prints a summary of each submitted order ID.
+Monthly deliveries default to `--single-archive` so you can grab one file per
+month; add `--no-single-archive` if you prefer Planet's per-scene downloads.
 
 ## Masking & Mosaicking CLI
 

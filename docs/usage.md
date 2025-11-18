@@ -65,8 +65,8 @@ plaknit plan \
 ```
 
 The summary table shows candidate/selected scenes, achieved coverage, clear
-observation depth, and any resulting order IDs. Orders deliver one ZIP per
-scene (no pre-mosaicking on Planet's side) so you can hand the outputs to
+observation depth, and any resulting order IDs. Orders deliver a single archive
+per month by default (no pre-mosaicking on Planet's side) so you can hand the outputs to
 `plaknit mosaic` or future composite builders on HPC.
 
 Planet limits STAC/Data AOI intersections to 1,500 vertices, so the planner
@@ -85,12 +85,14 @@ plaknit order \
   --sr-bands 4 \
   --harmonize-to sentinel2 \
   --order-prefix plk_demo \
-  --archive-type zip
+  --archive-type zip \
+  --single-archive
 ```
 
 The order subcommand loads the stored plan, clips to the provided AOI, and issues
-one order per month while reporting the returned order IDs. If Planet reports
-any “no access to assets …” errors, `plaknit order` automatically drops the
+one order per month while reporting the returned order IDs. Deliveries default to
+`--single-archive`; pass `--no-single-archive` to mirror Planet's per-scene downloads.
+If Planet reports any "no access to assets" errors, `plaknit order` automatically drops the
 inaccessible scene IDs and retries so the remaining items can still be
 delivered.
 
