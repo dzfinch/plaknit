@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import copy
+import json
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Sequence
 
 from shapely.geometry import mapping
 
@@ -41,6 +43,47 @@ def _clip_geojson(aoi_path: str) -> Dict[str, Any]:
     geometry, crs = load_aoi_geometry(aoi_path)
     geom_wgs84 = reproject_geometry(geometry, crs, "EPSG:4326")
     return mapping(geom_wgs84)
+
+
+def _configure_order_logger(verbosity: int) -> logging.Logger:
+    level = logging.WARNING
+    if verbosity == 1:
+        level = logging.INFO
+    elif verbosity >= 2:
+        level = logging.DEBUG
+
+    root = logging.getLogger()
+    if not root.handlers:
+        logging.basicConfig(level=level, format="%(message)s")
+    else:
+        root.setLevel(level)
+
+    logger = _get_logger()
+    logger.setLevel(level)
+    return logger
+
+
+def _load_plan_from_path(path: str) -> Dict[str, Any]:
+    with open(path, "r", encoding="utf-8") as src:
+        data = json.load(src)
+    if not isinstance(data, dict):
+        raise ValueError("Plan file must contain a JSON object.")
+    return data
+
+
+def _print_order_summary(results: Dict[str, Dict[str, Any]]) -> None:
+    if not results:
+        print("No orders submitted.")
+        return
+    header = "Month     Items  Order ID"
+    divider = "-" * len(header)
+    print(header)
+    print(divider)
+    for month in sorted(results.keys()):
+        entry = results[month]
+        item_count = len(entry.get("item_ids", []) or [])
+        order_id = entry.get("order_id") or "-"
+        print(f"{month:8}  {item_count:5d}  {order_id}")
 
 
 @asynccontextmanager
@@ -147,4 +190,79 @@ def submit_orders_for_plan(
     )
 
 
-__all__ = ["submit_orders_for_plan"]
+def build_order_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="plaknit order",
+        description="Submit Planet orders for an existing plan JSON/GeoJSON file.",
+    )
+    parser.add_argument(
+        "--plan", "-p", required=True, help="Path to a saved plan JSON/GeoJSON file."
+    )
+    parser.add_argument(
+        "--aoi",
+        "-a",
+        required=True,
+        help="AOI file used to clip orders (.geojson/.json/.shp/.gpkg).",
+    )
+    parser.add_argument(
+        "--sr-bands",
+        type=int,
+        choices=(4, 8),
+        default=4,
+        help="Surface reflectance bundle: 4-band or 8-band (default: 4).",
+    )
+    parser.add_argument(
+        "--harmonize-to",
+        choices=("sentinel2", "none"),
+        default="sentinel2",
+        help="Harmonize target sensor (sentinel2) or disable (none).",
+    )
+    parser.add_argument(
+        "--order-prefix",
+        default="plaknit_plan",
+        help="Prefix for Planet order names (default: plaknit_plan).",
+    )
+    parser.add_argument(
+        "--archive-type",
+        default="zip",
+        help="Delivery archive type for orders (default: zip).",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase verbosity (-v info, -vv debug).",
+    )
+    return parser
+
+
+def parse_order_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
+    parser = build_order_parser()
+    return parser.parse_args(argv)
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    args = parse_order_args(argv)
+    _configure_order_logger(args.verbose)
+    plan = _load_plan_from_path(args.plan)
+    harmonize = None if args.harmonize_to == "none" else args.harmonize_to
+
+    results = submit_orders_for_plan(
+        plan=plan,
+        aoi_path=args.aoi,
+        sr_bands=args.sr_bands,
+        harmonize_to=harmonize,
+        order_prefix=args.order_prefix,
+        archive_type=args.archive_type,
+    )
+    _print_order_summary(results)
+    return 0
+
+
+__all__ = [
+    "submit_orders_for_plan",
+    "build_order_parser",
+    "parse_order_args",
+    "main",
+]

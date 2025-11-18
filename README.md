@@ -61,3 +61,19 @@ plaknit plan \
 Planning + ordering stay on the non-HPC side; once scenes arrive (clipped to
 the AOI and optionally harmonized), push them through `plaknit mosaic` or future
 compositing tools on HPC to build median reflectance mosaics.
+
+Already have a stored plan JSON/GeoJSON? Submit the corresponding orders later
+without replanning via:
+
+```bash
+plaknit order \
+  --plan monthly_plan.json \
+  --aoi aoi.gpkg \
+  --sr-bands 4 \
+  --harmonize-to none \
+  --order-prefix plk_region01 \
+  --archive-type zip
+```
+
+`plaknit order` reuses the original AOI for clip/harmonization settings,
+applies optional harmonization, and prints a summary of each submitted order ID.

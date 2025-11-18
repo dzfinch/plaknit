@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from contextlib import asynccontextmanager
+from typing import Any
 
 from shapely.geometry import box
 
@@ -67,3 +69,42 @@ def test_submit_orders_for_plan_builds_correct_request(monkeypatch):
 
     assert result["2024-01"]["order_id"] == "order-abc"
     assert result["2024-02"]["order_id"] is None
+
+
+def test_order_cli_reads_plan_and_submits(monkeypatch, tmp_path):
+    plan = {"2024-01": {"items": [{"id": "item-1"}]}}
+    plan_path = tmp_path / "plan.geojson"
+    plan_path.write_text(json.dumps(plan))
+
+    captured: dict[str, Any] = {}
+
+    def fake_submit(**kwargs):
+        captured.update(kwargs)
+        return {"2024-01": {"order_id": "order-xyz", "item_ids": ["item-1"]}}
+
+    monkeypatch.setattr(orders, "submit_orders_for_plan", fake_submit)
+
+    exit_code = orders.main(
+        [
+            "--plan",
+            str(plan_path),
+            "--aoi",
+            "aoi.geojson",
+            "--sr-bands",
+            "8",
+            "--harmonize-to",
+            "none",
+            "--order-prefix",
+            "demo",
+            "--archive-type",
+            "tar",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["plan"] == plan
+    assert captured["aoi_path"] == "aoi.geojson"
+    assert captured["sr_bands"] == 8
+    assert captured["harmonize_to"] is None
+    assert captured["order_prefix"] == "demo"
+    assert captured["archive_type"] == "tar"

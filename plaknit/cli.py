@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import List, Optional, Sequence
 
 from . import mosaic as mosaic_cli
+from . import orders as orders_cli
 from . import planner as planner_cli
 
 
@@ -22,6 +23,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         subargv: List[str] = args[1:]
         if command == "plan":
             return planner_cli.main(subargv)
+        if command == "order":
+            return orders_cli.main(subargv)
         if command == "mosaic":
             return mosaic_cli.main(subargv)
 

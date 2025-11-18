@@ -47,6 +47,22 @@ observation depth, and any resulting order IDs. Orders deliver one ZIP per
 scene (no pre-mosaicking on Planet's side) so you can hand the outputs to
 `plaknit mosaic` or future composite builders on HPC.
 
+If you already saved a plan JSON/GeoJSON, submit the matching orders later
+without recomputing coverage:
+
+```bash
+plaknit order \
+  --plan my_monthly_plan.json \
+  --aoi aoi_bounds.gpkg \
+  --sr-bands 4 \
+  --harmonize-to none \
+  --order-prefix plk_demo \
+  --archive-type zip
+```
+
+The order subcommand loads the stored plan, clips to the provided AOI, and issues
+one order per month while reporting the returned order IDs.
+
 ## Required arguments
 
 - `--inputs / -il`: One or more GeoTIFFs or directories. Directories are
