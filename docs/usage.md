@@ -15,7 +15,29 @@ plaknit --inputs /data/strips/*.tif \
 You can also call the module directly with `python -m plaknit.mosaic` if you
 prefer to pin the interpreter.
 
-## Planning & Ordering Monthly Planet Composites
+## Required arguments
+
+- `--inputs / -il`: One or more GeoTIFFs or directories. Directories are
+  expanded to all `.tif` files.
+- `--output / -out`: Destination path for the final mosaic.
+
+## Optional arguments
+
+- `--udms / -udm`: UDM rasters (files or directories). Omit only when
+  `--skip-masking` is supplied.
+- `--skip-masking`: Use the provided inputs directly without applying the
+  gdal-based UDM mask.
+- `--workdir / --tmpdir`: Override the locations used for intermediate strips
+  and OTB scratch files. Defaults are automatically managed temp directories.
+- `--jobs`: Number of parallel masking workers (defaults to 4).
+- `--ram`: RAM hint for OTB in MB (defaults to 131072).
+- `-v/ -vv`: Increase logging verbosity.
+
+The CLI guarantees the same behavior as the original script, but it now lives
+inside the package so you can version and redistribute the workflow alongside
+the rest of your tooling.
+
+## Planning & Ordering Monthly Planet Composites (Beta)
 
 `plaknit plan` runs on laptops or login nodes (no GDAL/OTB requirements) to
 query Planet's Data/STAC API, filter PSScene candidates, tile the AOI, and pick
@@ -61,7 +83,7 @@ plaknit order \
   --plan my_monthly_plan.json \
   --aoi aoi_bounds.gpkg \
   --sr-bands 4 \
-  --harmonize-to none \
+  --harmonize-to sentinel2 \
   --order-prefix plk_demo \
   --archive-type zip
 ```
@@ -72,27 +94,6 @@ any “no access to assets …” errors, `plaknit order` automatically drops th
 inaccessible scene IDs and retries so the remaining items can still be
 delivered.
 
-## Required arguments
-
-- `--inputs / -il`: One or more GeoTIFFs or directories. Directories are
-  expanded to all `.tif` files.
-- `--output / -out`: Destination path for the final mosaic.
-
-## Optional arguments
-
-- `--udms / -udm`: UDM rasters (files or directories). Omit only when
-  `--skip-masking` is supplied.
-- `--skip-masking`: Use the provided inputs directly without applying the
-  gdal-based UDM mask.
-- `--workdir / --tmpdir`: Override the locations used for intermediate strips
-  and OTB scratch files. Defaults are automatically managed temp directories.
-- `--jobs`: Number of parallel masking workers (defaults to 4).
-- `--ram`: RAM hint for OTB in MB (defaults to 131072).
-- `-v/ -vv`: Increase logging verbosity.
-
-The CLI guarantees the same behavior as the original script, but it now lives
-inside the package so you can version and redistribute the workflow alongside
-the rest of your tooling.
 
 ## Normalized difference analysis
 
@@ -115,7 +116,7 @@ For rasters stored in two separate files, call
 returns the calculated array so you can continue working with NumPy while
 optionally persisting the results back to disk.
 
-## Random Forest classification
+## Random Forest classification (Coming Soon...)
 
 `plaknit.classify` adds scalable training + inference utilities that lean on
 `geopandas`, `rasterio`, and scikit-learn. A minimal workflow:

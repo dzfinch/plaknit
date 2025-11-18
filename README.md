@@ -77,3 +77,23 @@ plaknit order \
 
 `plaknit order` reuses the original AOI for clip/harmonization settings,
 applies optional harmonization, and prints a summary of each submitted order ID.
+
+## Masking & Mosaicking CLI
+
+When the SR scenes land, run the bundled mosaic driver (no extra scripting
+required). Point it at the clipped strips, their UDMs, and the desired output
+path; the command handles GDAL masking + Orfeo Toolbox mosaicking with parallel
+workers and RAM hints:
+
+```bash
+plaknit \
+  --inputs /data/planet/strips/*.tif \
+  --udms /data/planet/strips/*.udm2.tif \
+  --output /data/mosaics/planet_mosaic_2024.tif \
+  --jobs 8 \
+  --ram 196608
+```
+
+Customize `--jobs`, `--ram`, or `--workdir/--tmpdir` as needed for your local or
+HPC environment. The CLI mirrors the legacy `mosaic_planet.py` workflow so you
+can keep using existing recipes with minimal tweaks.
