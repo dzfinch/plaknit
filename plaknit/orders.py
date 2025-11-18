@@ -16,6 +16,7 @@ from shapely.geometry import mapping
 from .geometry import load_aoi_geometry, reproject_geometry
 
 ORDER_LOGGER_NAME = "plaknit.plan"
+PLANET_MAX_ITEMS_PER_ORDER = 100
 
 
 def _get_logger() -> logging.Logger:
@@ -166,7 +167,8 @@ async def _submit_orders_async(
             order_result: Optional[Any] = None
 
             while remaining_items:
-                submit_item_ids = [item["id"] for item in remaining_items]
+                chunk = remaining_items[:PLANET_MAX_ITEMS_PER_ORDER]
+                submit_item_ids = [item["id"] for item in chunk]
                 order_tools = copy.deepcopy(tools)
                 order_request = {
                     "name": f"{order_prefix}_{month}",
@@ -211,19 +213,24 @@ async def _submit_orders_async(
                         break
                     continue
                 else:
-                    break
+                    order_id = None
+                    if isinstance(order_result, dict):
+                        order_id = order_result.get("id")
+                    else:
+                        order_id = getattr(order_result, "id", None)
+                    logger.info(
+                        "Submitted order for %s (chunk of %d): %s",
+                        month,
+                        len(submit_item_ids),
+                        order_id,
+                    )
+                    results.setdefault(month, {"order_id": None, "item_ids": []})
+                    results[month]["order_id"] = order_id
+                    results[month]["item_ids"].extend(submit_item_ids)
+                    remaining_items = remaining_items[len(chunk) :]
 
-            if order_result is None:
-                continue
-
-            order_id = None
-            if isinstance(order_result, dict):
-                order_id = order_result.get("id")
-            else:
-                order_id = getattr(order_result, "id", None)
-
-            logger.info("Submitted order for %s: %s", month, order_id)
-            results[month] = {"order_id": order_id, "item_ids": submit_item_ids}
+            if month not in results:
+                results[month] = {"order_id": None, "item_ids": []}
 
     return results
 
