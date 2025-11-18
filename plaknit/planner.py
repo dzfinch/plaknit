@@ -17,13 +17,21 @@ from shapely.geometry import box, mapping, shape
 from shapely.geometry.base import BaseGeometry
 from shapely.prepared import prep
 
-from .geometry import load_aoi_geometry, reproject_geometry
+from .geometry import (
+    geometry_vertex_count,
+    load_aoi_geometry,
+    reproject_geometry,
+    simplify_geometry_to_vertex_limit,
+)
 from .orders import submit_orders_for_plan
 
 PLANET_STAC_URL = "https://api.planet.com/x/data/"
 PLAN_LOGGER_NAME = "plaknit.plan"
 TILE_PROJECTION = "EPSG:6933"
 DEPTH_TARGET_FRACTION = 0.95
+PLANET_MAX_ROI_VERTICES = 1500
+PLANETSCOPE_IMAGERY_TYPE = "planetscope"
+PLANETSCOPE_INSTRUMENT_IDS = ("PS2", "PS2.SD", "PSB.SD")
 
 
 @dataclass
@@ -109,7 +117,7 @@ def _get_property(properties: Dict[str, Any], keys: Sequence[str]) -> Any:
     return None
 
 
-def _clear_fraction(properties: Dict[str, Any]) -> float:
+def _clear_fraction(properties: Dict[str, Any]) -> Optional[float]:
     clear_value = _get_property(
         properties,
         [
@@ -151,10 +159,10 @@ def _clear_fraction(properties: Dict[str, Any]) -> float:
 
     logger = _get_logger()
     logger.warning(
-        "Scene %s is missing clear/cloud metadata; assuming fully clear.",
+        "Scene %s is missing clear/cloud metadata; skipping.",
         properties.get("id", "unknown"),
     )
-    return 1.0
+    return None
 
 
 def _tiles_for_scene(
@@ -209,6 +217,8 @@ def plan_monthly_composites(
     end_date: str,
     item_type: str = "PSScene",
     collection: str | None = None,
+    imagery_type: str | None = PLANETSCOPE_IMAGERY_TYPE,
+    instrument_types: Sequence[str] | None = PLANETSCOPE_INSTRUMENT_IDS,
     cloud_max: float = 0.1,
     sun_elevation_min: float = 35.0,
     coverage_target: float = 0.98,
@@ -234,6 +244,18 @@ def plan_monthly_composites(
     aoi_geom, aoi_crs = load_aoi_geometry(aoi_path)
     aoi_crs = aoi_crs or "EPSG:4326"
     aoi_wgs84 = reproject_geometry(aoi_geom, aoi_crs, "EPSG:4326")
+    aoi_wgs84_vertices = geometry_vertex_count(aoi_wgs84)
+    aoi_wgs84_query = simplify_geometry_to_vertex_limit(
+        aoi_wgs84, PLANET_MAX_ROI_VERTICES
+    )
+    simplified_vertices = geometry_vertex_count(aoi_wgs84_query)
+    if simplified_vertices < aoi_wgs84_vertices:
+        logger.info(
+            "AOI vertices reduced from %d to %d to comply with Planet ROI limits (<= %d).",
+            aoi_wgs84_vertices,
+            simplified_vertices,
+            PLANET_MAX_ROI_VERTICES,
+        )
     aoi_projected = reproject_geometry(aoi_geom, aoi_crs, TILE_PROJECTION)
     tiles_projected = _generate_tiles(aoi_projected, tile_size_m)
     prepared_tiles = [prep(tile) for tile in tiles_projected]
@@ -260,10 +282,12 @@ def plan_monthly_composites(
             month_start=month_start,
             month_end=month_end,
             client=client,
-            aoi_wgs84=aoi_wgs84,
+            aoi_wgs84=aoi_wgs84_query,
             tiles_projected=tiles_projected,
             prepared_tiles=prepared_tiles,
             collections=collections_param,
+            imagery_type=imagery_type,
+            instrument_types=instrument_types,
             cloud_max=cloud_max,
             sun_elevation_min=sun_elevation_min,
             coverage_target=coverage_target,
@@ -289,6 +313,8 @@ def _plan_single_month(
     tiles_projected: List[BaseGeometry],
     prepared_tiles: List[Any],  # type: ignore[type-arg]
     collections: List[str],
+    imagery_type: str | None,
+    instrument_types: Sequence[str] | None,
     cloud_max: float,
     sun_elevation_min: float,
     coverage_target: float,
@@ -303,6 +329,17 @@ def _plan_single_month(
     }
     if cloud_max is not None:
         query["cloud_cover"] = {"lte": cloud_max}
+    if imagery_type:
+        query["pl:imagery_type"] = {"eq": imagery_type}
+    if instrument_types:
+        unique_instruments = []
+        for inst in instrument_types:
+            if inst not in unique_instruments:
+                unique_instruments.append(inst)
+        if len(unique_instruments) == 1:
+            query["pl:instrument"] = {"eq": unique_instruments[0]}
+        else:
+            query["pl:instrument"] = {"in": unique_instruments}
 
     logger.info("Searching Planet STAC for %s (%s).", month_id, datetime_range)
     search = client.search(
@@ -362,6 +399,8 @@ def _plan_single_month(
             continue
 
         clear_fraction = _clear_fraction(properties)
+        if clear_fraction is None:
+            continue
         if clear_fraction < min_clear_fraction:
             continue
 
@@ -512,6 +551,20 @@ def build_plan_parser() -> argparse.ArgumentParser:
         "--collection", help="Optional collection ID for the STAC search."
     )
     parser.add_argument(
+        "--imagery-type",
+        default=PLANETSCOPE_IMAGERY_TYPE,
+        help="PlanetScope imagery type filter (default: planetscope; set to 'none' to disable).",
+    )
+    parser.add_argument(
+        "--instrument-type",
+        dest="instrument_types",
+        action="append",
+        help=(
+            "Repeatable Dove instrument filter "
+            "(default: PS2, PS2.SD, PSB.SD; set to 'none' to disable)."
+        ),
+    )
+    parser.add_argument(
         "--cloud-max", type=float, default=0.1, help="Maximum cloud fraction (0-1)."
     )
     parser.add_argument(
@@ -636,6 +689,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     logger = configure_planning_logger(args.verbose)
     _require_api_key()  # fail fast if missing
     harmonize = None if args.harmonize_to == "none" else args.harmonize_to
+    imagery_filter = (
+        None
+        if args.imagery_type is None or args.imagery_type.lower() == "none"
+        else args.imagery_type
+    )
+    if args.instrument_types:
+        instrument_filters: Optional[Sequence[str]] = tuple(
+            inst for inst in args.instrument_types if inst and inst.lower() != "none"
+        )
+        if not instrument_filters:
+            instrument_filters = None
+    else:
+        instrument_filters = PLANETSCOPE_INSTRUMENT_IDS
 
     plan = plan_monthly_composites(
         aoi_path=args.aoi,
@@ -643,6 +709,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         end_date=args.end,
         item_type=args.item_type,
         collection=args.collection,
+        imagery_type=imagery_filter,
+        instrument_types=instrument_filters,
         cloud_max=args.cloud_max,
         sun_elevation_min=args.sun_elev_min,
         coverage_target=args.coverage_target,
