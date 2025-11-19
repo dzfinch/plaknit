@@ -3,6 +3,7 @@ joblib
 numpy
 planet
 pystac-client
+pytest
 rasterio
 requests
 rich
