@@ -786,7 +786,10 @@ def build_plan_parser() -> argparse.ArgumentParser:
 
 def _is_planetscope_request(args: argparse.Namespace) -> bool:
     item_type = (getattr(args, "item_type", "") or "").lower()
-    imagery = getattr(args, "imagery_type", PLANETSCOPE_IMAGERY_TYPE) or PLANETSCOPE_IMAGERY_TYPE
+    imagery = (
+        getattr(args, "imagery_type", PLANETSCOPE_IMAGERY_TYPE)
+        or PLANETSCOPE_IMAGERY_TYPE
+    )
     return item_type == "psscene" and imagery.lower() != "none"
 
 
