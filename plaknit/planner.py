@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
 import os
 from base64 import b64encode
 from calendar import monthrange
@@ -38,6 +39,11 @@ PLANETSCOPE_INSTRUMENT_IDS = ("PS2", "PS2.SD", "PSB.SD")
 class _TileState:
     covered: bool = False
     clear_obs: float = 0.0
+    sun_elevation_sum: float = 0.0
+    sun_elevation_weight: float = 0.0
+    sun_azimuth_x: float = 0.0
+    sun_azimuth_y: float = 0.0
+    sun_azimuth_weight: float = 0.0
 
 
 @dataclass
@@ -47,6 +53,8 @@ class _Candidate:
     properties: Dict[str, Any]
     clear_fraction: float
     tile_indexes: List[int]
+    sun_azimuth: Optional[float] = None
+    sun_elevation: Optional[float] = None
     selected: bool = False
 
 
@@ -117,6 +125,15 @@ def _get_property(properties: Dict[str, Any], keys: Sequence[str]) -> Any:
     return None
 
 
+def _float_or_none(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _clear_fraction(properties: Dict[str, Any]) -> Optional[float]:
     clear_value = _get_property(
         properties,
@@ -175,8 +192,79 @@ def _tiles_for_scene(
     return indexes
 
 
+def _circular_difference_deg(value: float, reference: float) -> float:
+    diff = (value - reference + 180.0) % 360.0 - 180.0
+    return abs(diff)
+
+
+def _mean_sun_elevation(tile_state: _TileState) -> Optional[float]:
+    if tile_state.sun_elevation_weight <= 0:
+        return None
+    return tile_state.sun_elevation_sum / tile_state.sun_elevation_weight
+
+
+def _mean_sun_azimuth(tile_state: _TileState) -> Optional[float]:
+    if tile_state.sun_azimuth_weight <= 0:
+        return None
+    angle = math.degrees(math.atan2(tile_state.sun_azimuth_y, tile_state.sun_azimuth_x))
+    if angle < 0:
+        angle += 360.0
+    return angle
+
+
+def _lighting_similarity(
+    tile_state: _TileState,
+    sun_azimuth: Optional[float],
+    sun_elevation: Optional[float],
+    azimuth_sigma: float,
+    elevation_sigma: float,
+) -> float:
+    similarity = 1.0
+    mean_azimuth = _mean_sun_azimuth(tile_state)
+    if (
+        sun_azimuth is not None
+        and mean_azimuth is not None
+        and azimuth_sigma is not None
+        and azimuth_sigma > 0
+    ):
+        diff = _circular_difference_deg(sun_azimuth, mean_azimuth)
+        similarity *= math.exp(-((diff / azimuth_sigma) ** 2))
+    mean_elevation = _mean_sun_elevation(tile_state)
+    if (
+        sun_elevation is not None
+        and mean_elevation is not None
+        and elevation_sigma is not None
+        and elevation_sigma > 0
+    ):
+        diff = abs(sun_elevation - mean_elevation)
+        similarity *= math.exp(-((diff / elevation_sigma) ** 2))
+    return similarity
+
+
+def _update_tile_lighting(
+    tile_state: _TileState,
+    sun_azimuth: Optional[float],
+    sun_elevation: Optional[float],
+    weight: float,
+) -> None:
+    if weight <= 0:
+        return
+    if sun_elevation is not None:
+        tile_state.sun_elevation_sum += sun_elevation * weight
+        tile_state.sun_elevation_weight += weight
+    if sun_azimuth is not None:
+        radians = math.radians(sun_azimuth % 360.0)
+        tile_state.sun_azimuth_x += math.cos(radians) * weight
+        tile_state.sun_azimuth_y += math.sin(radians) * weight
+        tile_state.sun_azimuth_weight += weight
+
+
 def _score_candidate(
-    candidate: _Candidate, tile_states: List[_TileState], min_clear_obs: float
+    candidate: _Candidate,
+    tile_states: List[_TileState],
+    min_clear_obs: float,
+    azimuth_sigma: float,
+    elevation_sigma: float,
 ) -> float:
     score = 0.0
     for idx in candidate.tile_indexes:
@@ -186,7 +274,14 @@ def _score_candidate(
         if needs_coverage or needs_depth:
             deficit = max(0.0, min_clear_obs - tile_state.clear_obs)
             weight = 1.0 + deficit
-            score += weight * candidate.clear_fraction
+            similarity = _lighting_similarity(
+                tile_state,
+                candidate.sun_azimuth,
+                candidate.sun_elevation,
+                azimuth_sigma,
+                elevation_sigma,
+            )
+            score += weight * candidate.clear_fraction * similarity
     return score
 
 
@@ -195,6 +290,12 @@ def _apply_candidate(candidate: _Candidate, tile_states: List[_TileState]) -> No
         tile_state = tile_states[idx]
         tile_state.covered = True
         tile_state.clear_obs += candidate.clear_fraction
+        _update_tile_lighting(
+            tile_state,
+            candidate.sun_azimuth,
+            candidate.sun_elevation,
+            candidate.clear_fraction,
+        )
 
 
 def _coverage_fraction(tile_states: List[_TileState]) -> float:
@@ -224,6 +325,8 @@ def plan_monthly_composites(
     coverage_target: float = 0.98,
     min_clear_fraction: float = 0.8,
     min_clear_obs: float = 3.0,
+    azimuth_sigma: float = 20.0,
+    elevation_sigma: float = 10.0,
     month_grouping: str = "calendar",
     limit: int | None = None,
     tile_size_m: int = 1000,
@@ -293,6 +396,8 @@ def plan_monthly_composites(
             coverage_target=coverage_target,
             min_clear_fraction=min_clear_fraction,
             min_clear_obs=min_clear_obs,
+            azimuth_sigma=azimuth_sigma,
+            elevation_sigma=elevation_sigma,
             limit=limit,
         )
         month_plan["tile_size_m"] = tile_size_m
@@ -320,6 +425,8 @@ def _plan_single_month(
     coverage_target: float,
     min_clear_fraction: float,
     min_clear_obs: float,
+    azimuth_sigma: float,
+    elevation_sigma: float,
     limit: int | None,
 ) -> Dict[str, Any]:
     logger = _get_logger()
@@ -403,6 +510,8 @@ def _plan_single_month(
             continue
         if clear_fraction < min_clear_fraction:
             continue
+        sun_azimuth = _float_or_none(properties.get("sun_azimuth"))
+        sun_elevation = _float_or_none(properties.get("sun_elevation"))
 
         candidates.append(
             _Candidate(
@@ -411,6 +520,8 @@ def _plan_single_month(
                 properties=properties,
                 clear_fraction=clear_fraction,
                 tile_indexes=tile_indexes,
+                sun_azimuth=sun_azimuth,
+                sun_elevation=sun_elevation,
             )
         )
 
@@ -434,7 +545,13 @@ def _plan_single_month(
         for candidate in candidates:
             if candidate.selected:
                 continue
-            score = _score_candidate(candidate, tile_states, min_clear_obs)
+            score = _score_candidate(
+                candidate,
+                tile_states,
+                min_clear_obs,
+                azimuth_sigma,
+                elevation_sigma,
+            )
             if score > best_score:
                 best_candidate = candidate
                 best_score = score
@@ -561,7 +678,7 @@ def build_plan_parser() -> argparse.ArgumentParser:
         action="append",
         help=(
             "Repeatable Dove instrument filter "
-            "(default: PS2, PS2.SD, PSB.SD; set to 'none' to disable)."
+            "(required when multiple PlanetScope instruments exist; set to 'none' to disable)."
         ),
     )
     parser.add_argument(
@@ -590,6 +707,18 @@ def build_plan_parser() -> argparse.ArgumentParser:
         type=float,
         default=3.0,
         help="Target expected clear observations per tile (default: 3).",
+    )
+    parser.add_argument(
+        "--azimuth-sigma",
+        type=float,
+        default=20.0,
+        help="Gaussian sigma in degrees for sun azimuth similarity penalty (default: 20).",
+    )
+    parser.add_argument(
+        "--elevation-sigma",
+        type=float,
+        default=10.0,
+        help="Gaussian sigma in degrees for sun elevation similarity penalty (default: 10).",
     )
     parser.add_argument(
         "--tile-size-m",
@@ -655,9 +784,28 @@ def build_plan_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _is_planetscope_request(args: argparse.Namespace) -> bool:
+    item_type = (getattr(args, "item_type", "") or "").lower()
+    imagery = (
+        getattr(args, "imagery_type", PLANETSCOPE_IMAGERY_TYPE)
+        or PLANETSCOPE_IMAGERY_TYPE
+    )
+    return item_type == "psscene" and imagery.lower() != "none"
+
+
 def parse_plan_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = build_plan_parser()
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if (
+        _is_planetscope_request(args)
+        and len(PLANETSCOPE_INSTRUMENT_IDS) > 1
+        and not args.instrument_types
+    ):
+        parser.error(
+            "Multiple PlanetScope instrument IDs are available "
+            f"({', '.join(PLANETSCOPE_INSTRUMENT_IDS)}). Use --instrument-type to select one."
+        )
+    return args
 
 
 def _harmonize_display(value: str) -> str:
@@ -713,8 +861,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         )
         if not instrument_filters:
             instrument_filters = None
-    else:
+    elif _is_planetscope_request(args) and len(PLANETSCOPE_INSTRUMENT_IDS) == 1:
         instrument_filters = PLANETSCOPE_INSTRUMENT_IDS
+    else:
+        instrument_filters = None
 
     plan = plan_monthly_composites(
         aoi_path=args.aoi,
@@ -729,6 +879,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         coverage_target=args.coverage_target,
         min_clear_fraction=args.min_clear_fraction,
         min_clear_obs=args.min_clear_obs,
+        azimuth_sigma=args.azimuth_sigma,
+        elevation_sigma=args.elevation_sigma,
         month_grouping="calendar",
         limit=args.limit,
         tile_size_m=args.tile_size_m,

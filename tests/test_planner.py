@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Dict, Iterable, List
 
+import pytest
 from shapely.geometry import box, mapping
 
 from plaknit import planner
@@ -109,3 +110,36 @@ def test_plan_skips_scenes_missing_clear_metadata(monkeypatch):
     assert month_plan["candidate_count"] == 1
     assert month_plan["filtered_count"] == 0
     assert month_plan["selected_count"] == 0
+
+
+def test_lighting_similarity_matches_identical_conditions():
+    tile_state = planner._TileState()
+    planner._update_tile_lighting(tile_state, 110.0, 45.0, 0.7)
+
+    similarity = planner._lighting_similarity(
+        tile_state, 110.0, 45.0, azimuth_sigma=20.0, elevation_sigma=10.0
+    )
+
+    assert similarity == pytest.approx(1.0, rel=1e-6)
+
+
+def test_lighting_similarity_penalizes_large_azimuth_difference():
+    tile_state = planner._TileState()
+    planner._update_tile_lighting(tile_state, 0.0, 45.0, 1.0)
+
+    similarity = planner._lighting_similarity(
+        tile_state, 90.0, 45.0, azimuth_sigma=20.0, elevation_sigma=10.0
+    )
+
+    assert similarity < 1e-3
+
+
+def test_lighting_similarity_ignores_missing_metadata():
+    tile_state = planner._TileState()
+    planner._update_tile_lighting(tile_state, 200.0, 50.0, 0.5)
+
+    similarity = planner._lighting_similarity(
+        tile_state, None, None, azimuth_sigma=20.0, elevation_sigma=10.0
+    )
+
+    assert similarity == pytest.approx(1.0, rel=1e-6)
