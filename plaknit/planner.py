@@ -629,6 +629,19 @@ def build_plan_parser() -> argparse.ArgumentParser:
         help="Delivery archive type for orders (default: zip).",
     )
     parser.add_argument(
+        "--single-archive",
+        dest="single_archive",
+        action="store_true",
+        default=True,
+        help="Deliver each submitted order as a single archive (default: enabled).",
+    )
+    parser.add_argument(
+        "--no-single-archive",
+        dest="single_archive",
+        action="store_false",
+        help="Disable single-archive delivery and keep per-scene files.",
+    )
+    parser.add_argument(
         "--out",
         help="Optional path to write the plan JSON.",
     )
@@ -731,6 +744,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             harmonize_to=harmonize,
             order_prefix=args.order_prefix,
             archive_type=args.archive_type,
+            single_archive=args.single_archive,
         )
 
     if args.out:

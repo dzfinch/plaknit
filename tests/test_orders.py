@@ -79,6 +79,7 @@ def test_submit_orders_for_plan_builds_correct_request(monkeypatch):
         harmonize_to="sentinel2",
         order_prefix="plaknit_plan",
         archive_type="zip",
+        single_archive=True,
     )
 
     assert len(fake_client.requests) == 1
@@ -86,6 +87,7 @@ def test_submit_orders_for_plan_builds_correct_request(monkeypatch):
     assert request["name"] == "plaknit_plan_2024-01"
     assert request["products"][0]["product_bundle"] == "analytic_8b_sr_udm2"
     assert request["delivery"]["archive_type"] == "zip"
+    assert request["delivery"]["single_archive"] is True
     tools = request["tools"]
     assert any("clip" in tool for tool in tools)
     assert any(
@@ -126,6 +128,7 @@ def test_submit_orders_drops_inaccessible_scenes(monkeypatch):
         harmonize_to=None,
         order_prefix="demo",
         archive_type="zip",
+        single_archive=True,
     )
 
     assert fake_client.requests, "Expected successful retry after dropping scenes."
@@ -161,6 +164,7 @@ def test_order_cli_reads_plan_and_submits(monkeypatch, tmp_path):
             "demo",
             "--archive-type",
             "tar",
+            "--no-single-archive",
         ]
     )
 
@@ -171,3 +175,4 @@ def test_order_cli_reads_plan_and_submits(monkeypatch, tmp_path):
     assert captured["harmonize_to"] is None
     assert captured["order_prefix"] == "demo"
     assert captured["archive_type"] == "tar"
+    assert captured["single_archive"] is False
