@@ -39,12 +39,7 @@ the rest of your tooling.
 
 ## Planning & Ordering Monthly Planet Composites (Beta)
 
-`plaknit plan` runs on laptops or login nodes (no GDAL/OTB requirements) to
-query Planet's Data/STAC API, filter PSScene candidates, tile the AOI, and pick
-the smallest monthly set that meets both coverage and clear-observation
-targets. You can optionally submit one Planet order per month with clipped
-surface reflectance scenes (4- or 8-band SR + UDM2) and Sentinel-2
-harmonization.
+`plaknit plan` can run on local devices to query Planet's Data/STAC API, filter PSScene candidates, tile the AOI, and pick the smallest monthly set that meets both coverage and clear-observation targets. You can optionally submit one Planet order per month with clipped surface reflectance scenes (4- or 8-band SR + UDM2) and Sentinel-2 harmonization.
 
 ```bash
 plaknit plan \
