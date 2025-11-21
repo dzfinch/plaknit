@@ -8,6 +8,7 @@ import copy
 import json
 import logging
 import os
+import warnings
 from base64 import b64encode
 from calendar import monthrange
 from datetime import date
@@ -37,6 +38,9 @@ def _require_api_key() -> str:
 
 
 def _open_planet_stac_client(api_key: str) -> Client:
+    warnings.filterwarnings(
+        "ignore", message=".*Server does not conform to QUERY.*", category=UserWarning
+    )
     token = b64encode(f"{api_key}:".encode("utf-8")).decode("ascii")
     headers = {"Authorization": f"Basic {token}"}
     return Client.open(PLANET_STAC_URL, headers=headers)

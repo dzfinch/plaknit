@@ -7,11 +7,24 @@ import json
 import logging
 import math
 import os
+import warnings
 from base64 import b64encode
 from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, Dict, Iterable, List, Optional, Sequence
+
+try:
+    from rich.progress import (
+        BarColumn,
+        Progress,
+        SpinnerColumn,
+        TextColumn,
+        TimeElapsedColumn,
+        TimeRemainingColumn,
+    )
+except Exception:  # pragma: no cover - optional dependency
+    Progress = None  # type: ignore
 
 from pystac_client import Client
 from shapely.geometry import box, mapping, shape
@@ -33,6 +46,47 @@ DEPTH_TARGET_FRACTION = 0.95
 PLANET_MAX_ROI_VERTICES = 1500
 PLANETSCOPE_IMAGERY_TYPE = "planetscope"
 PLANETSCOPE_INSTRUMENT_IDS = ("PS2", "PS2.SD", "PSB.SD")
+
+
+class _ProgressManager:
+    """Thin wrapper around rich Progress that degrades gracefully when unavailable."""
+
+    def __init__(self, enabled: bool = True):
+        self.enabled = bool(enabled and Progress is not None)
+        self._progress: Optional[Progress] = None
+
+    def __enter__(self) -> "_ProgressManager":
+        if self.enabled and Progress is not None:
+            self._progress = Progress(
+                SpinnerColumn(),
+                BarColumn(),
+                TextColumn("{task.description}"),
+                TimeElapsedColumn(),
+                TimeRemainingColumn(),
+                refresh_per_second=5,
+            )
+            self._progress.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        if self._progress:
+            self._progress.stop()
+        self._progress = None
+
+    def add(self, description: str, total: Optional[int] = None) -> Optional[int]:
+        if not self._progress:
+            return None
+        return self._progress.add_task(description, total=total)
+
+    def advance(self, task_id: Optional[int], advance: float = 1.0) -> None:
+        if self._progress and task_id is not None:
+            self._progress.advance(task_id, advance)
+
+    def complete(self, task_id: Optional[int]) -> None:
+        if self._progress and task_id is not None:
+            task = self._progress.get_task(task_id)
+            total = task.total if task.total is not None else task.completed or 1
+            self._progress.update(task_id, total=total, completed=total)
 
 
 @dataclass
@@ -70,6 +124,9 @@ def _require_api_key() -> str:
 
 
 def _open_planet_stac_client(api_key: str) -> Client:
+    warnings.filterwarnings(
+        "ignore", message=".*Server does not conform to QUERY.*", category=UserWarning
+    )
     token = b64encode(f"{api_key}:".encode("utf-8")).decode("ascii")
     headers = {"Authorization": f"Basic {token}"}
     return Client.open(PLANET_STAC_URL, headers=headers)
@@ -330,6 +387,7 @@ def plan_monthly_composites(
     month_grouping: str = "calendar",
     limit: int | None = None,
     tile_size_m: int = 1000,
+    progress: Optional[_ProgressManager] = None,
 ) -> dict:
     """
     Plan monthly PlanetScope composites over an AOI.
@@ -378,48 +436,57 @@ def plan_monthly_composites(
     if start > end:
         raise ValueError("start_date must be before or equal to end_date.")
 
+    month_definitions = list(_iterate_months(start, end))
+    progress_log = progress or _ProgressManager(
+        enabled=logging.getLogger().isEnabledFor(logging.INFO)
+    )
     plan: dict[str, dict[str, Any]] = {}
-    for month_id, month_start, month_end in _iterate_months(start, end):
-        month_plan = _plan_single_month(
-            month_id=month_id,
-            month_start=month_start,
-            month_end=month_end,
-            client=client,
-            aoi_wgs84=aoi_wgs84_query,
-            tiles_projected=tiles_projected,
-            prepared_tiles=prepared_tiles,
-            collections=collections_param,
-            imagery_type=imagery_type,
-            instrument_types=instrument_types,
-            cloud_max=cloud_max,
-            sun_elevation_min=sun_elevation_min,
-            coverage_target=coverage_target,
-            min_clear_fraction=min_clear_fraction,
-            min_clear_obs=min_clear_obs,
-            azimuth_sigma=azimuth_sigma,
-            elevation_sigma=elevation_sigma,
-            limit=limit,
-        )
-        month_plan["tile_size_m"] = tile_size_m
-        month_plan["coverage_target"] = coverage_target
-        month_plan["min_clear_obs"] = min_clear_obs
-        month_plan["filters"] = {
-            "item_type": item_type,
-            "collection": collection,
-            "imagery_type": imagery_type,
-            "instrument_types": list(instrument_types)
-            if instrument_types
-            else None,
-            "cloud_max": cloud_max,
-            "sun_elevation_min": sun_elevation_min,
-            "min_clear_fraction": min_clear_fraction,
-            "month_start": month_start.isoformat(),
-            "month_end": month_end.isoformat(),
-            "azimuth_sigma": azimuth_sigma,
-            "elevation_sigma": elevation_sigma,
-            "limit": limit,
-        }
-        plan[month_id] = month_plan
+    try:
+        progress_log.__enter__()
+        for month_id, month_start, month_end in month_definitions:
+            month_plan = _plan_single_month(
+                month_id=month_id,
+                month_start=month_start,
+                month_end=month_end,
+                client=client,
+                aoi_wgs84=aoi_wgs84_query,
+                tiles_projected=tiles_projected,
+                prepared_tiles=prepared_tiles,
+                collections=collections_param,
+                imagery_type=imagery_type,
+                instrument_types=instrument_types,
+                cloud_max=cloud_max,
+                sun_elevation_min=sun_elevation_min,
+                coverage_target=coverage_target,
+                min_clear_fraction=min_clear_fraction,
+                min_clear_obs=min_clear_obs,
+                azimuth_sigma=azimuth_sigma,
+                elevation_sigma=elevation_sigma,
+                limit=limit,
+                progress=progress_log,
+            )
+            month_plan["tile_size_m"] = tile_size_m
+            month_plan["coverage_target"] = coverage_target
+            month_plan["min_clear_obs"] = min_clear_obs
+            month_plan["filters"] = {
+                "item_type": item_type,
+                "collection": collection,
+                "imagery_type": imagery_type,
+                "instrument_types": list(instrument_types)
+                if instrument_types
+                else None,
+                "cloud_max": cloud_max,
+                "sun_elevation_min": sun_elevation_min,
+                "min_clear_fraction": min_clear_fraction,
+                "month_start": month_start.isoformat(),
+                "month_end": month_end.isoformat(),
+                "azimuth_sigma": azimuth_sigma,
+                "elevation_sigma": elevation_sigma,
+                "limit": limit,
+            }
+            plan[month_id] = month_plan
+    finally:
+        progress_log.__exit__(None, None, None)
 
     return plan
 
@@ -444,6 +511,7 @@ def _plan_single_month(
     azimuth_sigma: float,
     elevation_sigma: float,
     limit: int | None,
+    progress: Optional[_ProgressManager] = None,
 ) -> Dict[str, Any]:
     logger = _get_logger()
     datetime_range = f"{month_start.isoformat()}/{month_end.isoformat()}"
@@ -464,6 +532,7 @@ def _plan_single_month(
         else:
             query["pl:instrument"] = {"in": unique_instruments}
 
+    search_task = progress.add(f"{month_id}: search", total=1) if progress else None
     logger.info("Searching Planet STAC for %s (%s).", month_id, datetime_range)
     search = client.search(
         collections=collections,
@@ -473,11 +542,18 @@ def _plan_single_month(
         max_items=limit,
     )
     items = list(search.items())
+    if progress:
+        progress.complete(search_task)
     candidate_count = len(items)
 
     tile_states = [_TileState() for _ in tiles_projected]
     candidates: List[_Candidate] = []
 
+    filter_task = (
+        progress.add(f"{month_id}: filter", total=max(candidate_count, 1))
+        if progress
+        else None
+    )
     for item in items:
         properties = dict(item.properties)
         properties["id"] = item.id
@@ -540,6 +616,10 @@ def _plan_single_month(
                 sun_elevation=sun_elevation,
             )
         )
+        if progress:
+            progress.advance(filter_task)
+    if progress:
+        progress.complete(filter_task)
 
     filtered_count = len(candidates)
     logger.info(
@@ -550,6 +630,11 @@ def _plan_single_month(
     )
 
     selected: List[_Candidate] = []
+    compile_task = (
+        progress.add(f"{month_id}: compile", total=max(len(candidates), 1))
+        if progress
+        else None
+    )
     while True:
         coverage = _coverage_fraction(tile_states)
         depth_fraction = _depth_fraction(tile_states, min_clear_obs)
@@ -578,9 +663,13 @@ def _plan_single_month(
         best_candidate.selected = True
         _apply_candidate(best_candidate, tile_states)
         selected.append(best_candidate)
+        if progress:
+            progress.advance(compile_task)
 
     coverage = _coverage_fraction(tile_states)
     depth_fraction = _depth_fraction(tile_states, min_clear_obs)
+    if progress:
+        progress.complete(compile_task)
     if coverage < coverage_target:
         logger.warning(
             "Coverage target (%.2f) not met for %s (achieved %.3f).",
