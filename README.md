@@ -7,6 +7,8 @@
 
 **Processing Large-Scale PlanetScope Data**
 
+> Note: plaknit is in active early-stage development. Expect frequent updates, and please share feedback or ideas through the GitHub Issues tab.
+
 - Planet data is phenomenal for tracking change, but the current acquisition
   strategy sprays dozens of narrow strips across a scene. Without careful
   masking and mosaicking, even "cloud free" searches still include haze,
@@ -44,6 +46,8 @@ plaknit stitch \
   --inputs /data/planet/strips/*.tif \
   --udms /data/planet/strips/*.udm2.tif \
   --output /data/mosaics/planet_mosaic_2024.tif \
+  --sr-bands 8 \
+  --ndvi \
   --jobs 8 \
   --ram 196608
 ```
@@ -51,6 +55,8 @@ plaknit stitch \
 Customize `--jobs`, `--ram`, or `--workdir/--tmpdir` as needed for your local or
 HPC environment. The CLI mirrors the legacy `mosaic_planet.py` workflow; you can
 also invoke it as `plaknit mosaic` for backward compatibility.
+Pass `--ndvi` to append NDVI (bands 4/3 for 4-band SR, 8/6 for 8-band SR) to the
+output mosaic.
 
 ## Planning & Ordering Monthly Planet Composites (Beta)
 

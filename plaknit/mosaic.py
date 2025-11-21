@@ -14,6 +14,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Sequence, Union
 
+import numpy as np
+import rasterio
+
 try:
     from rich.progress import (
         BarColumn,
@@ -50,6 +53,8 @@ class MosaicJob:
     ram: int = 131072
     jobs: int = 4
     skip_masking: bool = False
+    sr_bands: int = 4
+    add_ndvi: bool = False
 
 
 def configure_logging(verbosity: int) -> logging.Logger:
@@ -108,6 +113,8 @@ class MosaicWorkflow:
             raise ValueError("At least one input strip must be provided.")
         if job.ram <= 0:
             raise ValueError("RAM must be a positive integer.")
+        if job.add_ndvi and job.sr_bands not in (4, 8):
+            raise ValueError("sr_bands must be 4 or 8 when --ndvi is requested.")
 
         inputs = self._expand(job.inputs, label="inputs")
         with self._progress(enabled=self.log.isEnabledFor(logging.INFO)) as progress:
@@ -153,7 +160,14 @@ class MosaicWorkflow:
                 progress.update(distance_task, completed=1)
 
             try:
-                self._run_mosaic(masked_paths, tmpdir, progress, mosaic_task)
+                mosaic_path = self._run_mosaic(masked_paths, tmpdir, progress, mosaic_task)
+                if job.add_ndvi:
+                    ndvi_task = (
+                        progress.add_task("NDVI", total=1) if progress else None
+                    )
+                    self._append_ndvi(mosaic_path, job.sr_bands)
+                    if progress and ndvi_task is not None:
+                        progress.update(ndvi_task, completed=1)
             finally:
                 self._cleanup_tmpdir()
 
@@ -277,7 +291,7 @@ class MosaicWorkflow:
         tmpdir: Path,
         progress: Optional[Progress],
         task_id: Optional[int],
-    ) -> None:
+    ) -> Path:
         if otbApplication is None:  # pragma: no cover - environment specific
             raise RuntimeError(
                 "otbApplication bindings are not available. Install the OTB Python "
@@ -326,6 +340,29 @@ class MosaicWorkflow:
         app.ExecuteAndWriteOutput()
         if progress and task_id is not None:
             progress.update(task_id, completed=1)
+        return Path(params["out"])
+
+    def _append_ndvi(self, mosaic_path: Path, sr_bands: int) -> Path:
+        """Compute NDVI and append as an extra band to the mosaic."""
+        nir_band = 4 if sr_bands == 4 else 8
+        red_band = 3 if sr_bands == 4 else 6
+        with rasterio.open(mosaic_path, "r") as src:
+            profile = src.profile.copy()
+            profile.update(count=src.count + 1, dtype="float32")
+            data = src.read()
+            nir = data[nir_band - 1].astype("float32")
+            red = data[red_band - 1].astype("float32")
+            with rasterio.Env():
+                with rasterio.open(mosaic_path, "w", **profile) as dst:
+                    dst.write(data)
+                    with np.errstate(divide="ignore", invalid="ignore"):
+                        ndvi = (nir - red) / (nir + red)
+                    if src.nodata is not None:
+                        mask = (nir == src.nodata) | (red == src.nodata)
+                        ndvi = np.where(mask, np.nan, ndvi)
+                    ndvi = np.nan_to_num(ndvi)
+                    dst.write(ndvi, src.count + 1)
+        return mosaic_path
 
     def _cleanup_tmpdir(self) -> None:
         if self._tmpdir_created and self._tmpdir_created.exists():
@@ -348,7 +385,10 @@ def build_parser() -> argparse.ArgumentParser:
     """Create the CLI parser for the mosaic workflow."""
     parser = argparse.ArgumentParser(
         prog="plaknit stitch",
-        description="Mask Planet strips with UDM rasters and stitch them with OTB.",
+        description=(
+            "Mask Planet strips with UDM rasters, stitch them with OTB, "
+            "and optionally append NDVI."
+        ),
     )
     parser.add_argument(
         "--inputs",
@@ -401,6 +441,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip masking and use --inputs directly for mosaicking.",
     )
     parser.add_argument(
+        "--sr-bands",
+        type=int,
+        choices=(4, 8),
+        default=4,
+        help="Surface reflectance band count (4 or 8, default: 4).",
+    )
+    parser.add_argument(
+        "--ndvi",
+        action="store_true",
+        help="Compute NDVI (NIR-Red / NIR+Red) and append as an extra band.",
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="count",
@@ -434,6 +486,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         ram=args.ram,
         jobs=args.jobs,
         skip_masking=args.skip_masking,
+        sr_bands=args.sr_bands,
+        add_ndvi=args.ndvi,
     )
 
     workflow = MosaicWorkflow(job, logger=logger)

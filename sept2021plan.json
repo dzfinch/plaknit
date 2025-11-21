@@ -1,1272 +1,12 @@
 {
-  "2021-01": {
+  "2021-09": {
     "items": [
       {
-        "id": "20210111_172234_12_2419",
+        "id": "20210914_172047_57_2254",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
           "cloud_cover": null,
-          "clear_percent": 1,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210108_172211_25_2412",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210108_172206_55_2412",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210107_163905_47_2264",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210107_163900_89_2264",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210131_172246_00_2416",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210102_163416_03_220b",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210102_163420_45_220b",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210129_164042_37_2235",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 1,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210102_163424_88_220b",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210128_172306_93_227c",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210103_163747_19_2235",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210102_163429_30_220b",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210113_163832_82_2223",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210107_163851_73_2264",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210108_163813_90_222b",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210127_163637_90_2212",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210126_164001_13_2223",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210108_163816_11_222b",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210102_163418_24_220b",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210102_163422_66_220b",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210102_163427_09_220b",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210122_172136_38_2419",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210108_163811_68_222b",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210113_163837_25_2223",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210128_163816_23_2251",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210108_163807_26_222b",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210126_163958_92_2223",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210107_163858_60_2264",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210107_163903_18_2264",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210117_171242_26_105c",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210128_172304_58_227c",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210103_163753_83_2235",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210108_163809_47_222b",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210115_172226_36_240c",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210127_163644_54_2212",
-        "collection": "PSScene",
-        "clear_fraction": 0.95,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 95,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210113_163835_03_2223",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210131_172243_65_2416",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210107_163856_31_2264",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210126_164003_34_2223",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210117_171227_43_105c",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210116_163937_42_2235",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210104_170839_30_1062",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210106_170858_31_106a",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210102_163431_51_220b",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210103_163744_98_2235",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210103_170518_72_1067",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210125_163320_42_2235",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210114_172317_48_2414",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210107_163854_02_2264",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210107_163849_44_2264",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210106_163734_96_2206",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210127_163642_32_2212",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210113_173903_16_1060",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210107_163907_76_2264",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210104_170837_25_1062",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210113_173900_13_1060",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210103_163751_62_2235",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210106_170900_37_106a",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210113_170643_27_106e",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210129_164040_15_2235",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 1,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210128_172302_23_227c",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210116_163939_63_2235",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210106_170856_25_106a",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210117_171239_79_105c",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210103_163742_77_2235",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210128_163818_48_2251",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210115_173950_61_1059",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210106_170848_02_106a",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210113_170637_06_106e",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210113_173901_65_1060",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210117_171234_85_105c",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210125_173719_68_1066",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210103_170514_66_1067",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210126_170640_20_1067",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210116_163941_84_2235",
-        "collection": "PSScene",
-        "clear_fraction": 0.98,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 98,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210125_163309_36_2235",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210106_170850_08_106a",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210131_170651_98_1062",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210113_173855_58_1060",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210102_171148_01_106a",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210113_170639_13_106e",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210112_163154_19_2235",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210108_172208_90_2412",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210104_170841_35_1062",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210106_170843_91_106a",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210117_171232_38_105c",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210103_170516_69_1067",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210127_163640_11_2212",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210107_174318_39_1064",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210113_173858_61_1060",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210106_170854_19_106a",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210117_171237_32_105c",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210104_174202_32_105e",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210126_163956_71_2223",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210106_170845_96_106a",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210113_170645_34_106e",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210126_170647_91_1067",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210126_170638_66_1067",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210125_163327_05_2235",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210103_174024_94_1058",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210125_174637_60_1059",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210116_170704_85_105c",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210103_163749_41_2235",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210113_170641_20_106e",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210117_174139_27_1057",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
           "clear_percent": 100,
           "sun_elevation": null,
           "sun_azimuth": null,
@@ -1274,7 +14,7 @@
         }
       },
       {
-        "id": "20210103_170512_62_1067",
+        "id": "20210915_172125_23_2416",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1286,7 +26,7 @@
         }
       },
       {
-        "id": "20210131_172250_71_2416",
+        "id": "20210925_172038_44_227a",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1298,7 +38,7 @@
         }
       },
       {
-        "id": "20210102_174042_01_105a",
+        "id": "20210925_172029_52_2416",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1310,7 +50,7 @@
         }
       },
       {
-        "id": "20210106_163739_38_2206",
+        "id": "20210924_162944_06_2435",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1322,7 +62,7 @@
         }
       },
       {
-        "id": "20210104_170835_20_1062",
+        "id": "20210909_162619_18_2449",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1334,7 +74,7 @@
         }
       },
       {
-        "id": "20210125_170642_70_1065",
+        "id": "20210924_162949_02_2435",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1346,7 +86,7 @@
         }
       },
       {
-        "id": "20210114_172315_20_2414",
+        "id": "20210922_163315_29_2442",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1358,7 +98,7 @@
         }
       },
       {
-        "id": "20210113_173857_10_1060",
+        "id": "20210925_162754_44_2447",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1370,7 +110,7 @@
         }
       },
       {
-        "id": "20210125_170650_52_1065",
+        "id": "20210925_163030_58_245c",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1382,7 +122,7 @@
         }
       },
       {
-        "id": "20210115_172224_07_240c",
+        "id": "20210925_172024_91_2416",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1394,7 +134,7 @@
         }
       },
       {
-        "id": "20210103_174037_04_1058",
+        "id": "20210926_162914_49_2449",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1406,7 +146,7 @@
         }
       },
       {
-        "id": "20210112_170144_54_1062",
+        "id": "20210914_163012_57_2465",
         "collection": "PSScene",
         "clear_fraction": 0.99,
         "properties": {
@@ -1418,19 +158,7 @@
         }
       },
       {
-        "id": "20210118_174205_91_1066",
-        "collection": "PSScene",
-        "clear_fraction": 0.99,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 99,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210106_174301_80_1060",
+        "id": "20210920_163805_22_2432",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1442,7 +170,7 @@
         }
       },
       {
-        "id": "20210117_170329_24_106e",
+        "id": "20210914_172045_08_2254",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1454,7 +182,7 @@
         }
       },
       {
-        "id": "20210131_174129_77_1064",
+        "id": "20210915_163442_13_2435",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1466,7 +194,7 @@
         }
       },
       {
-        "id": "20210107_174315_37_1064",
+        "id": "20210910_162904_20_2448",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1478,7 +206,7 @@
         }
       },
       {
-        "id": "20210113_170653_63_106e",
+        "id": "20210909_162851_70_2420",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1490,7 +218,7 @@
         }
       },
       {
-        "id": "20210118_174156_90_1066",
+        "id": "20210924_171944_12_240c",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1502,7 +230,7 @@
         }
       },
       {
-        "id": "20210116_174145_31_105d",
+        "id": "20210919_163718_88_245f",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1514,7 +242,55 @@
         }
       },
       {
-        "id": "20210117_170324_56_106e",
+        "id": "20210914_162648_41_2455",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210915_172122_75_2416",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210909_162849_22_2420",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210918_164712_66_2264",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210917_172121_27_2274",
         "collection": "PSScene",
         "clear_fraction": 0.97,
         "properties": {
@@ -1526,7 +302,7 @@
         }
       },
       {
-        "id": "20210117_174131_66_1057",
+        "id": "20210925_172040_75_227a",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1538,19 +314,19 @@
         }
       },
       {
-        "id": "20210108_170503_24_1062",
+        "id": "20210930_163228_67_2434",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
           "cloud_cover": null,
-          "clear_percent": 100,
+          "clear_percent": 1,
           "sun_elevation": null,
           "sun_azimuth": null,
           "acquired": null
         }
       },
       {
-        "id": "20210111_170647_13_1069",
+        "id": "20210922_172241_90_2406",
         "collection": "PSScene",
         "clear_fraction": 0.99,
         "properties": {
@@ -1562,7 +338,7 @@
         }
       },
       {
-        "id": "20210114_173906_18_1064",
+        "id": "20210916_163107_99_2464",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1574,7 +350,19 @@
         }
       },
       {
-        "id": "20210103_170510_59_1067",
+        "id": "20210915_163435_22_2435",
+        "collection": "PSScene",
+        "clear_fraction": 0.99,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 99,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210925_172045_36_227a",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1586,7 +374,19 @@
         }
       },
       {
-        "id": "20210116_174154_45_105d",
+        "id": "20210908_171741_09_2419",
+        "collection": "PSScene",
+        "clear_fraction": 0.96,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 96,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210909_162616_88_2449",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1598,7 +398,19 @@
         }
       },
       {
-        "id": "20210125_163324_84_2235",
+        "id": "20210916_172401_27_2424",
+        "collection": "PSScene",
+        "clear_fraction": 0.98,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 98,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210926_172214_48_2402",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1610,7 +422,19 @@
         }
       },
       {
-        "id": "20210113_163839_46_2223",
+        "id": "20210926_163144_71_2420",
+        "collection": "PSScene",
+        "clear_fraction": 0.99,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 99,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210914_163540_72_2445",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1622,7 +446,7 @@
         }
       },
       {
-        "id": "20210122_171042_93_1067",
+        "id": "20210924_171948_71_240c",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1634,7 +458,7 @@
         }
       },
       {
-        "id": "20210125_174640_62_1059",
+        "id": "20210924_164127_36_225a",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1646,7 +470,7 @@
         }
       },
       {
-        "id": "20210115_172221_78_240c",
+        "id": "20210925_162752_14_2447",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1658,7 +482,7 @@
         }
       },
       {
-        "id": "20210130_174124_70_1060",
+        "id": "20210915_163430_62_2435",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1670,7 +494,7 @@
         }
       },
       {
-        "id": "20210107_174312_36_1064",
+        "id": "20210910_172627_57_2414",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1682,7 +506,7 @@
         }
       },
       {
-        "id": "20210126_170634_03_1067",
+        "id": "20210910_162849_34_2448",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1694,211 +518,19 @@
         }
       },
       {
-        "id": "20210116_174148_36_105d",
+        "id": "20210925_163153_25_245a",
         "collection": "PSScene",
-        "clear_fraction": 1.0,
+        "clear_fraction": 0.99,
         "properties": {
           "cloud_cover": null,
-          "clear_percent": 100,
+          "clear_percent": 99,
           "sun_elevation": null,
           "sun_azimuth": null,
           "acquired": null
         }
       },
       {
-        "id": "20210103_174030_99_1058",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210117_174136_23_1057",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210127_173900_84_1058",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210125_163318_21_2235",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210117_171229_90_105c",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210125_170653_65_1065",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210104_170843_40_1062",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210122_171044_48_1067",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210125_174639_11_1059",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210128_174034_22_105e",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210103_174026_46_1058",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210102_174049_62_105a",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210125_163311_58_2235",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210112_173740_33_1061",
-        "collection": "PSScene",
-        "clear_fraction": 0.95,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 95,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210131_170648_88_1062",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210127_163635_69_2212",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210111_172238_82_2419",
+        "id": "20210917_172050_35_2307",
         "collection": "PSScene",
         "clear_fraction": 0.97,
         "properties": {
@@ -1910,7 +542,7 @@
         }
       },
       {
-        "id": "20210106_174307_84_1060",
+        "id": "20210910_172634_46_2414",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1922,7 +554,7 @@
         }
       },
       {
-        "id": "20210114_172312_92_2414",
+        "id": "20210924_163059_02_2450",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1934,7 +566,7 @@
         }
       },
       {
-        "id": "20210113_173906_20_1060",
+        "id": "20210922_163312_98_2442",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1946,7 +578,7 @@
         }
       },
       {
-        "id": "20210114_170253_02_106a",
+        "id": "20210920_163809_82_2432",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1958,19 +590,7 @@
         }
       },
       {
-        "id": "20210112_170128_01_1062",
-        "collection": "PSScene",
-        "clear_fraction": 0.99,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 99,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210128_163811_73_2251",
+        "id": "20210905_163224_30_2430",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1982,7 +602,7 @@
         }
       },
       {
-        "id": "20210125_173735_68_1066",
+        "id": "20210918_163529_02_242d",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -1994,79 +614,7 @@
         }
       },
       {
-        "id": "20210106_170852_14_106a",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210106_163741_59_2206",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210131_170650_43_1062",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210113_170647_41_106e",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210115_173939_99_1059",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210116_163935_21_2235",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210125_165946_1013",
+        "id": "20210914_172042_60_2254",
         "collection": "PSScene",
         "clear_fraction": 0.98,
         "properties": {
@@ -2078,7 +626,19 @@
         }
       },
       {
-        "id": "20210117_171224_96_105c",
+        "id": "20210908_163308_88_2212",
+        "collection": "PSScene",
+        "clear_fraction": 0.96,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 96,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210917_163330_78_2449",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -2090,7 +650,139 @@
         }
       },
       {
-        "id": "20210130_170220_33_1067",
+        "id": "20210923_163437_92_241d",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210925_172036_14_227a",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210924_162941_58_2435",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210925_162852_20_2206",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210924_171946_42_240c",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210917_163314_67_2449",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210915_163145_88_2453",
+        "collection": "PSScene",
+        "clear_fraction": 0.98,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 98,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210926_163138_68_2436",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210914_163538_42_2445",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210924_164125_06_225a",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210923_163431_01_241d",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210930_163230_98_2434",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -2102,7 +794,7 @@
         }
       },
       {
-        "id": "20210114_172319_76_2414",
+        "id": "20210914_163049_72_2459",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -2114,595 +806,7 @@
         }
       },
       {
-        "id": "20210112_163158_61_2235",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210125_170647_39_1065",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210130_174120_69_1060",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210103_174038_55_1058",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210104_174150_19_105e",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210104_174203_84_105e",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210130_194550_0f02",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210125_174642_12_1059",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210126_170243_1038",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210106_163737_17_2206",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210126_170643_29_1067",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210112_163209_66_2235",
-        "collection": "PSScene",
-        "clear_fraction": 0.98,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 98,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210131_170641_13_1062",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210106_174303_31_1060",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210111_170641_04_1069",
-        "collection": "PSScene",
-        "clear_fraction": 0.99,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 99,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210115_172210_35_240c",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210125_173721_68_1066",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210103_174032_50_1058",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210114_172310_64_2414",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210108_170255_101f",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210108_172213_60_2412",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210125_173729_68_1066",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210117_174140_80_1057",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210125_163322_63_2235",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210114_170246_81_106a",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210109_174603_69_105d",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 1,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210107_171038_17_1069",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210101_165821_1025",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210117_174130_13_1057",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210130_174114_68_1060",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210114_173916_79_1064",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210114_173901_64_1064",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210131_170647_33_1062",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210125_170645_83_1065",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210116_170200_1001",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210117_174133_18_1057",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210107_165826_103b",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210126_170646_37_1067",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210131_170312_1002",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210112_165926_100c",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210105_170840_1012",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210101_163355_85_2212",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210116_174151_40_105d",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210111_170645_10_1069",
-        "collection": "PSScene",
-        "clear_fraction": 0.98,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 98,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210104_170845_45_1062",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210102_171156_21_106a",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210102_165909_1040",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210117_170319_89_106e",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210103_170504_49_1067",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 100,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210108_163818_32_222b",
+        "id": "20210928_171615_98_2419",
         "collection": "PSScene",
         "clear_fraction": 0.95,
         "properties": {
@@ -2714,7 +818,7 @@
         }
       },
       {
-        "id": "20210126_164005_55_2223",
+        "id": "20210910_172632_16_2414",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -2726,7 +830,7 @@
         }
       },
       {
-        "id": "20210125_165940_1013",
+        "id": "20210909_162839_31_2420",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -2738,7 +842,151 @@
         }
       },
       {
-        "id": "20210122_170755_1038",
+        "id": "20210925_163035_18_245c",
+        "collection": "PSScene",
+        "clear_fraction": 0.98,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 98,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210926_172209_89_2402",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210923_163435_62_241d",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210920_163128_90_2421",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210915_163539_85_242a",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210920_163807_52_2432",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210909_162621_48_2449",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210926_163135_49_2420",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210924_164700_59_2251",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210914_163534_67_241f",
+        "collection": "PSScene",
+        "clear_fraction": 0.98,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 98,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210905_163233_50_2430",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210901_163011_08_220b",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210914_162643_45_2455",
         "collection": "PSScene",
         "clear_fraction": 0.99,
         "properties": {
@@ -2750,7 +998,7 @@
         }
       },
       {
-        "id": "20210101_165822_1025",
+        "id": "20210925_162756_74_2447",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -2762,7 +1010,19 @@
         }
       },
       {
-        "id": "20210104_170833_15_1062",
+        "id": "20210926_163142_40_2420",
+        "collection": "PSScene",
+        "clear_fraction": 0.98,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 98,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210925_163023_67_245c",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -2774,7 +1034,31 @@
         }
       },
       {
-        "id": "20210116_174200_53_105d",
+        "id": "20210915_172225_50_227a",
+        "collection": "PSScene",
+        "clear_fraction": 0.93,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 93,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210916_163320_39_245d",
+        "collection": "PSScene",
+        "clear_fraction": 0.97,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 97,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210910_172629_87_2414",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -2786,7 +1070,19 @@
         }
       },
       {
-        "id": "20210118_170335_0f34",
+        "id": "20210914_163021_77_2465",
+        "collection": "PSScene",
+        "clear_fraction": 0.98,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 98,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210924_163103_63_2450",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -2798,7 +1094,7 @@
         }
       },
       {
-        "id": "20210102_174048_10_105a",
+        "id": "20210925_162849_99_2206",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -2810,7 +1106,7 @@
         }
       },
       {
-        "id": "20210107_170712_0f17",
+        "id": "20210915_163444_43_2435",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -2822,7 +1118,7 @@
         }
       },
       {
-        "id": "20210131_170317_1002",
+        "id": "20210923_172208_07_2414",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -2834,19 +1130,7 @@
         }
       },
       {
-        "id": "20210119_174403_91_105a",
-        "collection": "PSScene",
-        "clear_fraction": 1.0,
-        "properties": {
-          "cloud_cover": null,
-          "clear_percent": 1,
-          "sun_elevation": null,
-          "sun_azimuth": null,
-          "acquired": null
-        }
-      },
-      {
-        "id": "20210117_163159_41_222b",
+        "id": "20210916_163945_86_245c",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -2858,7 +1142,19 @@
         }
       },
       {
-        "id": "20210128_163813_98_2251",
+        "id": "20210914_163056_04_2429",
+        "collection": "PSScene",
+        "clear_fraction": 0.99,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 99,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210916_163710_68_241e",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -2870,7 +1166,7 @@
         }
       },
       {
-        "id": "20210126_170256_1038",
+        "id": "20210925_163144_03_245a",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -2882,7 +1178,7 @@
         }
       },
       {
-        "id": "20210117_171244_73_105c",
+        "id": "20210920_163226_39_2457",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -2894,7 +1190,31 @@
         }
       },
       {
-        "id": "20210112_163156_40_2235",
+        "id": "20210926_164011_17_2233",
+        "collection": "PSScene",
+        "clear_fraction": 0.98,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 98,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210918_163149_60_2448",
+        "collection": "PSScene",
+        "clear_fraction": 0.98,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 98,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210916_163716_53_2212",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -2906,7 +1226,7 @@
         }
       },
       {
-        "id": "20210125_173723_68_1066",
+        "id": "20210925_162749_84_2447",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -2918,7 +1238,943 @@
         }
       },
       {
-        "id": "20210116_170217_1002",
+        "id": "20210919_163725_79_245f",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210925_162740_63_2447",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210917_162827_10_245c",
+        "collection": "PSScene",
+        "clear_fraction": 0.99,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 99,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210907_162905_67_242a",
+        "collection": "PSScene",
+        "clear_fraction": 0.99,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 99,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210925_163155_55_245a",
+        "collection": "PSScene",
+        "clear_fraction": 0.96,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 96,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210915_163532_94_242a",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210914_172050_05_2254",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210927_163027_56_2440",
+        "collection": "PSScene",
+        "clear_fraction": 0.98,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 98,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210918_163201_11_2448",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210925_163032_88_245c",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210923_163428_71_241d",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210909_162856_66_2420",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210903_170944_53_105c",
+        "collection": "PSScene",
+        "clear_fraction": 0.98,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 98,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210926_162916_79_2449",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210915_163439_83_2435",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210926_165118_69_222f",
+        "collection": "PSScene",
+        "clear_fraction": 0.99,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 99,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210916_172358_97_2424",
+        "collection": "PSScene",
+        "clear_fraction": 0.95,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 95,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210922_163310_68_2442",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210909_162614_58_2449",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210919_172539_40_2413",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210922_172237_31_2406",
+        "collection": "PSScene",
+        "clear_fraction": 0.94,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 94,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210920_171748_18_2402",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210909_162841_79_2420",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210923_172214_95_2414",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210910_172636_75_2414",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210910_162846_86_2448",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210919_172338_35_240a",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210904_162534_86_2457",
+        "collection": "PSScene",
+        "clear_fraction": 0.96,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 96,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210923_163442_52_241d",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210907_162907_97_242a",
+        "collection": "PSScene",
+        "clear_fraction": 0.96,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 96,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210919_163723_49_245f",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210914_171530_15_240f",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210918_163151_90_2448",
+        "collection": "PSScene",
+        "clear_fraction": 0.97,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 97,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210915_172120_26_2416",
+        "collection": "PSScene",
+        "clear_fraction": 0.99,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 99,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210924_162951_50_2435",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210924_164120_48_225a",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210926_163145_59_2436",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210918_164714_95_2264",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210919_172537_11_2413",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210926_163129_46_2436",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210916_163251_87_2447",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210918_163145_00_2448",
+        "collection": "PSScene",
+        "clear_fraction": 0.93,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 93,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210916_163247_27_2447",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210905_162521_26_2442",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210916_172354_36_2424",
+        "collection": "PSScene",
+        "clear_fraction": 0.97,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 97,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210908_171738_61_2419",
+        "collection": "PSScene",
+        "clear_fraction": 0.94,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 94,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210926_172216_78_2402",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210923_163731_38_2453",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210918_163147_30_2448",
+        "collection": "PSScene",
+        "clear_fraction": 0.98,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 98,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210915_163549_49_2450",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210914_171527_84_240f",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210923_163735_99_2453",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210905_163226_60_2430",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210914_162650_89_2455",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210905_162518_78_2442",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210924_164111_31_225a",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210925_163200_16_245a",
+        "collection": "PSScene",
+        "clear_fraction": 0.99,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 99,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210922_172232_72_2406",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210908_163311_09_2212",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210904_172116_73_2414",
+        "collection": "PSScene",
+        "clear_fraction": 0.96,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 96,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210919_163716_58_245f",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210926_165125_33_222f",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210927_171951_47_2408",
+        "collection": "PSScene",
+        "clear_fraction": 0.98,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 98,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210923_162956_87_222b",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210925_172047_67_227a",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210916_163322_69_245d",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210915_163143_58_2453",
+        "collection": "PSScene",
+        "clear_fraction": 0.96,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 96,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210919_172340_70_240a",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210914_163051_44_2429",
+        "collection": "PSScene",
+        "clear_fraction": 0.98,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 98,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210924_163045_20_2450",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210920_163219_49_2457",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210909_162742_73_2431",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210910_162906_68_2448",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210929_163720_90_242b",
+        "collection": "PSScene",
+        "clear_fraction": 0.99,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 99,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210922_164848_16_2276",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210922_172239_60_2406",
+        "collection": "PSScene",
+        "clear_fraction": 0.91,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 91,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210925_163025_97_245c",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 100,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210917_172102_77_2307",
+        "collection": "PSScene",
+        "clear_fraction": 0.94,
+        "properties": {
+          "cloud_cover": null,
+          "clear_percent": 94,
+          "sun_elevation": null,
+          "sun_azimuth": null,
+          "acquired": null
+        }
+      },
+      {
+        "id": "20210926_163134_07_2436",
         "collection": "PSScene",
         "clear_fraction": 1.0,
         "properties": {
@@ -2931,11 +2187,11 @@
       }
     ],
     "aoi_coverage": 1.0,
-    "candidate_count": 3015,
-    "filtered_count": 2285,
-    "selected_count": 244,
+    "candidate_count": 3858,
+    "filtered_count": 2571,
+    "selected_count": 182,
     "tile_count": 21821,
-    "clear_depth_fraction": 0.950093946198616,
+    "clear_depth_fraction": 0.9502772558544521,
     "tile_size_m": 1000,
     "coverage_target": 0.99,
     "min_clear_obs": 4.0,
@@ -2944,13 +2200,13 @@
       "collection": null,
       "imagery_type": "planetscope",
       "instrument_types": [
-        "PS2"
+        "PSB.SD"
       ],
       "cloud_max": 0.05,
       "sun_elevation_min": 35.0,
-      "min_clear_fraction": 0.95,
-      "month_start": "2021-01-01",
-      "month_end": "2021-01-31",
+      "min_clear_fraction": 0.9,
+      "month_start": "2021-09-01",
+      "month_end": "2021-09-30",
       "azimuth_sigma": 20.0,
       "elevation_sigma": 10.0,
       "limit": null

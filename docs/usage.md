@@ -32,6 +32,8 @@ binary mask prep, distance calculation, and final mosaicking stages when
   `--skip-masking` is supplied.
 - `--skip-masking`: Use the provided inputs directly without applying the
   gdal-based UDM mask.
+- `--sr-bands`: Surface reflectance bundle size (4 or 8).
+- `--ndvi`: Append an NDVI band (NIR/Red uses bands 4/3 for 4-band, 8/6 for 8-band).
 - `--workdir / --tmpdir`: Override the locations used for intermediate strips
   and OTB scratch files. Defaults are automatically managed temp directories.
 - `--jobs`: Number of parallel masking workers (defaults to 4).
