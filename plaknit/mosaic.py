@@ -8,10 +8,23 @@ import os
 import shutil
 import subprocess
 import tempfile
+from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Sequence, Union
+
+try:
+    from rich.progress import (
+        BarColumn,
+        Progress,
+        SpinnerColumn,
+        TextColumn,
+        TimeElapsedColumn,
+        TimeRemainingColumn,
+    )
+except Exception:  # pragma: no cover - optional dependency
+    Progress = None  # type: ignore
 
 try:
     import otbApplication  # type: ignore
@@ -69,6 +82,25 @@ class MosaicWorkflow:
         self._tmpdir_created: Optional[Path] = None
         self._workdir_created: Optional[Path] = None
 
+    @contextmanager
+    def _progress(self, enabled: bool = True):
+        if not enabled or Progress is None:
+            yield None
+            return
+        progress = Progress(
+            SpinnerColumn(),
+            BarColumn(),
+            TextColumn("{task.description}"),
+            TimeElapsedColumn(),
+            TimeRemainingColumn(),
+            refresh_per_second=5,
+        )
+        progress.start()
+        try:
+            yield progress
+        finally:
+            progress.stop()
+
     def run(self) -> Path:
         """Execute the workflow and return the output path."""
         job = self.job
@@ -78,28 +110,52 @@ class MosaicWorkflow:
             raise ValueError("RAM must be a positive integer.")
 
         inputs = self._expand(job.inputs, label="inputs")
-        if job.skip_masking:
-            masked_paths = inputs
-        else:
-            if not job.udms:
-                raise ValueError(
-                    "UDM rasters are required unless --skip-masking is provided."
+        with self._progress(enabled=self.log.isEnabledFor(logging.INFO)) as progress:
+            mask_task = (
+                progress.add_task(
+                    "Masking tiles with UDMs", total=len(inputs)
                 )
-            udms = self._expand(job.udms, label="UDMs")
-            if len(inputs) != len(udms):
-                raise ValueError(
-                    f"Input/UDM mismatch: expected {len(inputs)} UDMs but received {len(udms)}."
-                )
-            masked_paths = self._mask_inputs(inputs, udms)
+                if progress and not job.skip_masking
+                else None
+            )
+            binary_task = progress.add_task(
+                "Creating binary masks", total=1
+            ) if progress else None
+            distance_task = progress.add_task(
+                "Distance calculation", total=1
+            ) if progress else None
+            mosaic_task = progress.add_task("Mosaicking", total=1) if progress else None
 
-        tmpdir = self._prepare_tmpdir()
-        self._prepare_output_directory()
-        self._configure_environment()
+            if job.skip_masking:
+                masked_paths = inputs
+                if progress and mask_task is not None:
+                    progress.update(mask_task, total=1, completed=1)
+            else:
+                if not job.udms:
+                    raise ValueError(
+                        "UDM rasters are required unless --skip-masking is provided."
+                    )
+                udms = self._expand(job.udms, label="UDMs")
+                if len(inputs) != len(udms):
+                    raise ValueError(
+                        f"Input/UDM mismatch: expected {len(inputs)} UDMs but received {len(udms)}."
+                    )
+                masked_paths = self._mask_inputs(inputs, udms, progress, mask_task)
 
-        try:
-            self._run_mosaic(masked_paths, tmpdir)
-        finally:
-            self._cleanup_tmpdir()
+            tmpdir = self._prepare_tmpdir()
+            self._prepare_output_directory()
+            self._configure_environment()
+
+            # Binary mask + distance are internal to OTB; mark as completed when we enter/exit.
+            if progress and binary_task is not None:
+                progress.update(binary_task, completed=1)
+            if progress and distance_task is not None:
+                progress.update(distance_task, completed=1)
+
+            try:
+                self._run_mosaic(masked_paths, tmpdir, progress, mosaic_task)
+            finally:
+                self._cleanup_tmpdir()
 
         output_path = Path(job.output).expanduser()
         self.log.info("Mosaic complete: %s", output_path)
@@ -154,7 +210,13 @@ class MosaicWorkflow:
         os.environ.setdefault("ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS", str(jobs))
         os.environ.setdefault("OTB_MAX_RAM_HINT", str(self.job.ram))
 
-    def _mask_inputs(self, strips: Sequence[str], udms: Sequence[str]) -> List[str]:
+    def _mask_inputs(
+        self,
+        strips: Sequence[str],
+        udms: Sequence[str],
+        progress: Optional[Progress],
+        task_id: Optional[int],
+    ) -> List[str]:
         workdir = self._ensure_workdir()
         jobs = max(1, self.job.jobs)
         self.log.info("Masking %s strips using %s parallel jobs.", len(strips), jobs)
@@ -170,6 +232,8 @@ class MosaicWorkflow:
 
             for future in as_completed(futures):
                 masked_paths.append(str(future.result()))
+                if progress and task_id is not None:
+                    progress.advance(task_id)
 
         masked_paths.sort()
         return masked_paths
@@ -207,7 +271,13 @@ class MosaicWorkflow:
         subprocess.run(cmd, check=True)
         return masked_path
 
-    def _run_mosaic(self, rasters: Sequence[str], tmpdir: Path) -> None:
+    def _run_mosaic(
+        self,
+        rasters: Sequence[str],
+        tmpdir: Path,
+        progress: Optional[Progress],
+        task_id: Optional[int],
+    ) -> None:
         if otbApplication is None:  # pragma: no cover - environment specific
             raise RuntimeError(
                 "otbApplication bindings are not available. Install the OTB Python "
@@ -254,6 +324,8 @@ class MosaicWorkflow:
                 app.SetParameterFloat(key, value)
 
         app.ExecuteAndWriteOutput()
+        if progress and task_id is not None:
+            progress.update(task_id, completed=1)
 
     def _cleanup_tmpdir(self) -> None:
         if self._tmpdir_created and self._tmpdir_created.exists():
@@ -275,8 +347,8 @@ def run_mosaic(job: MosaicJob, logger: Optional[logging.Logger] = None) -> Path:
 def build_parser() -> argparse.ArgumentParser:
     """Create the CLI parser for the mosaic workflow."""
     parser = argparse.ArgumentParser(
-        prog="plaknit mosaic",
-        description="Mask Planet strips with UDM rasters and mosaic them with OTB.",
+        prog="plaknit stitch",
+        description="Mask Planet strips with UDM rasters and stitch them with OTB.",
     )
     parser.add_argument(
         "--inputs",

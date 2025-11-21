@@ -2,24 +2,29 @@
 
 `plaknit` ships with a CLI that mirrors the standalone `mosaic_planet.py`
 script you may have used previously. Install the package into the same
-environment that contains GDAL and Orfeo Toolbox, then run:
+environment that contains GDAL and Orfeo Toolbox, then run the stitched
+workflow:
 
 ```bash
-plaknit --inputs /data/strips/*.tif \
-        --udms /data/strips/*.udm.tif \
-        --output /data/mosaics/planet_mosaic.tif \
-        --jobs 8 \
-        --ram 196608
+plaknit stitch \
+  --inputs /data/strips/*.tif \
+  --udms /data/strips/*.udm.tif \
+  --output /data/mosaics/planet_mosaic.tif \
+  --jobs 8 \
+  --ram 196608
 ```
 
-You can also call the module directly with `python -m plaknit.mosaic` if you
-prefer to pin the interpreter.
+`plaknit stitch` is also available as `plaknit mosaic` for backward
+compatibility. You can call the module directly with `python -m plaknit.mosaic`
+if you prefer to pin the interpreter. The progress display shows the masking,
+binary mask prep, distance calculation, and final mosaicking stages when
+`rich` is installed.
 
 ## Required arguments
 
 - `--inputs / -il`: One or more GeoTIFFs or directories. Directories are
   expanded to all `.tif` files.
-- `--output / -out`: Destination path for the final mosaic.
+- `--output / -out`: Destination path for the final stitched mosaic.
 
 ## Optional arguments
 
