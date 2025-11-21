@@ -24,7 +24,7 @@ writable inside your project space while the container remains read-only.
 
 ## 1. Directory layout
 
-Pick directories under the fast filesystem the cluster recommends:
+Set your PROJECT_DIR and SIF paths and create the file structure:
 
 ```bash
 export PROJECT_DIR=/path/to/your/project
@@ -100,18 +100,25 @@ singularity exec \
 
 The venv now lives at `$PROJECT_DIR/venvs/plaknit` and can be reused across jobs.
 
-## 5. Interactive validation run
+## 5. Example processing script:
+
 
 ```bash
+# set these to the paths on the host filesystem
+export TILES=/blue/jkblackburn/$USER/data/strips          # GeoTIFF strips/tiles
+export UDMS=/blue/jkblackburn/$USER/data/udms            # matching UDM 
+export OUTDIR=/blue/jkblackburn/$USER/output        # mosaic
+export VENVBASE=/blue/jkblackburn/$USER/venvs       # contains the env
+export SCRATCH=${SLURM_TMPDIR:-/tmp}       # fast scratch space
+export SIF=otb.sif   # OTB-enabled image
+
 singularity exec \
-  --bind "$STRIPS":/data/strips \
+  --bind "$TILES":/data/tiles \
   --bind "$UDMS":/data/udms \
   --bind "$OUTDIR":/data/output \
-  --bind "${SLURM_TMPDIR:-/tmp}":/localscratch \
+  --bind "$SCRATCH":/localscratch \
   --bind "$VENVBASE":/venvs \
   "$SIF" bash -lc '
-    set -euo pipefail
-
     export OTB_APPLICATION_PATH=/app/otb/lib/otb/applications
     export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${SLURM_CPUS_PER_TASK:-8}
     export OTB_MAX_RAM_HINT=131072
@@ -119,64 +126,12 @@ singularity exec \
     mkdir -p /localscratch/tmp
 
     /venvs/plaknit/bin/plaknit \
-      --inputs /data/strips \
+      --inputs /data/tiles \
       --udms /data/udms \
-      --output /data/output/final_mosaic.tif \
+      --output /data/output/plaknit_mosaic.tif \
       --tmpdir /localscratch/tmp \
-      --ram 131072 \
       --jobs ${SLURM_CPUS_PER_TASK:-8} \
-      -vv
-  '
-```
-
-Adjust RAM, jobs, and scratch paths to match your cluster defaults.
-
-## 6. SLURM batch script
-
-`plaknit_mosaic.slurm`:
-
-```bash
-#!/usr/bin/env bash
-#SBATCH -J plaknit_mosaic
-#SBATCH -A <account>
-#SBATCH -p <partition>
-#SBATCH -c 8
-#SBATCH --mem=140G
-#SBATCH -t 12:00:00
-#SBATCH -o slurm-%j.out
-#SBATCH -e slurm-%j.err
-
-set -euo pipefail
-
-PROJECT_DIR=/path/to/your/project
-STRIPS=$PROJECT_DIR/data/strips
-UDMS=$PROJECT_DIR/data/udms
-OUTDIR=$PROJECT_DIR/output
-VENVBASE=$PROJECT_DIR/venvs
-SIF=/path/to/your/otb_image.sif
-
-singularity exec \
-  --bind "$STRIPS":/data/strips \
-  --bind "$UDMS":/data/udms \
-  --bind "$OUTDIR":/data/output \
-  --bind "${SLURM_TMPDIR:-/tmp}":/localscratch \
-  --bind "$VENVBASE":/venvs \
-  "$SIF" bash -lc '
-    set -euo pipefail
-
-    export OTB_APPLICATION_PATH=/app/otb/lib/otb/applications
-    export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${SLURM_CPUS_PER_TASK:-8}
-    export OTB_MAX_RAM_HINT=131072
-    export GDAL_CACHEMAX=4096
-    mkdir -p /localscratch/tmp
-
-    /venvs/plaknit/bin/plaknit \
-      --inputs /data/strips \
-      --udms /data/udms \
-      --output /data/output/final_mosaic.tif \
-      --tmpdir /localscratch/tmp \
       --ram 131072 \
-      --jobs ${SLURM_CPUS_PER_TASK:-8} \
       -vv
   '
 ```
@@ -188,24 +143,14 @@ sbatch plaknit_mosaic.slurm
 squeue -u "$USER"
 ```
 
-## 7. Common issues
-
-| Problem | Cause | Fix |
-| --- | --- | --- |
-| `ensurepip` missing | Minimal Python build in container | Use the versioned `get-pip.py` download in Step 2. |
-| `pip` still not found | Python cannot see the custom prefix | Export `PYTHONPATH` and `PATH` that point to `/venvs/piproot`. |
-| `/venvs/plaknit/bin/activate` missing | venv not created or not bound | Mount `$VENVBASE` into the container before running commands. |
-| Wrong `plaknit` binary executes | Host `~/.local/bin` shadows container | Call `/venvs/plaknit/bin/plaknit` explicitly. |
-| `error: unrecognized arguments: mosaic` | CLI has no subcommands | Run `plaknit --inputs ...` directly; omit subcommand names. |
-
-## 8. Validation checklist
+## 6. Validation checklist
 
 - [ ] `pip --version` runs successfully inside the container.
 - [ ] `/venvs/plaknit/bin/plaknit --version` prints the expected release.
 - [ ] `/data/strips`, `/data/udms`, and `/data/output` are visible inside the job.
 - [ ] The output mosaic (for example `final_mosaic.tif`) lands in `$OUTDIR`.
 
-## 9. Summary
+## 7. Summary
 
 You now have a reproducible approach that:
 
