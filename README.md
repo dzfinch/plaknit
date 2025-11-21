@@ -7,6 +7,8 @@
 
 **Processing Large-Scale PlanetScope Data**
 
+> Note: plaknit is in active early-stage development. Expect frequent updates, and please share feedback or ideas through the GitHub Issues tab.
+
 - Planet data is phenomenal for tracking change, but the current acquisition
   strategy sprays dozens of narrow strips across a scene. Without careful
   masking and mosaicking, even "cloud free" searches still include haze,
@@ -31,25 +33,30 @@
 - Random Forest training + inference utilities for classifying Planet stacks.
 - Planning workflow that searches Planet's STAC/Data API, scores scenes, and (optionally) submits Orders API requests for clipped SR bundles.
 
-## Masking & Mosaicking CLI
+## Masking & Mosaicking CLI (stitch)
 
-When the SR scenes land, run the bundled mosaic driver (no extra scripting
+When the SR scenes land, run the bundled stitch driver (no extra scripting
 required). Point it at the clipped strips, their UDMs, and the desired output
 path; the command handles GDAL masking + Orfeo Toolbox mosaicking with parallel
-workers and RAM hints:
+workers, RAM hints, and progress bars (masking → binary mask prep → distance →
+mosaicking):
 
 ```bash
-plaknit \
+plaknit stitch \
   --inputs /data/planet/strips/*.tif \
   --udms /data/planet/strips/*.udm2.tif \
   --output /data/mosaics/planet_mosaic_2024.tif \
+  --sr-bands 8 \
+  --ndvi \
   --jobs 8 \
   --ram 196608
 ```
 
 Customize `--jobs`, `--ram`, or `--workdir/--tmpdir` as needed for your local or
-HPC environment. The CLI mirrors the legacy `mosaic_planet.py` workflow so you
-can keep using existing recipes with minimal tweaks.
+HPC environment. The CLI mirrors the legacy `mosaic_planet.py` workflow; you can
+also invoke it as `plaknit mosaic` for backward compatibility.
+Pass `--ndvi` to append NDVI (bands 4/3 for 4-band SR, 8/6 for 8-band SR) to the
+output mosaic.
 
 ## Planning & Ordering Monthly Planet Composites (Beta)
 
@@ -79,8 +86,9 @@ plaknit plan \
 ```
 
 Planning + ordering stay on the non-HPC side; once scenes arrive (clipped to
-the AOI and optionally harmonized), push them through `plaknit mosaic` or future
-compositing tools on HPC to build median reflectance mosaics.
+the AOI and optionally harmonized), push them through `plaknit stitch` (alias
+`plaknit mosaic`) or future compositing tools on HPC to build median reflectance
+mosaics.
 
 Already have a stored plan JSON/GeoJSON? Submit the corresponding orders later
 without replanning via:

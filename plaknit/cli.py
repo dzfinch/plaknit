@@ -25,7 +25,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             return planner_cli.main(subargv)
         if command == "order":
             return orders_cli.main(subargv)
-        if command == "mosaic":
+        if command in ("mosaic", "stitch"):
             return mosaic_cli.main(subargv)
 
     return mosaic_cli.main(args)

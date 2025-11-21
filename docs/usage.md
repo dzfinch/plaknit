@@ -1,25 +1,28 @@
 # Usage
 
-`plaknit` ships with a CLI that mirrors the standalone `mosaic_planet.py`
-script you may have used previously. Install the package into the same
-environment that contains GDAL and Orfeo Toolbox, then run:
+`plaknit` ships with a CLI that is best run in High-Performance Computing Environments. Install the package into the same
+environment that contains GDAL and Orfeo Toolbox, then run the stitched workflow:
 
 ```bash
-plaknit --inputs /data/strips/*.tif \
-        --udms /data/strips/*.udm.tif \
-        --output /data/mosaics/planet_mosaic.tif \
-        --jobs 8 \
-        --ram 196608
+plaknit stitch \
+  --inputs /data/strips/*.tif \
+  --udms /data/strips/*.udm.tif \
+  --output /data/mosaics/planet_mosaic.tif \
+  --jobs 8 \
+  --ram 196608
 ```
 
-You can also call the module directly with `python -m plaknit.mosaic` if you
-prefer to pin the interpreter.
+`plaknit stitch` is also available as `plaknit mosaic` for backward
+compatibility. You can call the module directly with `python -m plaknit.mosaic`
+if you prefer to pin the interpreter. The progress display shows the masking,
+binary mask prep, distance calculation, and final mosaicking stages when
+`rich` is installed.
 
 ## Required arguments
 
 - `--inputs / -il`: One or more GeoTIFFs or directories. Directories are
   expanded to all `.tif` files.
-- `--output / -out`: Destination path for the final mosaic.
+- `--output / -out`: Destination path for the final stitched mosaic.
 
 ## Optional arguments
 
@@ -27,15 +30,13 @@ prefer to pin the interpreter.
   `--skip-masking` is supplied.
 - `--skip-masking`: Use the provided inputs directly without applying the
   gdal-based UDM mask.
+- `--sr-bands`: Surface reflectance bundle size (4 or 8).
+- `--ndvi`: Append an NDVI band (NIR/Red uses bands 4/3 for 4-band, 8/6 for 8-band).
 - `--workdir / --tmpdir`: Override the locations used for intermediate strips
   and OTB scratch files. Defaults are automatically managed temp directories.
 - `--jobs`: Number of parallel masking workers (defaults to 4).
 - `--ram`: RAM hint for OTB in MB (defaults to 131072).
 - `-v/ -vv`: Increase logging verbosity.
-
-The CLI guarantees the same behavior as the original script, but it now lives
-inside the package so you can version and redistribute the workflow alongside
-the rest of your tooling.
 
 ## Planning & Ordering Monthly Planet Composites (Beta)
 
@@ -62,7 +63,7 @@ plaknit plan \
 The summary table shows candidate/selected scenes, achieved coverage, clear
 observation depth, and any resulting order IDs. Orders deliver one ZIP per
 scene (no pre-mosaicking on Planet's side) so you can hand the outputs to
-`plaknit mosaic` or future composite builders on HPC.
+`plaknit stitch` or future composite builders on HPC.
 
 Planet limits STAC/Data AOI intersections to 1,500 vertices, so the planner
 automatically simplifies uploaded AOIs (while preserving topology) until they

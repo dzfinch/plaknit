@@ -8,15 +8,20 @@ import copy
 import json
 import logging
 import os
+import warnings
+from base64 import b64encode
+from calendar import monthrange
+from datetime import date
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional, Sequence
 
+from pystac_client import Client
 from shapely.geometry import mapping
 
 from .geometry import load_aoi_geometry, reproject_geometry
 
 ORDER_LOGGER_NAME = "plaknit.plan"
-PLANET_MAX_ITEMS_PER_ORDER = 100
+PLANET_STAC_URL = "https://api.planet.com/x/data/"
 
 
 def _get_logger() -> logging.Logger:
@@ -30,6 +35,33 @@ def _require_api_key() -> str:
             "PL_API_KEY environment variable is required for orders."
         )
     return api_key
+
+
+def _open_planet_stac_client(api_key: str) -> Client:
+    warnings.filterwarnings(
+        "ignore", message=".*Server does not conform to QUERY.*", category=UserWarning
+    )
+    token = b64encode(f"{api_key}:".encode("utf-8")).decode("ascii")
+    headers = {"Authorization": f"Basic {token}"}
+    return Client.open(PLANET_STAC_URL, headers=headers)
+
+
+def _month_start_end(month: str, plan_entry: Dict[str, Any]) -> tuple[date, date]:
+    filters = plan_entry.get("filters", {}) or {}
+    try:
+        start_str = filters.get("month_start")
+        end_str = filters.get("month_end")
+        if start_str and end_str:
+            start = date.fromisoformat(start_str)
+            end = date.fromisoformat(end_str)
+            return start, end
+    except Exception:
+        pass
+    year, month_num = month.split("-")
+    last_day = monthrange(int(year), int(month_num))[1]
+    start = date(int(year), int(month_num), 1)
+    end = date(int(year), int(month_num), last_day)
+    return start, end
 
 
 def _bundle_for_sr_bands(sr_bands: int) -> str:
@@ -129,6 +161,120 @@ async def _orders_client_context(api_key: str):
         yield session.client("orders")
 
 
+def _clear_fraction(properties: Dict[str, Any]) -> Optional[float]:
+    clear_value = properties.get("clear_percent") or properties.get("pl:clear_percent")
+    if clear_value is None:
+        clear_value = properties.get("clear_fraction") or properties.get(
+            "pl:clear_fraction"
+        )
+    if clear_value is not None:
+        try:
+            clear_float = float(clear_value)
+            if clear_float > 1:
+                clear_float /= 100.0
+            return max(0.0, min(1.0, clear_float))
+        except (ValueError, TypeError):
+            pass
+
+    cloud_value = properties.get("cloud_cover") or properties.get("pl:cloud_cover")
+    if cloud_value is None:
+        cloud_value = properties.get("cloud_percent") or properties.get(
+            "pl:cloud_percent"
+        )
+    if cloud_value is not None:
+        try:
+            cloud_fraction = float(cloud_value)
+            if cloud_fraction > 1:
+                cloud_fraction /= 100.0
+            return max(0.0, min(1.0, 1.0 - cloud_fraction))
+        except (ValueError, TypeError):
+            pass
+
+    return None
+
+
+def _find_replacement_items(
+    *,
+    stac_client: Client,
+    plan_entry: Dict[str, Any],
+    month: str,
+    aoi_geojson: Dict[str, Any],
+    desired_count: int,
+    exclude_ids: set[str],
+) -> List[Dict[str, Any]]:
+    if desired_count <= 0:
+        return []
+
+    filters = plan_entry.get("filters", {}) or {}
+    item_type = filters.get("item_type") or "PSScene"
+    collection = filters.get("collection")
+    imagery_type = filters.get("imagery_type")
+    instrument_types = filters.get("instrument_types")
+    cloud_max = filters.get("cloud_max")
+    sun_elevation_min = filters.get("sun_elevation_min")
+    min_clear_fraction = filters.get("min_clear_fraction", 0.0) or 0.0
+    limit = filters.get("limit")
+
+    item_collections = [collection] if collection else [item_type]
+    query: Dict[str, Any] = {}
+    if sun_elevation_min is not None:
+        query["sun_elevation"] = {"gte": sun_elevation_min}
+    if cloud_max is not None:
+        query["cloud_cover"] = {"lte": cloud_max}
+    if imagery_type:
+        query["pl:imagery_type"] = {"eq": imagery_type}
+    if instrument_types:
+        unique_instruments = []
+        for inst in instrument_types:
+            if inst not in unique_instruments:
+                unique_instruments.append(inst)
+        if len(unique_instruments) == 1:
+            query["pl:instrument"] = {"eq": unique_instruments[0]}
+        else:
+            query["pl:instrument"] = {"in": unique_instruments}
+
+    month_start, month_end = _month_start_end(month, plan_entry)
+    datetime_range = f"{month_start.isoformat()}/{month_end.isoformat()}"
+
+    search = stac_client.search(
+        collections=item_collections,
+        datetime=datetime_range,
+        intersects=aoi_geojson,
+        query=query,
+        max_items=limit,
+    )
+    candidates: List[tuple[float, Any]] = []
+    for item in search.items():
+        if item.id in exclude_ids:
+            continue
+        properties = dict(item.properties)
+        properties["id"] = item.id
+        clear_fraction = _clear_fraction(properties)
+        if clear_fraction is None or clear_fraction < min_clear_fraction:
+            continue
+        candidates.append((clear_fraction, item))
+
+    candidates.sort(key=lambda pair: pair[0], reverse=True)
+    replacements: List[Dict[str, Any]] = []
+    for clear_fraction, item in candidates[:desired_count]:
+        replacements.append(
+            {
+                "id": item.id,
+                "collection": item.collection_id or collection or "PSScene",
+                "clear_fraction": clear_fraction,
+                "properties": {
+                    "cloud_cover": item.properties.get("cloud_cover"),
+                    "clear_percent": item.properties.get("clear_percent"),
+                    "sun_elevation": item.properties.get("sun_elevation"),
+                    "sun_azimuth": item.properties.get("sun_azimuth"),
+                    "acquired": item.properties.get("acquired"),
+                },
+            }
+        )
+
+    return replacements
+
+
 async def _submit_orders_async(
     plan: dict,
     aoi_path: str,
@@ -149,6 +295,7 @@ async def _submit_orders_async(
         tools.append({"harmonize": {"target_sensor": "Sentinel-2"}})
 
     results: dict[str, dict[str, Any]] = {}
+    stac_client = _open_planet_stac_client(api_key)
     async with _orders_client_context(api_key) as client:
         for month in sorted(plan.keys()):
             entry = plan[month]
@@ -165,11 +312,11 @@ async def _submit_orders_async(
                 continue
 
             remaining_items = [item for item in items if item.get("id")]
+            dropped_ids: set[str] = set()
             order_result: Optional[Any] = None
 
             while remaining_items:
-                chunk = remaining_items[:PLANET_MAX_ITEMS_PER_ORDER]
-                submit_item_ids = [item["id"] for item in chunk]
+                submit_item_ids = [item["id"] for item in remaining_items]
                 order_tools = copy.deepcopy(tools)
                 delivery: Dict[str, Any] = {
                     "archive_type": archive_type,
@@ -205,17 +352,39 @@ async def _submit_orders_async(
                         month,
                         ", ".join(inaccessible_ids),
                     )
+                    dropped_ids.update(inaccessible_ids)
                     remaining_items = [
                         item
                         for item in remaining_items
                         if item["id"] not in inaccessible_ids
                     ]
+                    desired_replacements = len(inaccessible_ids)
+                    replacements = _find_replacement_items(
+                        stac_client=stac_client,
+                        plan_entry=entry,
+                        month=month,
+                        aoi_geojson=clip_geojson,
+                        desired_count=desired_replacements,
+                        exclude_ids=set(submit_item_ids) | dropped_ids,
+                    )
+                    if replacements:
+                        logger.info(
+                            "Adding %d replacement scene(s) for %s.",
+                            len(replacements),
+                            month,
+                        )
+                        remaining_items.extend(replacements)
+                        continue
                     if not remaining_items:
                         logger.error(
                             "Skipping order for %s: no accessible scenes remain.", month
                         )
                         results[month] = {"order_id": None, "item_ids": []}
                         break
+                    logger.warning(
+                        "Proceeding with %d scene(s) after removals.",
+                        len(remaining_items),
+                    )
                     continue
                 else:
                     order_id = None
@@ -224,7 +393,7 @@ async def _submit_orders_async(
                     else:
                         order_id = getattr(order_result, "id", None)
                     logger.info(
-                        "Submitted order for %s (chunk of %d): %s",
+                        "Submitted order for %s (%d scenes): %s",
                         month,
                         len(submit_item_ids),
                         order_id,
@@ -232,7 +401,7 @@ async def _submit_orders_async(
                     results.setdefault(month, {"order_id": None, "item_ids": []})
                     results[month]["order_id"] = order_id
                     results[month]["item_ids"].extend(submit_item_ids)
-                    remaining_items = remaining_items[len(chunk) :]
+                    remaining_items = []
 
             if month not in results:
                 results[month] = {"order_id": None, "item_ids": []}

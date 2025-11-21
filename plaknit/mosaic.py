@@ -8,10 +8,26 @@ import os
 import shutil
 import subprocess
 import tempfile
+from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Sequence, Union
+
+import numpy as np
+import rasterio
+
+try:
+    from rich.progress import (
+        BarColumn,
+        Progress,
+        SpinnerColumn,
+        TextColumn,
+        TimeElapsedColumn,
+        TimeRemainingColumn,
+    )
+except Exception:  # pragma: no cover - optional dependency
+    Progress = None  # type: ignore
 
 try:
     import otbApplication  # type: ignore
@@ -37,6 +53,8 @@ class MosaicJob:
     ram: int = 131072
     jobs: int = 4
     skip_masking: bool = False
+    sr_bands: int = 4
+    add_ndvi: bool = False
 
 
 def configure_logging(verbosity: int) -> logging.Logger:
@@ -69,6 +87,25 @@ class MosaicWorkflow:
         self._tmpdir_created: Optional[Path] = None
         self._workdir_created: Optional[Path] = None
 
+    @contextmanager
+    def _progress(self, enabled: bool = True):
+        if not enabled or Progress is None:
+            yield None
+            return
+        progress = Progress(
+            SpinnerColumn(),
+            BarColumn(),
+            TextColumn("{task.description}"),
+            TimeElapsedColumn(),
+            TimeRemainingColumn(),
+            refresh_per_second=5,
+        )
+        progress.start()
+        try:
+            yield progress
+        finally:
+            progress.stop()
+
     def run(self) -> Path:
         """Execute the workflow and return the output path."""
         job = self.job
@@ -76,30 +113,63 @@ class MosaicWorkflow:
             raise ValueError("At least one input strip must be provided.")
         if job.ram <= 0:
             raise ValueError("RAM must be a positive integer.")
+        if job.add_ndvi and job.sr_bands not in (4, 8):
+            raise ValueError("sr_bands must be 4 or 8 when --ndvi is requested.")
 
         inputs = self._expand(job.inputs, label="inputs")
-        if job.skip_masking:
-            masked_paths = inputs
-        else:
-            if not job.udms:
-                raise ValueError(
-                    "UDM rasters are required unless --skip-masking is provided."
-                )
-            udms = self._expand(job.udms, label="UDMs")
-            if len(inputs) != len(udms):
-                raise ValueError(
-                    f"Input/UDM mismatch: expected {len(inputs)} UDMs but received {len(udms)}."
-                )
-            masked_paths = self._mask_inputs(inputs, udms)
+        with self._progress(enabled=self.log.isEnabledFor(logging.INFO)) as progress:
+            mask_task = (
+                progress.add_task("Masking tiles with UDMs", total=len(inputs))
+                if progress and not job.skip_masking
+                else None
+            )
+            binary_task = (
+                progress.add_task("Creating binary masks", total=1)
+                if progress
+                else None
+            )
+            distance_task = (
+                progress.add_task("Distance calculation", total=1) if progress else None
+            )
+            mosaic_task = progress.add_task("Mosaicking", total=1) if progress else None
 
-        tmpdir = self._prepare_tmpdir()
-        self._prepare_output_directory()
-        self._configure_environment()
+            if job.skip_masking:
+                masked_paths = inputs
+                if progress and mask_task is not None:
+                    progress.update(mask_task, total=1, completed=1)
+            else:
+                if not job.udms:
+                    raise ValueError(
+                        "UDM rasters are required unless --skip-masking is provided."
+                    )
+                udms = self._expand(job.udms, label="UDMs")
+                if len(inputs) != len(udms):
+                    raise ValueError(
+                        f"Input/UDM mismatch: expected {len(inputs)} UDMs but received {len(udms)}."
+                    )
+                masked_paths = self._mask_inputs(inputs, udms, progress, mask_task)
 
-        try:
-            self._run_mosaic(masked_paths, tmpdir)
-        finally:
-            self._cleanup_tmpdir()
+            tmpdir = self._prepare_tmpdir()
+            self._prepare_output_directory()
+            self._configure_environment()
+
+            # Binary mask + distance are internal to OTB; mark as completed when we enter/exit.
+            if progress and binary_task is not None:
+                progress.update(binary_task, completed=1)
+            if progress and distance_task is not None:
+                progress.update(distance_task, completed=1)
+
+            try:
+                mosaic_path = self._run_mosaic(
+                    masked_paths, tmpdir, progress, mosaic_task
+                )
+                if job.add_ndvi:
+                    ndvi_task = progress.add_task("NDVI", total=1) if progress else None
+                    self._append_ndvi(mosaic_path, job.sr_bands)
+                    if progress and ndvi_task is not None:
+                        progress.update(ndvi_task, completed=1)
+            finally:
+                self._cleanup_tmpdir()
 
         output_path = Path(job.output).expanduser()
         self.log.info("Mosaic complete: %s", output_path)
@@ -154,7 +224,13 @@ class MosaicWorkflow:
         os.environ.setdefault("ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS", str(jobs))
         os.environ.setdefault("OTB_MAX_RAM_HINT", str(self.job.ram))
 
-    def _mask_inputs(self, strips: Sequence[str], udms: Sequence[str]) -> List[str]:
+    def _mask_inputs(
+        self,
+        strips: Sequence[str],
+        udms: Sequence[str],
+        progress: Optional[Progress],
+        task_id: Optional[int],
+    ) -> List[str]:
         workdir = self._ensure_workdir()
         jobs = max(1, self.job.jobs)
         self.log.info("Masking %s strips using %s parallel jobs.", len(strips), jobs)
@@ -170,6 +246,8 @@ class MosaicWorkflow:
 
             for future in as_completed(futures):
                 masked_paths.append(str(future.result()))
+                if progress and task_id is not None:
+                    progress.advance(task_id)
 
         masked_paths.sort()
         return masked_paths
@@ -207,7 +285,13 @@ class MosaicWorkflow:
         subprocess.run(cmd, check=True)
         return masked_path
 
-    def _run_mosaic(self, rasters: Sequence[str], tmpdir: Path) -> None:
+    def _run_mosaic(
+        self,
+        rasters: Sequence[str],
+        tmpdir: Path,
+        progress: Optional[Progress],
+        task_id: Optional[int],
+    ) -> Path:
         if otbApplication is None:  # pragma: no cover - environment specific
             raise RuntimeError(
                 "otbApplication bindings are not available. Install the OTB Python "
@@ -254,6 +338,31 @@ class MosaicWorkflow:
                 app.SetParameterFloat(key, value)
 
         app.ExecuteAndWriteOutput()
+        if progress and task_id is not None:
+            progress.update(task_id, completed=1)
+        return Path(params["out"])
+
+    def _append_ndvi(self, mosaic_path: Path, sr_bands: int) -> Path:
+        """Compute NDVI and append as an extra band to the mosaic."""
+        nir_band = 4 if sr_bands == 4 else 8
+        red_band = 3 if sr_bands == 4 else 6
+        with rasterio.open(mosaic_path, "r") as src:
+            profile = src.profile.copy()
+            profile.update(count=src.count + 1, dtype="float32")
+            data = src.read()
+            nir = data[nir_band - 1].astype("float32")
+            red = data[red_band - 1].astype("float32")
+            with rasterio.Env():
+                with rasterio.open(mosaic_path, "w", **profile) as dst:
+                    dst.write(data)
+                    with np.errstate(divide="ignore", invalid="ignore"):
+                        ndvi = (nir - red) / (nir + red)
+                    if src.nodata is not None:
+                        mask = (nir == src.nodata) | (red == src.nodata)
+                        ndvi = np.where(mask, np.nan, ndvi)
+                    ndvi = np.nan_to_num(ndvi)
+                    dst.write(ndvi, src.count + 1)
+        return mosaic_path
 
     def _cleanup_tmpdir(self) -> None:
         if self._tmpdir_created and self._tmpdir_created.exists():
@@ -275,8 +384,11 @@ def run_mosaic(job: MosaicJob, logger: Optional[logging.Logger] = None) -> Path:
 def build_parser() -> argparse.ArgumentParser:
     """Create the CLI parser for the mosaic workflow."""
     parser = argparse.ArgumentParser(
-        prog="plaknit mosaic",
-        description="Mask Planet strips with UDM rasters and mosaic them with OTB.",
+        prog="plaknit stitch",
+        description=(
+            "Mask Planet strips with UDM rasters, stitch them with OTB, "
+            "and optionally append NDVI."
+        ),
     )
     parser.add_argument(
         "--inputs",
@@ -329,6 +441,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip masking and use --inputs directly for mosaicking.",
     )
     parser.add_argument(
+        "--sr-bands",
+        type=int,
+        choices=(4, 8),
+        default=4,
+        help="Surface reflectance band count (4 or 8, default: 4).",
+    )
+    parser.add_argument(
+        "--ndvi",
+        action="store_true",
+        help="Compute NDVI (NIR-Red / NIR+Red) and append as an extra band.",
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="count",
@@ -362,6 +486,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         ram=args.ram,
         jobs=args.jobs,
         skip_masking=args.skip_masking,
+        sr_bands=args.sr_bands,
+        add_ndvi=args.ndvi,
     )
 
     workflow = MosaicWorkflow(job, logger=logger)
