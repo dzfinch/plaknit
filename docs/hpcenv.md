@@ -102,7 +102,6 @@ The venv now lives at `$PROJECT_DIR/venvs/plaknit` and can be reused across jobs
 
 ## 5. Example processing script:
 
-
 ```bash
 # set these to the paths on the host filesystem
 export TILES=/blue/jkblackburn/$USER/data/strips          # GeoTIFF strips/tiles
