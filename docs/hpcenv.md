@@ -105,7 +105,7 @@ The venv now lives at `$PROJECT_DIR/venvs/plaknit` and can be reused across jobs
 ```bash
 # set these to the paths on the host filesystem
 export TILES=/blue/jkblackburn/$USER/data/strips          # GeoTIFF strips/tiles
-export UDMS=/blue/jkblackburn/$USER/data/udms            # matching UDM 
+export UDMS=/blue/jkblackburn/$USER/data/udms            # matching UDM
 export OUTDIR=/blue/jkblackburn/$USER/output        # mosaic
 export VENVBASE=/blue/jkblackburn/$USER/venvs       # contains the env
 export SCRATCH=${SLURM_TMPDIR:-/tmp}       # fast scratch space
