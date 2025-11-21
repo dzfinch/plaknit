@@ -403,6 +403,22 @@ def plan_monthly_composites(
         month_plan["tile_size_m"] = tile_size_m
         month_plan["coverage_target"] = coverage_target
         month_plan["min_clear_obs"] = min_clear_obs
+        month_plan["filters"] = {
+            "item_type": item_type,
+            "collection": collection,
+            "imagery_type": imagery_type,
+            "instrument_types": list(instrument_types)
+            if instrument_types
+            else None,
+            "cloud_max": cloud_max,
+            "sun_elevation_min": sun_elevation_min,
+            "min_clear_fraction": min_clear_fraction,
+            "month_start": month_start.isoformat(),
+            "month_end": month_end.isoformat(),
+            "azimuth_sigma": azimuth_sigma,
+            "elevation_sigma": elevation_sigma,
+            "limit": limit,
+        }
         plan[month_id] = month_plan
 
     return plan
