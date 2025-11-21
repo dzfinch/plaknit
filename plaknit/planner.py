@@ -472,9 +472,9 @@ def plan_monthly_composites(
                 "item_type": item_type,
                 "collection": collection,
                 "imagery_type": imagery_type,
-                "instrument_types": list(instrument_types)
-                if instrument_types
-                else None,
+                "instrument_types": (
+                    list(instrument_types) if instrument_types else None
+                ),
                 "cloud_max": cloud_max,
                 "sun_elevation_min": sun_elevation_min,
                 "min_clear_fraction": min_clear_fraction,

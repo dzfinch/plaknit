@@ -382,7 +382,8 @@ async def _submit_orders_async(
                         results[month] = {"order_id": None, "item_ids": []}
                         break
                     logger.warning(
-                        "Proceeding with %d scene(s) after removals.", len(remaining_items)
+                        "Proceeding with %d scene(s) after removals.",
+                        len(remaining_items),
                     )
                     continue
                 else:

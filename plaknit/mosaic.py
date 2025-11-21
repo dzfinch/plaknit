@@ -119,18 +119,18 @@ class MosaicWorkflow:
         inputs = self._expand(job.inputs, label="inputs")
         with self._progress(enabled=self.log.isEnabledFor(logging.INFO)) as progress:
             mask_task = (
-                progress.add_task(
-                    "Masking tiles with UDMs", total=len(inputs)
-                )
+                progress.add_task("Masking tiles with UDMs", total=len(inputs))
                 if progress and not job.skip_masking
                 else None
             )
-            binary_task = progress.add_task(
-                "Creating binary masks", total=1
-            ) if progress else None
-            distance_task = progress.add_task(
-                "Distance calculation", total=1
-            ) if progress else None
+            binary_task = (
+                progress.add_task("Creating binary masks", total=1)
+                if progress
+                else None
+            )
+            distance_task = (
+                progress.add_task("Distance calculation", total=1) if progress else None
+            )
             mosaic_task = progress.add_task("Mosaicking", total=1) if progress else None
 
             if job.skip_masking:
@@ -160,11 +160,11 @@ class MosaicWorkflow:
                 progress.update(distance_task, completed=1)
 
             try:
-                mosaic_path = self._run_mosaic(masked_paths, tmpdir, progress, mosaic_task)
+                mosaic_path = self._run_mosaic(
+                    masked_paths, tmpdir, progress, mosaic_task
+                )
                 if job.add_ndvi:
-                    ndvi_task = (
-                        progress.add_task("NDVI", total=1) if progress else None
-                    )
+                    ndvi_task = progress.add_task("NDVI", total=1) if progress else None
                     self._append_ndvi(mosaic_path, job.sr_bands)
                     if progress and ndvi_task is not None:
                         progress.update(ndvi_task, completed=1)
