@@ -1,9 +1,7 @@
 # Usage
 
-`plaknit` ships with a CLI that mirrors the standalone `mosaic_planet.py`
-script you may have used previously. Install the package into the same
-environment that contains GDAL and Orfeo Toolbox, then run the stitched
-workflow:
+`plaknit` ships with a CLI that is best run in High-Performance Computing Environments. Install the package into the same
+environment that contains GDAL and Orfeo Toolbox, then run the stitched workflow:
 
 ```bash
 plaknit stitch \
@@ -38,10 +36,6 @@ binary mask prep, distance calculation, and final mosaicking stages when
 - `--ram`: RAM hint for OTB in MB (defaults to 131072).
 - `-v/ -vv`: Increase logging verbosity.
 
-The CLI guarantees the same behavior as the original script, but it now lives
-inside the package so you can version and redistribute the workflow alongside
-the rest of your tooling.
-
 ## Planning & Ordering Monthly Planet Composites (Beta)
 
 `plaknit plan` can run on local devices to query Planet's Data/STAC API, filter PSScene candidates, tile the AOI, and pick the smallest monthly set that meets both coverage and clear-observation targets. You can optionally submit one Planet order per month with clipped surface reflectance scenes (4- or 8-band SR + UDM2) and Sentinel-2 harmonization.
@@ -67,7 +61,7 @@ plaknit plan \
 The summary table shows candidate/selected scenes, achieved coverage, clear
 observation depth, and any resulting order IDs. Orders deliver one ZIP per
 scene (no pre-mosaicking on Planet's side) so you can hand the outputs to
-`plaknit mosaic` or future composite builders on HPC.
+`plaknit stitch` or future composite builders on HPC.
 
 Planet limits STAC/Data AOI intersections to 1,500 vertices, so the planner
 automatically simplifies uploaded AOIs (while preserving topology) until they
