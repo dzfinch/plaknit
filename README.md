@@ -53,8 +53,7 @@ plaknit stitch \
 ```
 
 Customize `--jobs`, `--ram`, or `--workdir/--tmpdir` as needed for your local or
-HPC environment. The CLI mirrors the legacy `mosaic_planet.py` workflow; you can
-also invoke it as `plaknit mosaic` for backward compatibility.
+HPC environment. You can also invoke it as `plaknit mosaic` for backward compatibility.
 Pass `--ndvi` to append NDVI (bands 4/3 for 4-band SR, 8/6 for 8-band SR) to the
 output mosaic.
 
