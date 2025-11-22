@@ -131,7 +131,7 @@ repeatable jobs.
 ```bash
 # set these to the paths on the host filesystem
 export TILES=$USER/data/strips          # GeoTIFF strips/tiles
-export UDMS=$USER/data/udms            # matching UDM 
+export UDMS=$USER/data/udms            # matching UDM
 export OUTDIR=$USER/output        # mosaic
 export VENVBASE=$USER/venvs       # contains the env
 export SCRATCH=${SLURM_TMPDIR:-/tmp}       # fast scratch space
