@@ -54,6 +54,7 @@ class _ProgressManager:
     def __init__(self, enabled: bool = True):
         self.enabled = bool(enabled and Progress is not None)
         self._progress: Optional[Progress] = None
+        self._totals: dict[int, float] = {}
 
     def __enter__(self) -> "_ProgressManager":
         if self.enabled and Progress is not None:
@@ -72,17 +73,22 @@ class _ProgressManager:
         if self._progress:
             self._progress.stop()
         self._progress = None
+        self._totals.clear()
 
     def add(self, description: str, total: Optional[int] = None) -> Optional[int]:
         if not self._progress:
             return None
-        return self._progress.add_task(description, total=total)
+        task_id = self._progress.add_task(description, total=total)
+        if task_id is not None and total is not None:
+            self._totals[int(task_id)] = float(total)
+        return task_id
 
     def add_total(self, task_id: Optional[int], delta: int) -> None:
         if self._progress and task_id is not None and delta:
-            task = self._progress.get_task(task_id)
-            current_total = task.total or 0
-            self._progress.update(task_id, total=current_total + delta)
+            current_total = self._totals.get(int(task_id), 0.0)
+            new_total = current_total + delta
+            self._totals[int(task_id)] = new_total
+            self._progress.update(task_id, total=new_total)
 
     def advance(self, task_id: Optional[int], advance: float = 1.0) -> None:
         if self._progress and task_id is not None:
@@ -90,9 +96,11 @@ class _ProgressManager:
 
     def complete(self, task_id: Optional[int]) -> None:
         if self._progress and task_id is not None:
-            task = self._progress.get_task(task_id)
-            total = task.total if task.total is not None else task.completed or 1
-            self._progress.update(task_id, total=total, completed=total)
+            total = self._totals.get(int(task_id))
+            if total is None:
+                self._progress.update(task_id, completed=1)
+            else:
+                self._progress.update(task_id, total=total, completed=total)
 
 
 @dataclass
