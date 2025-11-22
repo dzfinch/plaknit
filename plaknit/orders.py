@@ -315,7 +315,9 @@ async def _submit_orders_async(
             remaining_items = [item for item in items if item.get("id")]
             dropped_ids: set[str] = set()
             order_index = 1
-            results.setdefault(month, {"order_id": None, "order_ids": [], "item_ids": []})
+            results.setdefault(
+                month, {"order_id": None, "order_ids": [], "item_ids": []}
+            )
 
             while remaining_items:
                 batch = remaining_items[:MAX_ITEMS_PER_ORDER]
@@ -356,8 +358,14 @@ async def _submit_orders_async(
                     except Exception as exc:  # pragma: no cover - exercised via mocks
                         inaccessible_ids = _extract_inaccessible_item_ids(exc)
                         if not inaccessible_ids:
-                            logger.error("Failed to submit order for %s: %s", month, exc)
-                            results[month] = {"order_id": None, "order_ids": [], "item_ids": submit_item_ids}
+                            logger.error(
+                                "Failed to submit order for %s: %s", month, exc
+                            )
+                            results[month] = {
+                                "order_id": None,
+                                "order_ids": [],
+                                "item_ids": submit_item_ids,
+                            }
                             working_batch = []
                             remaining_items = []
                             break
@@ -370,7 +378,9 @@ async def _submit_orders_async(
                         )
                         dropped_ids.update(inaccessible_ids)
                         working_batch = [
-                            item for item in working_batch if item["id"] not in inaccessible_ids
+                            item
+                            for item in working_batch
+                            if item["id"] not in inaccessible_ids
                         ]
                         desired_replacements = len(inaccessible_ids)
                         replacements = _find_replacement_items(
@@ -396,7 +406,8 @@ async def _submit_orders_async(
                             continue
                         if not working_batch:
                             logger.error(
-                                "Skipping order for %s: no accessible scenes remain.", month
+                                "Skipping order for %s: no accessible scenes remain.",
+                                month,
                             )
                             break
                         logger.warning(
