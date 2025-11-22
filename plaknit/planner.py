@@ -18,7 +18,6 @@ try:
     from rich.progress import (
         BarColumn,
         Progress,
-        SpinnerColumn,
         TextColumn,
         TimeElapsedColumn,
         TimeRemainingColumn,
@@ -54,11 +53,11 @@ class _ProgressManager:
     def __init__(self, enabled: bool = True):
         self.enabled = bool(enabled and Progress is not None)
         self._progress: Optional[Progress] = None
+        self._totals: dict[int, float] = {}
 
     def __enter__(self) -> "_ProgressManager":
         if self.enabled and Progress is not None:
             self._progress = Progress(
-                SpinnerColumn(),
                 BarColumn(),
                 TextColumn("{task.description}"),
                 TimeElapsedColumn(),
@@ -72,11 +71,22 @@ class _ProgressManager:
         if self._progress:
             self._progress.stop()
         self._progress = None
+        self._totals.clear()
 
     def add(self, description: str, total: Optional[int] = None) -> Optional[int]:
         if not self._progress:
             return None
-        return self._progress.add_task(description, total=total)
+        task_id = self._progress.add_task(description, total=total)
+        if task_id is not None and total is not None:
+            self._totals[int(task_id)] = float(total)
+        return task_id
+
+    def add_total(self, task_id: Optional[int], delta: int) -> None:
+        if self._progress and task_id is not None and delta:
+            current_total = self._totals.get(int(task_id), 0.0)
+            new_total = current_total + delta
+            self._totals[int(task_id)] = new_total
+            self._progress.update(task_id, total=new_total)
 
     def advance(self, task_id: Optional[int], advance: float = 1.0) -> None:
         if self._progress and task_id is not None:
@@ -84,9 +94,11 @@ class _ProgressManager:
 
     def complete(self, task_id: Optional[int]) -> None:
         if self._progress and task_id is not None:
-            task = self._progress.get_task(task_id)
-            total = task.total if task.total is not None else task.completed or 1
-            self._progress.update(task_id, total=total, completed=total)
+            total = self._totals.get(int(task_id))
+            if total is None:
+                self._progress.update(task_id, completed=1)
+            else:
+                self._progress.update(task_id, total=total, completed=total)
 
 
 @dataclass
@@ -443,6 +455,12 @@ def plan_monthly_composites(
     plan: dict[str, dict[str, Any]] = {}
     try:
         progress_log.__enter__()
+        filtering_task = (
+            progress_log.add("Filtering scenes", total=0) if progress_log else None
+        )
+        optimize_task = (
+            progress_log.add("Optimizing tiles", total=0) if progress_log else None
+        )
         for month_id, month_start, month_end in month_definitions:
             month_plan = _plan_single_month(
                 month_id=month_id,
@@ -463,6 +481,8 @@ def plan_monthly_composites(
                 azimuth_sigma=azimuth_sigma,
                 elevation_sigma=elevation_sigma,
                 limit=limit,
+                filtering_task=filtering_task,
+                optimize_task=optimize_task,
                 progress=progress_log,
             )
             month_plan["tile_size_m"] = tile_size_m
@@ -485,6 +505,9 @@ def plan_monthly_composites(
                 "limit": limit,
             }
             plan[month_id] = month_plan
+        if progress_log:
+            progress_log.complete(filtering_task)
+            progress_log.complete(optimize_task)
     finally:
         progress_log.__exit__(None, None, None)
 
@@ -511,6 +534,8 @@ def _plan_single_month(
     azimuth_sigma: float,
     elevation_sigma: float,
     limit: int | None,
+    filtering_task: Optional[int],
+    optimize_task: Optional[int],
     progress: Optional[_ProgressManager] = None,
 ) -> Dict[str, Any]:
     logger = _get_logger()
@@ -532,8 +557,7 @@ def _plan_single_month(
         else:
             query["pl:instrument"] = {"in": unique_instruments}
 
-    search_task = progress.add(f"{month_id}: search", total=1) if progress else None
-    logger.info("Searching Planet STAC for %s (%s).", month_id, datetime_range)
+    logger.debug("Searching Planet STAC for %s (%s).", month_id, datetime_range)
     search = client.search(
         collections=collections,
         datetime=datetime_range,
@@ -542,18 +566,13 @@ def _plan_single_month(
         max_items=limit,
     )
     items = list(search.items())
-    if progress:
-        progress.complete(search_task)
     candidate_count = len(items)
+    if progress:
+        progress.add_total(filtering_task, candidate_count)
 
     tile_states = [_TileState() for _ in tiles_projected]
     candidates: List[_Candidate] = []
 
-    filter_task = (
-        progress.add(f"{month_id}: filter", total=max(candidate_count, 1))
-        if progress
-        else None
-    )
     for item in items:
         properties = dict(item.properties)
         properties["id"] = item.id
@@ -617,12 +636,10 @@ def _plan_single_month(
             )
         )
         if progress:
-            progress.advance(filter_task)
-    if progress:
-        progress.complete(filter_task)
+            progress.advance(filtering_task)
 
     filtered_count = len(candidates)
-    logger.info(
+    logger.debug(
         "Month %s: %d candidates (%d after filters).",
         month_id,
         candidate_count,
@@ -630,11 +647,8 @@ def _plan_single_month(
     )
 
     selected: List[_Candidate] = []
-    compile_task = (
-        progress.add(f"{month_id}: compile", total=max(len(candidates), 1))
-        if progress
-        else None
-    )
+    if progress:
+        progress.add_total(optimize_task, len(candidates))
     while True:
         coverage = _coverage_fraction(tile_states)
         depth_fraction = _depth_fraction(tile_states, min_clear_obs)
@@ -664,12 +678,10 @@ def _plan_single_month(
         _apply_candidate(best_candidate, tile_states)
         selected.append(best_candidate)
         if progress:
-            progress.advance(compile_task)
+            progress.advance(optimize_task)
 
     coverage = _coverage_fraction(tile_states)
     depth_fraction = _depth_fraction(tile_states, min_clear_obs)
-    if progress:
-        progress.complete(compile_task)
     if coverage < coverage_target:
         logger.warning(
             "Coverage target (%.2f) not met for %s (achieved %.3f).",

@@ -38,8 +38,7 @@
 When the SR scenes land, run the bundled stitch driver (no extra scripting
 required). Point it at the clipped strips, their UDMs, and the desired output
 path; the command handles GDAL masking + Orfeo Toolbox mosaicking with parallel
-workers, RAM hints, and progress bars (masking → binary mask prep → distance →
-mosaicking):
+workers, RAM hints, and concise progress bars (Mask tiles → Binary mask → Mosaic):
 
 ```bash
 plaknit stitch \
@@ -64,7 +63,8 @@ API, apply environmental filters (clouds, sun elevation), tile the AOI, and
 select a minimal set of scenes per month that hit both coverage and clear
 observation depth targets. The same command can immediately turn those plans
 into Planet orders that deliver clipped surface reflectance scenes (4- or 8-band,
-optionally harmonized to Sentinel-2) as one ZIP per scene/bundle.
+optionally harmonized to Sentinel-2) as single-archive ZIPs chunked into orders
+of up to 100 scenes.
 
 ```bash
 plaknit plan \
@@ -103,4 +103,6 @@ plaknit order \
 ```
 
 `plaknit order` reuses the original AOI for clip/harmonization settings,
-applies optional harmonization, and prints a summary of each submitted order ID.
+applies optional harmonization, and prints a summary of each submitted order ID
+(orders split into batches of ≤100 scenes with order/ZIP names suffixed `_1`,
+`_2`, ... when needed).
