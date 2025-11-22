@@ -100,7 +100,33 @@ singularity exec \
 
 The venv now lives at `$PROJECT_DIR/venvs/plaknit` and can be reused across jobs.
 
-## 5. Example processing script:
+## 5. Upgrade plaknit in the persistent venv
+
+When a new plaknit release drops, reuse the same venv and cache to minimize
+downloads:
+
+```bash
+singularity exec \
+  --bind "$VENVBASE":/venvs \
+  --bind "$PIPCACHE":/pipcache \
+  "$SIF" bash -lc '
+    set -euo pipefail
+    PYVER=$(python3 -c '\''import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")'\'')
+    export PYTHONPATH=/venvs/piproot/lib/python${PYVER}/site-packages
+    export PATH=/venvs/piproot/bin:$PATH
+
+    source /venvs/plaknit/bin/activate
+    pip install --cache-dir /pipcache --upgrade plaknit
+
+    echo "[verify] plaknit -> $(which plaknit)"
+    plaknit --version || plaknit --help
+  '
+```
+
+Pin to a specific version with `pip install plaknit==<version>` if you need
+repeatable jobs.
+
+## 6. Example processing script:
 
 ```bash
 # set these to the paths on the host filesystem
@@ -142,14 +168,14 @@ sbatch plaknit_mosaic.slurm
 squeue -u "$USER"
 ```
 
-## 6. Validation checklist
+## 7. Validation checklist
 
 - [ ] `pip --version` runs successfully inside the container.
 - [ ] `/venvs/plaknit/bin/plaknit --version` prints the expected release.
 - [ ] `/data/strips`, `/data/udms`, and `/data/output` are visible inside the job.
 - [ ] The output mosaic (for example `final_mosaic.tif`) lands in `$OUTDIR`.
 
-## 7. Summary
+## 8. Summary
 
 You now have a reproducible approach that:
 

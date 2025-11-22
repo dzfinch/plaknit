@@ -119,19 +119,12 @@ class MosaicWorkflow:
         inputs = self._expand(job.inputs, label="inputs")
         with self._progress(enabled=self.log.isEnabledFor(logging.INFO)) as progress:
             mask_task = (
-                progress.add_task("Masking tiles with UDMs", total=len(inputs))
+                progress.add_task("Mask tiles", total=len(inputs))
                 if progress and not job.skip_masking
                 else None
             )
-            binary_task = (
-                progress.add_task("Creating binary masks", total=1)
-                if progress
-                else None
-            )
-            distance_task = (
-                progress.add_task("Distance calculation", total=1) if progress else None
-            )
-            mosaic_task = progress.add_task("Mosaicking", total=1) if progress else None
+            prep_task = progress.add_task("Binary mask", total=1) if progress else None
+            mosaic_task = progress.add_task("Mosaic", total=1) if progress else None
 
             if job.skip_masking:
                 masked_paths = inputs
@@ -153,21 +146,16 @@ class MosaicWorkflow:
             self._prepare_output_directory()
             self._configure_environment()
 
-            # Binary mask + distance are internal to OTB; mark as completed when we enter/exit.
-            if progress and binary_task is not None:
-                progress.update(binary_task, completed=1)
-            if progress and distance_task is not None:
-                progress.update(distance_task, completed=1)
+            # Binary mask prep is handled inside OTB; mark as ready before launch.
+            if progress and prep_task is not None:
+                progress.update(prep_task, completed=1)
 
             try:
                 mosaic_path = self._run_mosaic(
                     masked_paths, tmpdir, progress, mosaic_task
                 )
                 if job.add_ndvi:
-                    ndvi_task = progress.add_task("NDVI", total=1) if progress else None
                     self._append_ndvi(mosaic_path, job.sr_bands)
-                    if progress and ndvi_task is not None:
-                        progress.update(ndvi_task, completed=1)
             finally:
                 self._cleanup_tmpdir()
 
@@ -233,7 +221,7 @@ class MosaicWorkflow:
     ) -> List[str]:
         workdir = self._ensure_workdir()
         jobs = max(1, self.job.jobs)
-        self.log.info("Masking %s strips using %s parallel jobs.", len(strips), jobs)
+        self.log.debug("Masking %s strips using %s parallel jobs.", len(strips), jobs)
 
         masked_paths: List[str] = []
         with ThreadPoolExecutor(max_workers=jobs) as pool:
@@ -298,7 +286,7 @@ class MosaicWorkflow:
                 "packages before running the mosaic workflow."
             ) from _OTB_IMPORT_ERROR
 
-        self.log.info(
+        self.log.debug(
             "Running OTB Mosaic on %s strips with RAM=%s MB.",
             len(rasters),
             self.job.ram,

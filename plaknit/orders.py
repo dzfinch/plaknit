@@ -22,6 +22,7 @@ from .geometry import load_aoi_geometry, reproject_geometry
 
 ORDER_LOGGER_NAME = "plaknit.plan"
 PLANET_STAC_URL = "https://api.planet.com/x/data/"
+MAX_ITEMS_PER_ORDER = 100
 
 
 def _get_logger() -> logging.Logger:
@@ -313,98 +314,117 @@ async def _submit_orders_async(
 
             remaining_items = [item for item in items if item.get("id")]
             dropped_ids: set[str] = set()
-            order_result: Optional[Any] = None
+            order_index = 1
+            results.setdefault(month, {"order_id": None, "order_ids": [], "item_ids": []})
 
             while remaining_items:
-                submit_item_ids = [item["id"] for item in remaining_items]
-                order_tools = copy.deepcopy(tools)
-                delivery: Dict[str, Any] = {
-                    "archive_type": archive_type,
-                }
-                if single_archive:
-                    delivery["single_archive"] = True
+                batch = remaining_items[:MAX_ITEMS_PER_ORDER]
+                remaining_items = remaining_items[MAX_ITEMS_PER_ORDER:]
+                working_batch = batch
+                order_result: Optional[Any] = None
+                order_name = (
+                    f"{order_prefix}_{month}"
+                    if order_index == 1
+                    else f"{order_prefix}_{month}_{order_index}"
+                )
 
-                order_request = {
-                    "name": f"{order_prefix}_{month}",
-                    "products": [
-                        {
-                            "item_ids": submit_item_ids,
-                            "item_type": "PSScene",
-                            "product_bundle": bundle,
-                        }
-                    ],
-                    "tools": order_tools,
-                    "delivery": delivery,
-                }
+                while working_batch:
+                    submit_item_ids = [item["id"] for item in working_batch]
+                    order_tools = copy.deepcopy(tools)
+                    delivery: Dict[str, Any] = {
+                        "archive_type": archive_type,
+                        "archive_filename": order_name,
+                    }
+                    if single_archive:
+                        delivery["single_archive"] = True
 
-                try:
-                    order_result = await client.create_order(order_request)
-                except Exception as exc:  # pragma: no cover - exercised via mocks
-                    inaccessible_ids = _extract_inaccessible_item_ids(exc)
-                    if not inaccessible_ids:
-                        logger.error("Failed to submit order for %s: %s", month, exc)
-                        results[month] = {"order_id": None, "item_ids": submit_item_ids}
-                        break
+                    order_request = {
+                        "name": order_name,
+                        "products": [
+                            {
+                                "item_ids": submit_item_ids,
+                                "item_type": "PSScene",
+                                "product_bundle": bundle,
+                            }
+                        ],
+                        "tools": order_tools,
+                        "delivery": delivery,
+                    }
 
-                    logger.warning(
-                        "Removing %d inaccessible scene(s) for %s: %s",
-                        len(inaccessible_ids),
-                        month,
-                        ", ".join(inaccessible_ids),
-                    )
-                    dropped_ids.update(inaccessible_ids)
-                    remaining_items = [
-                        item
-                        for item in remaining_items
-                        if item["id"] not in inaccessible_ids
-                    ]
-                    desired_replacements = len(inaccessible_ids)
-                    replacements = _find_replacement_items(
-                        stac_client=stac_client,
-                        plan_entry=entry,
-                        month=month,
-                        aoi_geojson=clip_geojson,
-                        desired_count=desired_replacements,
-                        exclude_ids=set(submit_item_ids) | dropped_ids,
-                    )
-                    if replacements:
-                        logger.info(
-                            "Adding %d replacement scene(s) for %s.",
-                            len(replacements),
+                    try:
+                        order_result = await client.create_order(order_request)
+                    except Exception as exc:  # pragma: no cover - exercised via mocks
+                        inaccessible_ids = _extract_inaccessible_item_ids(exc)
+                        if not inaccessible_ids:
+                            logger.error("Failed to submit order for %s: %s", month, exc)
+                            results[month] = {"order_id": None, "order_ids": [], "item_ids": submit_item_ids}
+                            working_batch = []
+                            remaining_items = []
+                            break
+
+                        logger.warning(
+                            "Removing %d inaccessible scene(s) for %s: %s",
+                            len(inaccessible_ids),
                             month,
+                            ", ".join(inaccessible_ids),
                         )
-                        remaining_items.extend(replacements)
+                        dropped_ids.update(inaccessible_ids)
+                        working_batch = [
+                            item for item in working_batch if item["id"] not in inaccessible_ids
+                        ]
+                        desired_replacements = len(inaccessible_ids)
+                        replacements = _find_replacement_items(
+                            stac_client=stac_client,
+                            plan_entry=entry,
+                            month=month,
+                            aoi_geojson=clip_geojson,
+                            desired_count=desired_replacements,
+                            exclude_ids=set(submit_item_ids) | dropped_ids,
+                        )
+                        if replacements:
+                            logger.info(
+                                "Adding %d replacement scene(s) for %s.",
+                                len(replacements),
+                                month,
+                            )
+                            working_batch.extend(replacements)
+                            if len(working_batch) > MAX_ITEMS_PER_ORDER:
+                                # keep batch size within limit
+                                overflow = working_batch[MAX_ITEMS_PER_ORDER:]
+                                working_batch = working_batch[:MAX_ITEMS_PER_ORDER]
+                                remaining_items = overflow + remaining_items
+                            continue
+                        if not working_batch:
+                            logger.error(
+                                "Skipping order for %s: no accessible scenes remain.", month
+                            )
+                            break
+                        logger.warning(
+                            "Proceeding with %d scene(s) after removals.",
+                            len(working_batch),
+                        )
                         continue
-                    if not remaining_items:
-                        logger.error(
-                            "Skipping order for %s: no accessible scenes remain.", month
-                        )
-                        results[month] = {"order_id": None, "item_ids": []}
-                        break
-                    logger.warning(
-                        "Proceeding with %d scene(s) after removals.",
-                        len(remaining_items),
-                    )
-                    continue
-                else:
-                    order_id = None
-                    if isinstance(order_result, dict):
-                        order_id = order_result.get("id")
                     else:
-                        order_id = getattr(order_result, "id", None)
-                    logger.info(
-                        "Submitted order for %s (%d scenes): %s",
-                        month,
-                        len(submit_item_ids),
-                        order_id,
-                    )
-                    results.setdefault(month, {"order_id": None, "item_ids": []})
-                    results[month]["order_id"] = order_id
-                    results[month]["item_ids"].extend(submit_item_ids)
-                    remaining_items = []
+                        order_id = None
+                        if isinstance(order_result, dict):
+                            order_id = order_result.get("id")
+                        else:
+                            order_id = getattr(order_result, "id", None)
+                        logger.info(
+                            "Submitted order for %s (%d scenes): %s",
+                            order_name,
+                            len(submit_item_ids),
+                            order_id,
+                        )
+                        results[month]["order_ids"].append(order_id)
+                        if results[month]["order_id"] is None:
+                            results[month]["order_id"] = order_id
+                        results[month]["item_ids"].extend(submit_item_ids)
+                        working_batch = []
+                        order_index += 1
 
-            if month not in results:
-                results[month] = {"order_id": None, "item_ids": []}
+            if not results.get(month):
+                results[month] = {"order_id": None, "order_ids": [], "item_ids": []}
 
     return results
 
