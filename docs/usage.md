@@ -6,7 +6,7 @@ environment that contains GDAL and Orfeo Toolbox, then run the stitched workflow
 ```bash
 plaknit stitch \
   --inputs /data/strips/*.tif \
-  --udms /data/strips/*.udm.tif \
+  --udms /data/strips/*.udm2.tif \
   --output /data/mosaics/planet_mosaic.tif \
   --jobs 8 \
   --ram 196608
@@ -14,9 +14,8 @@ plaknit stitch \
 
 `plaknit stitch` is also available as `plaknit mosaic` for backward
 compatibility. You can call the module directly with `python -m plaknit.mosaic`
-if you prefer to pin the interpreter. The progress display shows the masking,
-binary mask prep, distance calculation, and final mosaicking stages when
-`rich` is installed.
+if you prefer to pin the interpreter. The progress display stays minimal with
+three bars: Mask tiles → Binary mask → Mosaic (shown when `rich` is installed).
 
 ## Required arguments
 
@@ -40,7 +39,7 @@ binary mask prep, distance calculation, and final mosaicking stages when
 
 ## Planning & Ordering Monthly Planet Composites (Beta)
 
-`plaknit plan` can run on local devices to query Planet's Data/STAC API, filter PSScene candidates, tile the AOI, and pick the smallest monthly set that meets both coverage and clear-observation targets. You can optionally submit one Planet order per month with clipped surface reflectance scenes (4- or 8-band SR + UDM2) and Sentinel-2 harmonization.
+`plaknit plan` can run on local devices to query Planet's Data/STAC API, filter PSScene candidates, tile the AOI, and pick the smallest monthly set that meets both coverage and clear-observation targets. You can optionally submit Planet orders with clipped surface reflectance scenes (4- or 8-band SR + UDM2) and Sentinel-2 harmonization, chunked into batches of up to 100 scenes with predictable order/ZIP names.
 
 ```bash
 plaknit plan \
@@ -61,9 +60,10 @@ plaknit plan \
 ```
 
 The summary table shows candidate/selected scenes, achieved coverage, clear
-observation depth, and any resulting order IDs. Orders deliver one ZIP per
-scene (no pre-mosaicking on Planet's side) so you can hand the outputs to
-`plaknit stitch` or future composite builders on HPC.
+observation depth, and any resulting order IDs. Orders deliver single-archive
+ZIPs per order (no pre-mosaicking on Planet's side) so you can hand the outputs
+to `plaknit stitch` or future composite builders on HPC; orders are chunked into
+up to 100 scenes each, with names suffixed `_1`, `_2`, etc. when needed.
 
 Planet limits STAC/Data AOI intersections to 1,500 vertices, so the planner
 automatically simplifies uploaded AOIs (while preserving topology) until they
@@ -84,11 +84,11 @@ plaknit order \
   --archive-type zip
 ```
 
-The order subcommand loads the stored plan, clips to the provided AOI, and issues
-one order per month while reporting the returned order IDs. If Planet reports
-any “no access to assets …” errors, `plaknit order` automatically drops the
-inaccessible scene IDs and retries so the remaining items can still be
-delivered.
+The order subcommand loads the stored plan, clips to the provided AOI, and
+submits orders (chunked at 100 scenes max) while reporting the returned order
+IDs. If Planet reports any “no access to assets …” errors, `plaknit order`
+automatically drops the inaccessible scene IDs and retries so the remaining
+items can still be delivered.
 
 
 ## Normalized difference analysis
