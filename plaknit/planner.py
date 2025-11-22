@@ -18,7 +18,6 @@ try:
     from rich.progress import (
         BarColumn,
         Progress,
-        SpinnerColumn,
         TextColumn,
         TimeElapsedColumn,
         TimeRemainingColumn,
@@ -59,7 +58,6 @@ class _ProgressManager:
     def __enter__(self) -> "_ProgressManager":
         if self.enabled and Progress is not None:
             self._progress = Progress(
-                SpinnerColumn(),
                 BarColumn(),
                 TextColumn("{task.description}"),
                 TimeElapsedColumn(),
@@ -559,7 +557,7 @@ def _plan_single_month(
         else:
             query["pl:instrument"] = {"in": unique_instruments}
 
-    logger.info("Searching Planet STAC for %s (%s).", month_id, datetime_range)
+    logger.debug("Searching Planet STAC for %s (%s).", month_id, datetime_range)
     search = client.search(
         collections=collections,
         datetime=datetime_range,
@@ -641,7 +639,7 @@ def _plan_single_month(
             progress.advance(filtering_task)
 
     filtered_count = len(candidates)
-    logger.info(
+    logger.debug(
         "Month %s: %d candidates (%d after filters).",
         month_id,
         candidate_count,

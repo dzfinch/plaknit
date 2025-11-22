@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
 from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -21,7 +22,6 @@ try:
     from rich.progress import (
         BarColumn,
         Progress,
-        SpinnerColumn,
         TextColumn,
         TimeElapsedColumn,
         TimeRemainingColumn,
@@ -86,6 +86,7 @@ class MosaicWorkflow:
         self.log = logger or logging.getLogger("plaknit.mosaic")
         self._tmpdir_created: Optional[Path] = None
         self._workdir_created: Optional[Path] = None
+        self._progress_lock = threading.Lock()
 
     @contextmanager
     def _progress(self, enabled: bool = True):
@@ -93,7 +94,6 @@ class MosaicWorkflow:
             yield None
             return
         progress = Progress(
-            SpinnerColumn(),
             BarColumn(),
             TextColumn("{task.description}"),
             TimeElapsedColumn(),
@@ -235,7 +235,8 @@ class MosaicWorkflow:
             for future in as_completed(futures):
                 masked_paths.append(str(future.result()))
                 if progress and task_id is not None:
-                    progress.advance(task_id)
+                    with self._progress_lock:
+                        progress.advance(task_id)
 
         masked_paths.sort()
         return masked_paths
