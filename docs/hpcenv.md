@@ -34,7 +34,7 @@ export OUTDIR=$PROJECT_DIR/output
 export VENVBASE=$PROJECT_DIR/venvs
 export PIPCACHE=$PROJECT_DIR/cache/pip
 export BOOT=$PROJECT_DIR/bootstrap
-export SIF=/path/to/your/otb_image.sif
+export SIF=otb.sif
 
 mkdir -p "$STRIPS" "$UDMS" "$OUTDIR" "$VENVBASE" "$PIPCACHE" "$BOOT"
 ```
@@ -49,7 +49,7 @@ Many OTB images ship Python without `pip`. Grab the version-specific bootstrap
 script so you can install `pip` in a writable prefix:
 
 ```bash
-curl -fsSLo "$BOOT/get-pip.py" https://bootstrap.pypa.io/pip/3.8/get-pip.py
+wget -fsSLo "$BOOT/get-pip.py" https://bootstrap.pypa.io/pip/3.8/get-pip.py
 ```
 
 Use the matching URL for Python 3.9+ images.
@@ -130,15 +130,15 @@ repeatable jobs.
 
 ```bash
 # set these to the paths on the host filesystem
-export TILES=/blue/jkblackburn/$USER/data/strips          # GeoTIFF strips/tiles
-export UDMS=/blue/jkblackburn/$USER/data/udms            # matching UDM
-export OUTDIR=/blue/jkblackburn/$USER/output        # mosaic
-export VENVBASE=/blue/jkblackburn/$USER/venvs       # contains the env
+export TILES=$USER/data/strips          # GeoTIFF strips/tiles
+export UDMS=$USER/data/udms            # matching UDM
+export OUTDIR=$USER/output        # mosaic
+export VENVBASE=$USER/venvs       # contains the env
 export SCRATCH=${SLURM_TMPDIR:-/tmp}       # fast scratch space
 export SIF=otb.sif   # OTB-enabled image
 
 singularity exec \
-  --bind "$TILES":/data/tiles \
+  --bind "$TILES":/data/strips \
   --bind "$UDMS":/data/udms \
   --bind "$OUTDIR":/data/output \
   --bind "$SCRATCH":/localscratch \
@@ -151,14 +151,16 @@ singularity exec \
     mkdir -p /localscratch/tmp
 
     /venvs/plaknit/bin/plaknit \
-      --inputs /data/tiles \
-      --udms /data/udms \
-      --output /data/output/plaknit_mosaic.tif \
-      --tmpdir /localscratch/tmp \
+      --inputs $TILES \
+      --udms $UDMS \
+      --output $OUTDIR/mosaic.tif \
+      --tmpdir localscratch/tmp \
+      --ndvi \
       --jobs ${SLURM_CPUS_PER_TASK:-8} \
       --ram 131072 \
-      -vv
+      -v
   '
+
 ```
 
 Submit and monitor:
