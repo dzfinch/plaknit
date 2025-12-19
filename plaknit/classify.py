@@ -57,7 +57,8 @@ def _normalize_nodata(
 
 
 def _nodata_pixel_mask(
-    samples: np.ndarray, nodata_values: Optional[Union[float, Iterable[Optional[float]]]]
+    samples: np.ndarray,
+    nodata_values: Optional[Union[float, Iterable[Optional[float]]]],
 ) -> np.ndarray:
     """Return a boolean mask of pixels touching nodata for any band."""
 
@@ -130,9 +131,7 @@ def _icm_smooth(
             neighbor_valid[r_dst, c_dst] = valid_mask[r_src, c_src]
 
             for k in range(num_classes):
-                counts[:, :, k] += ((neighbor == k) & neighbor_valid).astype(
-                    np.int16
-                )
+                counts[:, :, k] += ((neighbor == k) & neighbor_valid).astype(np.int16)
 
         energies = log_probs + beta * counts
         best = energies.argmax(axis=2)
@@ -166,7 +165,11 @@ class _RasterStack:
                 raise ValueError("All rasters must have the same dimensions.")
             if not np.allclose(ds.transform, template_transform):
                 raise ValueError("All rasters must share the same transform/grid.")
-            if template_crs is not None and ds.crs is not None and ds.crs != template_crs:
+            if (
+                template_crs is not None
+                and ds.crs is not None
+                and ds.crs != template_crs
+            ):
                 raise ValueError("All rasters must share the same CRS.")
 
         for ds in self.datasets:
@@ -217,7 +220,9 @@ class _RasterStack:
 
 def _open_raster_stack(image_path: Union[PathLike, Iterable[PathLike]]) -> _RasterStack:
     paths: List[Path] = []
-    if isinstance(image_path, Iterable) and not isinstance(image_path, (str, bytes, Path)):
+    if isinstance(image_path, Iterable) and not isinstance(
+        image_path, (str, bytes, Path)
+    ):
         for path in image_path:
             paths.append(Path(path))
     else:
@@ -410,7 +415,9 @@ def predict_rf(
         out_path = Path(output_path)
         if out_path.suffix.lower() == ".vrt":
             out_path = out_path.with_suffix(".tif")
-            _log("[yellow]Output path ended with .vrt; writing GeoTIFF to .tif instead.")
+            _log(
+                "[yellow]Output path ended with .vrt; writing GeoTIFF to .tif instead."
+            )
         out_path.parent.mkdir(parents=True, exist_ok=True)
 
         with rasterio.open(out_path, "w", **profile) as dst:
@@ -456,8 +463,14 @@ def predict_rf(
                         col_off=col_off, row_off=row_off, width=width, height=height
                     )
                     write_slice = (
-                        slice(int(win.row_off - row_off), int(win.row_off - row_off + win.height)),
-                        slice(int(win.col_off - col_off), int(win.col_off - col_off + win.width)),
+                        slice(
+                            int(win.row_off - row_off),
+                            int(win.row_off - row_off + win.height),
+                        ),
+                        slice(
+                            int(win.col_off - col_off),
+                            int(win.col_off - col_off + win.width),
+                        ),
                     )
                 else:
                     read_window = win
@@ -480,9 +493,7 @@ def predict_rf(
                         predictions = predictions.reshape(
                             int(read_window.height), int(read_window.width)
                         )
-                        predictions = predictions[
-                            write_slice[0], write_slice[1]
-                        ]
+                        predictions = predictions[write_slice[0], write_slice[1]]
                     else:
                         probs = model.predict_proba(samples[valid])
                         num_classes = probs.shape[1]
@@ -502,9 +513,7 @@ def predict_rf(
                             -1,
                             dtype=np.int32,
                         )
-                        init_labels[block_valid] = log_probs.argmax(axis=2)[
-                            block_valid
-                        ]
+                        init_labels[block_valid] = log_probs.argmax(axis=2)[block_valid]
 
                         smoothed = _icm_smooth(
                             log_probs,
@@ -515,17 +524,15 @@ def predict_rf(
                             iters=icm_iters,
                         )
                         smoothed[~block_valid] = nodata_value
-                        smoothed = smoothed[
-                            write_slice[0], write_slice[1]
-                        ].astype(profile["dtype"], copy=False)
+                        smoothed = smoothed[write_slice[0], write_slice[1]].astype(
+                            profile["dtype"], copy=False
+                        )
                         predictions = smoothed
                 else:
                     predictions = predictions.reshape(
                         int(read_window.height), int(read_window.width)
                     )
-                    predictions = predictions[
-                        write_slice[0], write_slice[1]
-                    ]
+                    predictions = predictions[write_slice[0], write_slice[1]]
 
                 dst.write(predictions, 1, window=win)
 
