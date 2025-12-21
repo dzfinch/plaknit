@@ -58,7 +58,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     train_parser = subparsers.add_parser("train", help="Train a Random Forest model.")
-    train_parser.add_argument("--image", required=True, help="Raster stack or VRT.")
+    train_parser.add_argument(
+        "--image",
+        required=True,
+        nargs="+",
+        help="Raster input(s): single GeoTIFF/VRT, multiple aligned GeoTIFFs, or directories of TIFFs.",
+    )
     train_parser.add_argument(
         "--labels", required=True, help="Vector labels (e.g., Shapefile/GeoPackage)."
     )
@@ -92,7 +97,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     predict_parser = subparsers.add_parser(
         "predict", help="Apply a trained model to classify a raster stack."
     )
-    predict_parser.add_argument("--image", required=True, help="Raster stack or VRT.")
+    predict_parser.add_argument(
+        "--image",
+        required=True,
+        nargs="+",
+        help="Raster input(s): single GeoTIFF/VRT, multiple aligned GeoTIFFs, or directories of TIFFs.",
+    )
     predict_parser.add_argument("--model", required=True, help="Trained model path.")
     predict_parser.add_argument(
         "--output", required=True, help="Path for classified GeoTIFF."

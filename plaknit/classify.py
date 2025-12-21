@@ -218,16 +218,45 @@ class _RasterStack:
         return np.concatenate(blocks, axis=0)
 
 
-def _open_raster_stack(image_path: Union[PathLike, Iterable[PathLike]]) -> _RasterStack:
+def _expand_raster_inputs(
+    image_path: Union[PathLike, Iterable[PathLike]]
+) -> List[Path]:
+    """Normalize raster inputs to a list of Paths.
+
+    Accepts a single file/VRT, a directory (expands *.tif / *.tiff), or an
+    iterable of mixed paths (files or directories). Directories must contain
+    at least one GeoTIFF.
+    """
+
     paths: List[Path] = []
+
+    def add_path(p: Path) -> None:
+        if p.is_dir():
+            candidates = sorted([*p.glob("*.tif"), *p.glob("*.tiff")])
+            if not candidates:
+                raise ValueError(f"No GeoTIFFs found in directory: {p}")
+            paths.extend(candidates)
+        elif p.is_file():
+            paths.append(p)
+        else:
+            raise ValueError(f"Raster path not found: {p}")
+
     if isinstance(image_path, Iterable) and not isinstance(
         image_path, (str, bytes, Path)
     ):
-        for path in image_path:
-            paths.append(Path(path))
+        for item in image_path:
+            add_path(Path(item))
     else:
-        paths.append(Path(image_path))  # type: ignore[arg-type]
-    return _RasterStack(paths)
+        add_path(Path(image_path))  # type: ignore[arg-type]
+
+    if not paths:
+        raise ValueError("No raster paths were provided.")
+
+    return paths
+
+
+def _open_raster_stack(image_path: Union[PathLike, Iterable[PathLike]]) -> _RasterStack:
+    return _RasterStack(_expand_raster_inputs(image_path))
 
 
 def _collect_training_samples(
@@ -306,8 +335,9 @@ def train_rf(
 ) -> RandomForestClassifier:
     """Train a Random Forest classifier on raster pixels under training polygons.
 
-    The `image_path` can be a single multi-band raster or an iterable of
-    coregistered rasters (elevation, NDVI, spectral bands, etc.).
+    The `image_path` can be a single multi-band raster, a directory of GeoTIFFs
+    (expanded), or an iterable of coregistered rasters (elevation, NDVI,
+    spectral bands, etc.).
     """
 
     _log("[bold cyan]Loading training data...")
@@ -388,8 +418,9 @@ def predict_rf(
 ) -> Path:
     """Apply a trained Random Forest to a raster stack and write a classified GeoTIFF.
 
-    The `image_path` can be a single raster or an iterable of aligned rasters. Optional
-    Potts-MRF smoothing (`smooth="mrf"`) uses RF posteriors + ICM to reduce speckle.
+    The `image_path` can be a single raster, a directory of GeoTIFFs, or an
+    iterable of aligned rasters. Optional Potts-MRF smoothing (`smooth="mrf"`)
+    uses RF posteriors + ICM to reduce speckle.
     """
 
     _log("[bold cyan]Loading model...")
