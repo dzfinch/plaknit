@@ -112,15 +112,37 @@ For rasters stored in two separate files, call
 returns the calculated array so you can continue working with NumPy while
 optionally persisting the results back to disk.
 
-## Random Forest classification (Coming Soon...)
+## Random Forest classification
 
-`plaknit.classify` adds scalable training + inference utilities that lean on
-`geopandas`, `rasterio`, and scikit-learn. A minimal workflow:
+`plaknit classify` trains and applies a Random Forest to multi-band stacks. The CLI
+expects a single `--image` path; if your bands live in separate TIFFs, build a VRT
+first (`gdalbuildvrt stack.vrt band1.tif band2.tif ...`). Train + predict from the
+CLI:
+
+```bash
+# Train (writes a .joblib model)
+plaknit classify train \
+  --image /data/stack.vrt \
+  --labels /data/train_labels.gpkg \
+  --label-column class \
+  --model-out /data/rf_model.joblib \
+  --n-estimators 500 \
+  --jobs 32
+
+# Predict (writes a classified GeoTIFF of class IDs)
+plaknit classify predict \
+  --image /data/stack.vrt \
+  --model /data/rf_model.joblib \
+  --output /data/output/prediction.tif \
+  --block-shape 512 512 \
+  --smooth none
+```
+
+Python API (same engine, useful for notebooks):
 
 ```python
 from plaknit import train_rf, predict_rf
 
-# Train using polygons that carry a "class_id" field
 rf = train_rf(
     image_path="planet_stack.tif",
     shapefile_path="training_data.geojson",
@@ -130,7 +152,6 @@ rf = train_rf(
     n_jobs=32,
 )
 
-# Apply the model to another stack (writes a GeoTIFF of class IDs)
 predict_rf(
     image_path="planet_stack_2024.tif",
     model_path="planet_rf.joblib",
@@ -138,8 +159,9 @@ predict_rf(
 )
 ```
 
-Training data are sampled window-by-window beneath each polygon, keeping RAM
-usage bounded. Prediction streams over raster blocks (or user-defined tile
-sizes) so the same code works on laptops and HPC nodes alike. Classified
-rasters store numeric class IDs; inspect `rf.label_decoder` to map each ID back
-to its original label.
+Training samples pixels under each polygon window-by-window to keep RAM in
+check. Prediction streams over raster blocks (`--block-shape` overrides block
+size) so it works on laptops and HPC nodes alike. Classified rasters store
+numeric class IDs; inspect `rf.label_decoder` to map each ID back to its label.
+See `docs/hpcenv.md` for a Singularity/Apptainer job template that binds the
+stack, labels, model, and venv for training + prediction.

@@ -170,6 +170,63 @@ sbatch plaknit_mosaic.slurm
 squeue -u "$USER"
 ```
 
+### Random Forest classification (train + predict)
+
+This Singularity/Apptainer template mirrors the mosaic example but calls
+`plaknit classify`. The CLI currently accepts one `--image` path; when bands
+live in separate TIFFs, build a VRT first (for example `gdalbuildvrt stack.vrt band1.tif band2.tif ...`).
+
+```bash
+#!/bin/bash
+#SBATCH --job-name=plaknit-classify
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
+#SBATCH --time=04:00:00
+#SBATCH --output=plaknit_classify_%j.log
+
+# Host paths
+export PROJECT_DIR=/path/to/project
+export STACK=$PROJECT_DIR/data/stack.vrt       # or a single multiband GeoTIFF
+export LABELS=$PROJECT_DIR/data/train_labels.gpkg
+export MODEL=$PROJECT_DIR/output/rf_model.joblib
+export PRED_OUT=$PROJECT_DIR/output/prediction.tif
+export VENVBASE=$PROJECT_DIR/venvs             # contains the persistent venv
+export PIPCACHE=$PROJECT_DIR/cache/pip
+export SCRATCH=${SLURM_TMPDIR:-/tmp}
+export SIF=otb.sif                             # any GDAL+Python image works; OTB not required for classify
+
+singularity exec \
+  --bind "$STACK":/data/stack.vrt \
+  --bind "$LABELS":/data/train_labels.gpkg \
+  --bind "$MODEL":/data/rf_model.joblib \
+  --bind "$(dirname "$PRED_OUT")":/data/output \
+  --bind "$VENVBASE":/venvs \
+  --bind "$PIPCACHE":/pipcache \
+  --bind "$SCRATCH":/localscratch \
+  "$SIF" bash -lc '
+
+    export PATH=/venvs/plaknit/bin:$PATH
+
+    # Train (optional; skip if model already exists)
+    plaknit classify train \
+      --image /data/stack.vrt \
+      --labels /data/train_labels.gpkg \
+      --label-column class \
+      --model-out /data/rf_model.joblib \
+      --n-estimators 500 \
+      --jobs ${SLURM_CPUS_PER_TASK:-8}
+
+    # Predict
+    plaknit classify predict \
+      --image /data/stack.vrt \
+      --model /data/rf_model.joblib \
+      --output /data/output/prediction.tif \
+      --block-shape 512 512 \
+      --smooth none \
+      --jobs ${SLURM_CPUS_PER_TASK:-8}
+  '
+```
+
 ## 7. Validation checklist
 
 - [ ] `pip --version` runs successfully inside the container.
