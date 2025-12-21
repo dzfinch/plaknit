@@ -1,4 +1,4 @@
-# plaknit
+# 🧶 plaknit
 
 
 [![image](https://img.shields.io/pypi/v/plaknit.svg)](https://pypi.python.org/pypi/plaknit)
