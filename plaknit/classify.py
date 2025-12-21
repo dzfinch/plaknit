@@ -219,7 +219,7 @@ class _RasterStack:
 
 
 def _expand_raster_inputs(
-    image_path: Union[PathLike, Iterable[PathLike]]
+    image_path: Union[PathLike, Iterable[PathLike]],
 ) -> List[Path]:
     """Normalize raster inputs to a list of Paths.
 
