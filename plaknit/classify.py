@@ -419,9 +419,7 @@ def _window_to_tuple(win: windows.Window) -> WindowTuple:
 
 def _tuple_to_window(win_tuple: WindowTuple) -> windows.Window:
     col_off, row_off, width, height = win_tuple
-    return windows.Window(
-        col_off=col_off, row_off=row_off, width=width, height=height
-    )
+    return windows.Window(col_off=col_off, row_off=row_off, width=width, height=height)
 
 
 def _window_with_overlap(
@@ -494,9 +492,7 @@ def _predict_block(
             log_probs = log_probs.reshape(
                 int(read_window.height), int(read_window.width), num_classes
             )
-            block_valid = valid.reshape(
-                int(read_window.height), int(read_window.width)
-            )
+            block_valid = valid.reshape(int(read_window.height), int(read_window.width))
             init_labels = np.full(
                 (int(read_window.height), int(read_window.width)),
                 -1,
