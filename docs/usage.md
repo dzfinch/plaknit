@@ -135,6 +135,7 @@ plaknit classify predict \
   --model /data/rf_model.joblib \
   --output /data/output/prediction.tif \
   --block-shape 512 512 \
+  --jobs 8 \
   --smooth none
 ```
 
@@ -161,7 +162,9 @@ predict_rf(
 
 Training samples pixels under each polygon window-by-window to keep RAM in
 check. Prediction streams over raster blocks (`--block-shape` overrides block
-size) so it works on laptops and HPC nodes alike. Classified rasters store
-numeric class IDs; inspect `rf.label_decoder` to map each ID back to its label.
-See `docs/hpcenv.md` for a Singularity/Apptainer job template that binds the
-stack, labels, model, and venv for training + prediction.
+size) so it works on laptops and HPC nodes alike; add `--jobs` to parallelize
+block prediction with multiple worker processes (watch for CPU oversubscription
+if the model was trained with `n_jobs` > 1). Classified rasters store numeric
+class IDs; inspect `rf.label_decoder` to map each ID back to its label. See
+`docs/hpcenv.md` for a Singularity/Apptainer job template that binds the stack,
+labels, model, and venv for training + prediction.
