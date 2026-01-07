@@ -100,6 +100,27 @@ singularity exec \
 
 The venv now lives at `$PROJECT_DIR/venvs/plaknit` and can be reused across jobs.
 
+## 4a. Install classify dependencies (GeoPandas/Fiona)
+
+`plaknit classify` relies on GeoPandas + Fiona. Install them inside the container
+venv (installing on the host will not affect the container):
+
+```bash
+singularity exec \
+  --bind "$VENVBASE":/venvs \
+  --bind "$PIPCACHE":/pipcache \
+  "$SIF" bash -lc '
+    set -euo pipefail
+    source /venvs/plaknit/bin/activate
+    pip install --cache-dir /pipcache "geopandas>=0.13" "fiona>=1.9"
+    python -c "import fiona, geopandas; print(\"fiona\", fiona.__version__, \"geopandas\", geopandas.__version__)"
+  '
+```
+
+If you see `AttributeError: module 'fiona' has no attribute 'path'`, you are
+running with an incompatible Fiona/GeoPandas pair inside the container venv.
+Reinstall the two packages inside `/venvs/plaknit` (not on the host).
+
 ## 5. Upgrade plaknit in the persistent venv
 
 When a new plaknit release drops, reuse the same venv and cache to minimize
@@ -125,6 +146,24 @@ singularity exec \
 
 Pin to a specific version with `pip install plaknit==<version>` if you need
 repeatable jobs.
+
+Quick upgrade-only snippet (no PYTHONPATH gymnastics needed once the venv exists):
+
+```bash
+export VENVBASE=/path/to/project/venvs
+export PIPCACHE=/path/to/project/cache/pip
+export SIF=otb.sif
+
+singularity exec \
+  --bind "$VENVBASE":/venvs \
+  --bind "$PIPCACHE":/pipcache \
+  "$SIF" bash -lc '
+    set -euo pipefail
+    source /venvs/plaknit/bin/activate
+    pip install --cache-dir /pipcache --upgrade plaknit
+    plaknit --version
+  '
+```
 
 ## 6. Example processing script:
 
@@ -208,7 +247,7 @@ singularity exec \
     export PATH=/venvs/plaknit/bin:$PATH
 
     # Train (optional; skip if model already exists)
-    plaknit classify train \
+    /venvs/plaknit/bin/plaknit classify train \
       --image /data/stack.vrt \
       --labels /data/train_labels.gpkg \
       --label-column class \
@@ -217,13 +256,12 @@ singularity exec \
       --jobs ${SLURM_CPUS_PER_TASK:-8}
 
     # Predict
-    plaknit classify predict \
+    /venvs/plaknit/bin/plaknit classify predict \
       --image /data/stack.vrt \
       --model /data/rf_model.joblib \
       --output /data/output/prediction.tif \
       --block-shape 512 512 \
-      --smooth none \
-      --jobs ${SLURM_CPUS_PER_TASK:-8}
+      --smooth none
   '
 ```
 
@@ -231,6 +269,7 @@ singularity exec \
 
 - [ ] `pip --version` runs successfully inside the container.
 - [ ] `/venvs/plaknit/bin/plaknit --version` prints the expected release.
+- [ ] `/venvs/plaknit/bin/python -c "import fiona, geopandas; print(fiona.__version__, geopandas.__version__)"` works for classify.
 - [ ] `/data/strips`, `/data/udms`, and `/data/output` are visible inside the job.
 - [ ] The output mosaic (for example `final_mosaic.tif`) lands in `$OUTDIR`.
 
