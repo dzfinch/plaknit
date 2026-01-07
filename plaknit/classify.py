@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import atexit
+import concurrent.futures
+import os
 import warnings
 from pathlib import Path
-from typing import Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import geopandas as gpd
 import joblib
@@ -23,6 +26,7 @@ else:  # pragma: no cover
 
 PathLike = Union[str, Path]
 NeighborOffsets = Tuple[Tuple[int, int], ...]
+WindowTuple = Tuple[int, int, int, int]
 
 
 def _log(message: str) -> None:
@@ -404,6 +408,194 @@ def _prepare_output_profile(
     return profile
 
 
+def _window_to_tuple(win: windows.Window) -> WindowTuple:
+    return (
+        int(win.col_off),
+        int(win.row_off),
+        int(win.width),
+        int(win.height),
+    )
+
+
+def _tuple_to_window(win_tuple: WindowTuple) -> windows.Window:
+    col_off, row_off, width, height = win_tuple
+    return windows.Window(
+        col_off=col_off, row_off=row_off, width=width, height=height
+    )
+
+
+def _window_with_overlap(
+    win: windows.Window,
+    *,
+    block_overlap: int,
+    raster_width: int,
+    raster_height: int,
+) -> Tuple[windows.Window, Tuple[slice, slice]]:
+    if block_overlap <= 0:
+        return win, (slice(None), slice(None))
+
+    col_off = max(0, int(win.col_off) - block_overlap)
+    row_off = max(0, int(win.row_off) - block_overlap)
+    width = min(int(win.width) + 2 * block_overlap, raster_width - col_off)
+    height = min(int(win.height) + 2 * block_overlap, raster_height - row_off)
+    read_window = windows.Window(
+        col_off=col_off, row_off=row_off, width=width, height=height
+    )
+    write_slice = (
+        slice(int(win.row_off - row_off), int(win.row_off - row_off + win.height)),
+        slice(int(win.col_off - col_off), int(win.col_off - col_off + win.width)),
+    )
+    return read_window, write_slice
+
+
+def _predict_block(
+    stack: "_RasterStack",
+    model: RandomForestClassifier,
+    win: windows.Window,
+    *,
+    out_dtype: str,
+    nodata_value: Union[int, float],
+    smooth: str,
+    beta: float,
+    neighborhood: int,
+    icm_iters: int,
+    block_overlap: int,
+) -> np.ndarray:
+    read_window, write_slice = _window_with_overlap(
+        win,
+        block_overlap=block_overlap,
+        raster_width=stack.width,
+        raster_height=stack.height,
+    )
+    block = stack.read(window=read_window, out_dtype="float32")
+    if block.size == 0:
+        return np.full((int(win.height), int(win.width)), nodata_value, dtype=out_dtype)
+
+    samples = block.reshape(stack.count, -1).T
+    valid = ~_nodata_pixel_mask(samples, stack.nodata_values)
+
+    predictions = np.full(samples.shape[0], nodata_value, dtype=out_dtype)
+    if np.any(valid):
+        if smooth == "none":
+            preds = model.predict(samples[valid])
+            predictions[valid] = preds.astype(out_dtype, copy=False)
+            predictions = predictions.reshape(
+                int(read_window.height), int(read_window.width)
+            )
+            predictions = predictions[write_slice[0], write_slice[1]]
+        else:
+            probs = model.predict_proba(samples[valid])
+            num_classes = probs.shape[1]
+            log_probs = np.full(
+                (samples.shape[0], num_classes), -np.inf, dtype="float32"
+            )
+            log_probs[valid] = np.log(probs + 1e-9).astype("float32")
+
+            log_probs = log_probs.reshape(
+                int(read_window.height), int(read_window.width), num_classes
+            )
+            block_valid = valid.reshape(
+                int(read_window.height), int(read_window.width)
+            )
+            init_labels = np.full(
+                (int(read_window.height), int(read_window.width)),
+                -1,
+                dtype=np.int32,
+            )
+            init_labels[block_valid] = log_probs.argmax(axis=2)[block_valid]
+
+            smoothed = _icm_smooth(
+                log_probs,
+                init_labels,
+                block_valid,
+                beta=beta,
+                neighborhood=neighborhood,
+                iters=icm_iters,
+            )
+            smoothed[~block_valid] = nodata_value
+            smoothed = smoothed[write_slice[0], write_slice[1]].astype(
+                out_dtype, copy=False
+            )
+            predictions = smoothed
+    else:
+        predictions = predictions.reshape(
+            int(read_window.height), int(read_window.width)
+        )
+        predictions = predictions[write_slice[0], write_slice[1]]
+
+    return predictions
+
+
+_PREDICT_STACK: Optional[_RasterStack] = None
+_PREDICT_MODEL: Optional[RandomForestClassifier] = None
+_PREDICT_OUT_DTYPE: Optional[str] = None
+_PREDICT_NODATA: Optional[Union[int, float]] = None
+_PREDICT_SMOOTH: str = "none"
+_PREDICT_BETA: float = 1.0
+_PREDICT_NEIGHBORHOOD: int = 4
+_PREDICT_ICM_ITERS: int = 3
+
+
+def _close_predict_worker() -> None:
+    global _PREDICT_STACK
+    if _PREDICT_STACK is not None:
+        _PREDICT_STACK.__exit__(None, None, None)
+        _PREDICT_STACK = None
+
+
+def _init_predict_worker(
+    image_paths: List[str],
+    model_path: str,
+    out_dtype: str,
+    nodata_value: Union[int, float],
+    smooth: str,
+    beta: float,
+    neighborhood: int,
+    icm_iters: int,
+) -> None:
+    global _PREDICT_STACK
+    global _PREDICT_MODEL
+    global _PREDICT_OUT_DTYPE
+    global _PREDICT_NODATA
+    global _PREDICT_SMOOTH
+    global _PREDICT_BETA
+    global _PREDICT_NEIGHBORHOOD
+    global _PREDICT_ICM_ITERS
+
+    stack = _open_raster_stack(image_paths)
+    stack.__enter__()
+    _PREDICT_STACK = stack
+    _PREDICT_MODEL = joblib.load(model_path)
+    _PREDICT_OUT_DTYPE = out_dtype
+    _PREDICT_NODATA = nodata_value
+    _PREDICT_SMOOTH = smooth
+    _PREDICT_BETA = beta
+    _PREDICT_NEIGHBORHOOD = neighborhood
+    _PREDICT_ICM_ITERS = icm_iters
+    atexit.register(_close_predict_worker)
+
+
+def _predict_block_worker(win_tuple: WindowTuple, block_overlap: int) -> np.ndarray:
+    if _PREDICT_STACK is None or _PREDICT_MODEL is None:
+        raise RuntimeError("Prediction worker not initialized.")
+    if _PREDICT_OUT_DTYPE is None or _PREDICT_NODATA is None:
+        raise RuntimeError("Prediction worker missing output settings.")
+
+    win = _tuple_to_window(win_tuple)
+    return _predict_block(
+        _PREDICT_STACK,
+        _PREDICT_MODEL,
+        win,
+        out_dtype=_PREDICT_OUT_DTYPE,
+        nodata_value=_PREDICT_NODATA,
+        smooth=_PREDICT_SMOOTH,
+        beta=_PREDICT_BETA,
+        neighborhood=_PREDICT_NEIGHBORHOOD,
+        icm_iters=_PREDICT_ICM_ITERS,
+        block_overlap=block_overlap,
+    )
+
+
 def predict_rf(
     image_path: PathLike,
     model_path: PathLike,
@@ -415,12 +607,14 @@ def predict_rf(
     neighborhood: int = 4,
     icm_iters: int = 3,
     block_overlap: int = 0,
+    jobs: int = 1,
 ) -> Path:
     """Apply a trained Random Forest to a raster stack and write a classified GeoTIFF.
 
     The `image_path` can be a single raster, a directory of GeoTIFFs, or an
     iterable of aligned rasters. Optional Potts-MRF smoothing (`smooth="mrf"`)
-    uses RF posteriors + ICM to reduce speckle.
+    uses RF posteriors + ICM to reduce speckle. `jobs` controls block-level
+    parallelism via worker processes.
     """
 
     _log("[bold cyan]Loading model...")
@@ -437,6 +631,14 @@ def predict_rf(
     smooth = smooth.lower()
     if smooth not in {"none", "mrf"}:
         raise ValueError("smooth must be 'none' or 'mrf'.")
+
+    if block_overlap < 0:
+        raise ValueError("block_overlap must be non-negative.")
+
+    if jobs is None:
+        jobs = 1
+    if jobs <= 0:
+        jobs = max(1, os.cpu_count() or 1)
 
     with _open_raster_stack(image_path) as stack:
         assert stack.template is not None
@@ -456,116 +658,82 @@ def predict_rf(
             if block_shape:
                 block_h, block_w = block_shape
 
-                def custom_windows() -> (
-                    Iterable[Tuple[Tuple[int, int], windows.Window]]
-                ):
+                def custom_windows() -> Iterable[windows.Window]:
                     for row_off in range(0, stack.height, block_h):
                         for col_off in range(0, stack.width, block_w):
-                            yield (
-                                (row_off // block_h, col_off // block_w),
-                                windows.Window(
-                                    col_off=col_off,
-                                    row_off=row_off,
-                                    width=min(block_w, stack.width - col_off),
-                                    height=min(block_h, stack.height - row_off),
-                                ),
+                            yield windows.Window(
+                                col_off=col_off,
+                                row_off=row_off,
+                                width=min(block_w, stack.width - col_off),
+                                height=min(block_h, stack.height - row_off),
                             )
 
-                window_iter: Iterable[Tuple[Tuple[int, int], windows.Window]] = (
-                    custom_windows()
-                )
+                window_iter: Iterable[windows.Window] = custom_windows()
             else:
-                window_iter = stack.block_windows(1)
+                window_iter = (win for _, win in stack.block_windows(1))
 
-            if block_overlap < 0:
-                raise ValueError("block_overlap must be non-negative.")
-
-            for _, win in window_iter:
-                if block_overlap > 0:
-                    col_off = max(0, int(win.col_off) - block_overlap)
-                    row_off = max(0, int(win.row_off) - block_overlap)
-                    width = min(
-                        int(win.width) + 2 * block_overlap, stack.width - col_off
+            if jobs > 1:
+                model_jobs = getattr(model, "n_jobs", None)
+                if model_jobs not in (None, 1):
+                    _log(
+                        "[yellow]Block-level parallelism requested but model n_jobs="
+                        f"{model_jobs}. This may oversubscribe CPU; consider setting "
+                        "model.n_jobs=1 before prediction."
                     )
-                    height = min(
-                        int(win.height) + 2 * block_overlap, stack.height - row_off
+
+                max_workers = jobs
+                max_pending = max_workers * 2
+                image_paths = [str(path) for path in stack.paths]
+                model_path_str = str(model_path)
+                with concurrent.futures.ProcessPoolExecutor(
+                    max_workers=max_workers,
+                    initializer=_init_predict_worker,
+                    initargs=(
+                        image_paths,
+                        model_path_str,
+                        out_dtype,
+                        nodata_value,
+                        smooth,
+                        beta,
+                        neighborhood,
+                        icm_iters,
+                    ),
+                ) as executor:
+                    futures: Dict[concurrent.futures.Future, windows.Window] = {}
+                    for win in window_iter:
+                        future = executor.submit(
+                            _predict_block_worker,
+                            _window_to_tuple(win),
+                            block_overlap,
+                        )
+                        futures[future] = win
+                        if len(futures) >= max_pending:
+                            done, _ = concurrent.futures.wait(
+                                futures, return_when=concurrent.futures.FIRST_COMPLETED
+                            )
+                            for finished in done:
+                                predictions = finished.result()
+                                dst.write(predictions, 1, window=futures[finished])
+                                del futures[finished]
+
+                    for finished in concurrent.futures.as_completed(futures):
+                        predictions = finished.result()
+                        dst.write(predictions, 1, window=futures[finished])
+            else:
+                for win in window_iter:
+                    predictions = _predict_block(
+                        stack,
+                        model,
+                        win,
+                        out_dtype=out_dtype,
+                        nodata_value=nodata_value,
+                        smooth=smooth,
+                        beta=beta,
+                        neighborhood=neighborhood,
+                        icm_iters=icm_iters,
+                        block_overlap=block_overlap,
                     )
-                    read_window = windows.Window(
-                        col_off=col_off, row_off=row_off, width=width, height=height
-                    )
-                    write_slice = (
-                        slice(
-                            int(win.row_off - row_off),
-                            int(win.row_off - row_off + win.height),
-                        ),
-                        slice(
-                            int(win.col_off - col_off),
-                            int(win.col_off - col_off + win.width),
-                        ),
-                    )
-                else:
-                    read_window = win
-                    write_slice = (slice(None), slice(None))
-
-                block = stack.read(window=read_window, out_dtype="float32")
-                if block.size == 0:
-                    continue
-
-                samples = block.reshape(stack.count, -1).T
-                valid = ~_nodata_pixel_mask(samples, stack.nodata_values)
-
-                predictions = np.full(
-                    samples.shape[0], nodata_value, dtype=profile["dtype"]
-                )
-                if np.any(valid):
-                    if smooth == "none":
-                        preds = model.predict(samples[valid])
-                        predictions[valid] = preds.astype(profile["dtype"], copy=False)
-                        predictions = predictions.reshape(
-                            int(read_window.height), int(read_window.width)
-                        )
-                        predictions = predictions[write_slice[0], write_slice[1]]
-                    else:
-                        probs = model.predict_proba(samples[valid])
-                        num_classes = probs.shape[1]
-                        log_probs = np.full(
-                            (samples.shape[0], num_classes), -np.inf, dtype="float32"
-                        )
-                        log_probs[valid] = np.log(probs + 1e-9).astype("float32")
-
-                        log_probs = log_probs.reshape(
-                            int(read_window.height), int(read_window.width), num_classes
-                        )
-                        block_valid = valid.reshape(
-                            int(read_window.height), int(read_window.width)
-                        )
-                        init_labels = np.full(
-                            (int(read_window.height), int(read_window.width)),
-                            -1,
-                            dtype=np.int32,
-                        )
-                        init_labels[block_valid] = log_probs.argmax(axis=2)[block_valid]
-
-                        smoothed = _icm_smooth(
-                            log_probs,
-                            init_labels,
-                            block_valid,
-                            beta=beta,
-                            neighborhood=neighborhood,
-                            iters=icm_iters,
-                        )
-                        smoothed[~block_valid] = nodata_value
-                        smoothed = smoothed[write_slice[0], write_slice[1]].astype(
-                            profile["dtype"], copy=False
-                        )
-                        predictions = smoothed
-                else:
-                    predictions = predictions.reshape(
-                        int(read_window.height), int(read_window.width)
-                    )
-                    predictions = predictions[write_slice[0], write_slice[1]]
-
-                dst.write(predictions, 1, window=win)
+                    dst.write(predictions, 1, window=win)
 
     _log(f"[green]Classification saved to {out_path}")
     return out_path

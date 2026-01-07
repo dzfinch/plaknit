@@ -114,6 +114,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         metavar=("HEIGHT", "WIDTH"),
         help="Override block/window shape for reading (height width).",
     )
+    predict_parser.add_argument(
+        "--jobs",
+        type=int,
+        default=1,
+        help="Parallel workers for block prediction (default: 1). Use -1 for all cores.",
+    )
     _add_common_smoothing_args(predict_parser)
 
     args = parser.parse_args(list(argv) if argv is not None else None)
@@ -141,6 +147,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         neighborhood=args.neighborhood,
         icm_iters=args.icm_iters,
         block_overlap=args.block_overlap,
+        jobs=args.jobs,
     )
     return 0
 
