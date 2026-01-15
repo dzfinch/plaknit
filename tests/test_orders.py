@@ -88,6 +88,7 @@ def test_submit_orders_for_plan_builds_correct_request(monkeypatch):
     assert request["products"][0]["product_bundle"] == "analytic_8b_sr_udm2"
     assert request["delivery"]["archive_type"] == "zip"
     assert request["delivery"]["single_archive"] is True
+    assert request["delivery"]["archive_filename"] == "plaknit_plan_2024-01.zip"
     tools = request["tools"]
     assert any("clip" in tool for tool in tools)
     assert any(

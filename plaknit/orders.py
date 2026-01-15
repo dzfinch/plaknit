@@ -333,12 +333,18 @@ async def _submit_orders_async(
                 while working_batch:
                     submit_item_ids = [item["id"] for item in working_batch]
                     order_tools = copy.deepcopy(tools)
-                    delivery: Dict[str, Any] = {
-                        "archive_type": archive_type,
-                        "archive_filename": order_name,
-                    }
-                    if single_archive:
-                        delivery["single_archive"] = True
+                    archive_type_normalized = (
+                        archive_type.lower() if archive_type else None
+                    )
+                    delivery: Dict[str, Any] = {}
+                    if archive_type_normalized:
+                        delivery["archive_type"] = archive_type_normalized
+                        delivery["single_archive"] = bool(single_archive)
+                        if archive_type_normalized == "zip":
+                            archive_filename = order_name
+                            if not order_name.lower().endswith(".zip"):
+                                archive_filename = f"{order_name}.zip"
+                            delivery["archive_filename"] = archive_filename
 
                     order_request = {
                         "name": order_name,
