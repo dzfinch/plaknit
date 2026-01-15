@@ -84,6 +84,16 @@ plaknit order \
   --archive-type zip
 ```
 
+Order output arguments:
+- `--plan`: Plan JSON/GeoJSON that defines which scene IDs (and months) are ordered.
+- `--aoi`: Geometry used for clipping; the clip AOI is applied to delivered scenes.
+- `--sr-bands`: Chooses 4- or 8-band SR bundle; changes the bands in each scene.
+- `--harmonize-to`: `sentinel2` harmonizes to Sentinel-2; `none` keeps native SR.
+- `--order-prefix`: Prefix for order name and archive filename; batches append `_2`, `_3`, etc., and ZIPs end with `.zip`.
+- `--archive-type`: Delivery archive format; Planet currently supports `zip` only.
+- `--single-archive` / `--no-single-archive`: One ZIP per order vs per-scene files.
+- `-v` / `-vv`: Verbose logging for submissions and retries; no change to output.
+
 The order subcommand loads the stored plan, clips to the provided AOI, and
 submits orders (chunked at 100 scenes max) while reporting the returned order
 IDs. If Planet reports any “no access to assets …” errors, `plaknit order`

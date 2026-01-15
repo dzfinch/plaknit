@@ -106,3 +106,13 @@ plaknit order \
 applies optional harmonization, and prints a summary of each submitted order ID
 (orders split into batches of ≤100 scenes with order/ZIP names suffixed `_1`,
 `_2`, ... when needed).
+
+Order output arguments:
+- `--plan`: Plan JSON/GeoJSON that defines which scene IDs (and months) are ordered.
+- `--aoi`: Geometry used for clipping; the clip AOI is applied to delivered scenes.
+- `--sr-bands`: Chooses 4- or 8-band SR bundle; changes the bands in each scene.
+- `--harmonize-to`: `sentinel2` harmonizes to Sentinel-2; `none` keeps native SR.
+- `--order-prefix`: Prefix for order name and archive filename; batches append `_2`, `_3`, etc., and ZIPs end with `.zip`.
+- `--archive-type`: Delivery archive format; Planet currently supports `zip` only.
+- `--single-archive` / `--no-single-archive`: One ZIP per order vs per-scene files.
+- `-v` / `-vv`: Verbose logging for submissions and retries; no change to output.
