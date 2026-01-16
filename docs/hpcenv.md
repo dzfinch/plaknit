@@ -121,33 +121,10 @@ If you see `AttributeError: module 'fiona' has no attribute 'path'`, you are
 running with an incompatible Fiona/GeoPandas pair inside the container venv.
 Reinstall the two packages inside `/venvs/plaknit` (not on the host).
 
-## 5. Upgrade plaknit in the persistent venv
+## 4b. Upgrade plaknit in the persistent venv
 
 When a new plaknit release drops, reuse the same venv and cache to minimize
 downloads:
-
-```bash
-singularity exec \
-  --bind "$VENVBASE":/venvs \
-  --bind "$PIPCACHE":/pipcache \
-  "$SIF" bash -lc '
-    set -euo pipefail
-    PYVER=$(python3 -c '\''import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")'\'')
-    export PYTHONPATH=/venvs/piproot/lib/python${PYVER}/site-packages
-    export PATH=/venvs/piproot/bin:$PATH
-
-    source /venvs/plaknit/bin/activate
-    pip install --cache-dir /pipcache --upgrade plaknit
-
-    echo "[verify] plaknit -> $(which plaknit)"
-    plaknit --version || plaknit --help
-  '
-```
-
-Pin to a specific version with `pip install plaknit==<version>` if you need
-repeatable jobs.
-
-Quick upgrade-only snippet (no PYTHONPATH gymnastics needed once the venv exists):
 
 ```bash
 export VENVBASE=/path/to/project/venvs
@@ -163,6 +140,14 @@ singularity exec \
     pip install --cache-dir /pipcache --upgrade plaknit
     plaknit --version
   '
+```
+
+## 5. Activate `plaknit` in terminal:
+
+Run this line in your terminal interface to activate your plaknit environment:
+
+```bash
+source /path/to/venvs/plaknit/lib/activate
 ```
 
 ## 6. Example processing script:
@@ -202,12 +187,6 @@ singularity exec \
 
 ```
 
-Submit and monitor:
-
-```bash
-sbatch plaknit_mosaic.slurm
-squeue -u "$USER"
-```
 
 ### Random Forest classification (train + predict)
 
