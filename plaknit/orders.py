@@ -314,12 +314,20 @@ async def _submit_orders_async(
 
             remaining_items = [item for item in items if item.get("id")]
             dropped_ids: set[str] = set()
+            ordered_ids: set[str] = set()
             order_index = 1
             results.setdefault(
                 month, {"order_id": None, "order_ids": [], "item_ids": []}
             )
 
             while remaining_items:
+                remaining_items = [
+                    item
+                    for item in remaining_items
+                    if item["id"] not in ordered_ids and item["id"] not in dropped_ids
+                ]
+                if not remaining_items:
+                    break
                 batch = remaining_items[:MAX_ITEMS_PER_ORDER]
                 remaining_items = remaining_items[MAX_ITEMS_PER_ORDER:]
                 working_batch = batch
@@ -331,6 +339,21 @@ async def _submit_orders_async(
                 )
 
                 while working_batch:
+                    deduped_batch = []
+                    seen_ids: set[str] = set()
+                    for item in working_batch:
+                        item_id = item["id"]
+                        if (
+                            item_id in seen_ids
+                            or item_id in ordered_ids
+                            or item_id in dropped_ids
+                        ):
+                            continue
+                        seen_ids.add(item_id)
+                        deduped_batch.append(item)
+                    working_batch = deduped_batch
+                    if not working_batch:
+                        break
                     submit_item_ids = [item["id"] for item in working_batch]
                     order_tools = copy.deepcopy(tools)
                     archive_type_normalized = (
@@ -389,13 +412,17 @@ async def _submit_orders_async(
                             if item["id"] not in inaccessible_ids
                         ]
                         desired_replacements = len(inaccessible_ids)
+                        remaining_ids = {item["id"] for item in remaining_items}
                         replacements = _find_replacement_items(
                             stac_client=stac_client,
                             plan_entry=entry,
                             month=month,
                             aoi_geojson=clip_geojson,
                             desired_count=desired_replacements,
-                            exclude_ids=set(submit_item_ids) | dropped_ids,
+                            exclude_ids=set(submit_item_ids)
+                            | dropped_ids
+                            | ordered_ids
+                            | remaining_ids,
                         )
                         if replacements:
                             logger.info(
@@ -437,6 +464,7 @@ async def _submit_orders_async(
                         if results[month]["order_id"] is None:
                             results[month]["order_id"] = order_id
                         results[month]["item_ids"].extend(submit_item_ids)
+                        ordered_ids.update(submit_item_ids)
                         working_batch = []
                         order_index += 1
 
