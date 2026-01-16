@@ -9,14 +9,14 @@
 
 > Note: plaknit is in active early-stage development. Expect frequent updates, and please share feedback or ideas through the GitHub Issues tab.
 
-PlanetScope Scene (PSS) data are reveared for its quality and distinct ability to 
-balance spatial and temporal resolution in Earth Observation data. While PSS has 
-proven itself a valuable asset in monitoring small-scale areas, the literature 
+PlanetScope Scene (PSS) data are reveared for its quality and distinct ability to
+balance spatial and temporal resolution in Earth Observation data. While PSS has
+proven itself a valuable asset in monitoring small-scale areas, the literature
 has pointed out the shortcomings when creating a single image from individual tiles
-(Frazier & Hemingway, 2021). 
+(Frazier & Hemingway, 2021).
 
 `plaknit` bundles the workflow I use to operationalize large-area mosaics so
-you can run the same process locally or in an HPC environment. The goal is to 
+you can run the same process locally or in an HPC environment. The goal is to
 spend time answering big questions, not making a big mess of your data.
 
 - Free software: MIT License
