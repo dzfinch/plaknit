@@ -11,7 +11,7 @@ from .planner import plan_monthly_composites, write_plan
 
 __author__ = """Dryver Finch"""
 __email__ = "dryver2206@gmail.com"
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 __all__ = [
     "normalized_difference",

@@ -373,9 +373,9 @@ def run_mosaic(job: MosaicJob, logger: Optional[logging.Logger] = None) -> Path:
 def build_parser() -> argparse.ArgumentParser:
     """Create the CLI parser for the mosaic workflow."""
     parser = argparse.ArgumentParser(
-        prog="plaknit stitch",
+        prog="plaknit mosaic",
         description=(
-            "Mask Planet strips with UDM rasters, stitch them with OTB, "
+            "Mask Planet strips with UDM rasters, mosaic them with OTB, "
             "and optionally append NDVI."
         ),
     )

@@ -1,8 +1,4 @@
-# Welcome to plaknit
-
-<p align="center">
-  <img src="images/plaknit_logo.png" alt="plaknit logo" width="280">
-</p>
+# Welcome to plaknit 🧶
 
 
 [![image](https://img.shields.io/pypi/v/plaknit.svg)](https://pypi.python.org/pypi/plaknit)
@@ -17,27 +13,30 @@
 
 ## Why plaknit exists
 
-PlanetScope's daily cadence is unmatched for answering regional and global
-questions, but their strip-based acquisition leaves messy seams, clouds, and
-nodata gaps once you move beyond postcard-sized areas. Getting to a clean,
-analysis-ready mosaic typically involves a pile of ad-hoc shell scripts that
-rarely survive outside a single project notebook.
+PlanetScope Scene (PSS) data are reveared for its quality and distinct ability to
+balance spatial and temporal resolution in Earth Observation data. While PSS has
+proven itself a valuable asset in monitoring small-scale areas, the literature
+has pointed out the shortcomings when creating a single image from individual tiles
+(Frazier & Hemingway, 2021).
 
 `plaknit` bundles the workflow I use to operationalize large-area mosaics so
-you can run the same process locally or on an HPC scheduler where GDAL,
-rasterio, and Orfeo Toolbox already live. The goal is to spend time answering
-planet-scale questions -- not chasing temp files or re-learning OTB flags.
+you can run the same process locally or in an HPC environment. The goal is to
+spend time answering big questions, not making a big mess of your data.
+
+<p align="center">
+  <img src="images/flowchart.png" alt="plaknit logo" width="720">
+</p>
 
 ## Features
 
--   Mask PlanetScope strips against their UDM rasters using efficient GDAL workflows.
--   Build seamless mosaics with pre-tuned Orfeo Toolbox parameters and RAM hints.
 -   Run everything from a single CLI (`plaknit`) that works cross-platform (plan, order, mosaic).
--   Train and apply Random Forest classifiers on multi-band stacks directly from Python.
--   Plan PSScene acquisitions per month, auto-simplify ROIs to Planet’s 1,500-vertex limit, and submit resilient Planet Orders (skipping inaccessible scenes automatically).
+-   Plan PSScene acquisitions per month (`plaknit plan`), auto-simplify ROIs to Planet’s 1,500-vertex limit, and submit resilient Planet Orders (`plaknit order`).
+-   Build seamless mosaics (`plaknit mosaic`) with pre-tuned Orfeo Toolbox parameters and RAM hints after masking PlanetScope tiles against their UDM rasters using efficient GDAL workflows.
+-   Train and apply Random Forest classifiers with optional Bayesian Smoothing on multi-band stacks directly from CLI with `plaknit train` and `plaknit predict`.
 
 ## Need to run on HPC?
 
 See [Running plaknit on HPC with Singularity/Apptainer](hpcenv.md) for a
 copy-pasteable recipe that uses persistent virtual environments and SLURM batch
 jobs inside containerized OTB builds.
+

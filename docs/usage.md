@@ -1,43 +1,6 @@
 # Usage
 
-`plaknit` ships with a CLI that is best run in High-Performance Computing Environments. Install the package into the same
-environment that contains GDAL and Orfeo Toolbox, then run the stitched workflow:
-
-```bash
-plaknit stitch \
-  --inputs /data/strips/*.tif \
-  --udms /data/strips/*.udm2.tif \
-  --output /data/mosaics/planet_mosaic.tif \
-  --jobs 8 \
-  --ram 196608
-```
-
-`plaknit stitch` is also available as `plaknit mosaic` for backward
-compatibility. You can call the module directly with `python -m plaknit.mosaic`
-if you prefer to pin the interpreter. The progress display stays minimal with
-three bars: Mask tiles → Binary mask → Mosaic (shown when `rich` is installed).
-
-## Required arguments
-
-- `--inputs / -il`: One or more GeoTIFFs or directories. Directories are
-  expanded to all `.tif` files.
-- `--output / -out`: Destination path for the final stitched mosaic.
-
-## Optional arguments
-
-- `--udms / -udm`: UDM rasters (files or directories). Omit only when
-  `--skip-masking` is supplied.
-- `--skip-masking`: Use the provided inputs directly without applying the
-  gdal-based UDM mask.
-- `--sr-bands`: Surface reflectance bundle size (4 or 8).
-- `--ndvi`: Append an NDVI band (NIR/Red uses bands 4/3 for 4-band, 8/6 for 8-band).
-- `--workdir / --tmpdir`: Override the locations used for intermediate strips
-  and OTB scratch files. Defaults are automatically managed temp directories.
-- `--jobs`: Number of parallel masking workers (defaults to 4).
-- `--ram`: RAM hint for OTB in MB (defaults to 131072).
-- `-v/ -vv`: Increase logging verbosity.
-
-## Planning & Ordering Monthly Planet Composites (Beta)
+## Planning & Ordering Monthly Planet Composites
 
 `plaknit plan` can run on local devices to query Planet's Data/STAC API, filter PSScene candidates, tile the AOI, and pick the smallest monthly set that meets both coverage and clear-observation targets. You can optionally submit Planet orders with clipped surface reflectance scenes (4- or 8-band SR + UDM2) and Sentinel-2 harmonization, chunked into batches of up to 100 scenes with predictable order/ZIP names.
 
@@ -62,7 +25,7 @@ plaknit plan \
 The summary table shows candidate/selected scenes, achieved coverage, clear
 observation depth, and any resulting order IDs. Orders deliver single-archive
 ZIPs per order (no pre-mosaicking on Planet's side) so you can hand the outputs
-to `plaknit stitch` or future composite builders on HPC; orders are chunked into
+to `plaknit mosaic` or future composite builders on HPC; orders are chunked into
 up to 100 scenes each, with names suffixed `_1`, `_2`, etc. when needed.
 
 Planet limits STAC/Data AOI intersections to 1,500 vertices, so the planner
@@ -101,26 +64,44 @@ automatically drops the inaccessible scene IDs and retries so the remaining
 items can still be delivered.
 
 
-## Normalized difference analysis
+## Mosaic
 
-`plaknit` also exposes helpers that wrap `rasterio` so you can build spectral
-indices without leaving Python:
+`plaknit mosaic` ships with a CLI that is best run in High-Performance Computing Environments. Install the package into the same
+environment that contains GDAL and Orfeo Toolbox, then run the mosaic workflow:
 
-```python
-from plaknit import normalized_difference_from_raster
-
-ndvi = normalized_difference_from_raster(
-    "planet_strip.tif",
-    numerator_band=4,      # NIR
-    denominator_band=3,    # Red
-    dst_path="planet_strip_ndvi.tif",
-)
+```bash
+plaknit mosaic \
+  --inputs /data/strips/*.tif \
+  --udms /data/strips/*.udm2.tif \
+  --output /data/mosaics/planet_mosaic.tif \
+  --jobs 8 \
+  --ram 196608
 ```
 
-For rasters stored in two separate files, call
-`plaknit.normalized_difference_from_files("nir.tif", "red.tif")`. Each helper
-returns the calculated array so you can continue working with NumPy while
-optionally persisting the results back to disk.
+You can call the module directly with `python -m plaknit.mosaic`
+if you prefer to pin the interpreter. The progress display stays minimal with
+three bars: Mask tiles → Binary mask → Mosaic (shown when `rich` is installed).
+
+### Required arguments
+
+- `--inputs / -il`: One or more GeoTIFFs or directories. Directories are
+  expanded to all `.tif` files.
+- `--output / -out`: Destination path for the final mosaic.
+
+### Optional arguments
+
+- `--udms / -udm`: UDM rasters (files or directories). Omit only when
+  `--skip-masking` is supplied.
+- `--skip-masking`: Use the provided inputs directly without applying the
+  gdal-based UDM mask.
+- `--sr-bands`: Surface reflectance bundle size (4 or 8).
+- `--ndvi`: Append an NDVI band (NIR/Red uses bands 4/3 for 4-band, 8/6 for 8-band).
+- `--workdir / --tmpdir`: Override the locations used for intermediate strips
+  and OTB scratch files. Defaults are automatically managed temp directories.
+- `--jobs`: Number of parallel masking workers (defaults to 4).
+- `--ram`: RAM hint for OTB in MB (defaults to 131072).
+- `-v/ -vv`: Increase logging verbosity.
+
 
 ## Random Forest classification
 
