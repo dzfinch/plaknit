@@ -128,16 +128,15 @@ downloads:
 
 ```bash
 export VENVBASE=/path/to/project/venvs
-export PIPCACHE=/path/to/project/cache/pip
+export PIPCACHE=/path/to/project/cache
 export SIF=otb.sif
 
 singularity exec \
   --bind "$VENVBASE":/venvs \
-  --bind "$PIPCACHE":/pipcache \
+  --bind "$PIPCACHE":/cache \
   "$SIF" bash -lc '
-    set -euo pipefail
     source /venvs/plaknit/bin/activate
-    pip install --cache-dir /pipcache --upgrade plaknit
+    pip install --cache-dir /cache --upgrade plaknit
     plaknit --version
   '
 ```
@@ -154,16 +153,18 @@ source /path/to/venvs/plaknit/lib/activate
 
 ```bash
 # set these to the paths on the host filesystem
-export TILES=$USER/data/strips          # GeoTIFF strips/tiles
-export UDMS=$USER/data/udms            # matching UDM
-export OUTDIR=$USER/output        # mosaic
-export VENVBASE=$USER/venvs       # contains the env
+export PROJECT_DIR=/path/to/project
+export RUN_TAG=aug_2019
+export TILES=$PROJECT_DIR/data/strips/$RUN_TAG          # GeoTIFF strips/tiles
+export UDMS=$PROJECT_DIR/data/udms/$RUN_TAG            # matching UDM
+export OUTDIR=$PROJECT_DIR/output        # mosaic
+export VENVBASE=$PROJECT_DIR/venvs       # contains the env
 export SCRATCH=${SLURM_TMPDIR:-/tmp}       # fast scratch space
 export SIF=otb.sif   # OTB-enabled image
 
 singularity exec \
-  --bind "$TILES":/data/strips \
-  --bind "$UDMS":/data/udms \
+  --bind "$TILES":/data/strips/$RUN_TAG \
+  --bind "$UDMS":/data/udms/$RUN_TAG \
   --bind "$OUTDIR":/data/output \
   --bind "$SCRATCH":/localscratch \
   --bind "$VENVBASE":/venvs \
@@ -174,15 +175,13 @@ singularity exec \
     export GDAL_CACHEMAX=4096
     mkdir -p /localscratch/tmp
 
-    /venvs/plaknit/bin/plaknit \
+    /venvs/plaknit/bin/plaknit mosaic \
       --inputs $TILES \
       --udms $UDMS \
-      --output $OUTDIR/mosaic.tif \
-      --tmpdir localscratch/tmp \
-      --ndvi \
+      --output $OUTDIR/${RUN_TAG}.tif \
+      --tmpdir /localscratch/tmp \
       --jobs ${SLURM_CPUS_PER_TASK:-8} \
-      --ram 131072 \
-      -v
+      --ram 191072
   '
 
 ```
@@ -205,21 +204,18 @@ Use `--band-indices` (1-based) to select a subset of stacked bands.
 #SBATCH --output=plaknit_classify_%j.log
 
 # Host paths
-export PROJECT_DIR=/path/to/project
-export STACK=$PROJECT_DIR/data/stack.vrt       # or a single multiband GeoTIFF
-export LABELS=$PROJECT_DIR/data/train_labels.gpkg
-export MODEL=$PROJECT_DIR/output/rf_model.joblib
-export PRED_OUT=$PROJECT_DIR/output/prediction.tif
-export VENVBASE=$PROJECT_DIR/venvs             # contains the persistent venv
-export PIPCACHE=$PROJECT_DIR/cache/pip
+export BASE=/path/to/project
+export PROJECT=$BASE/rf
+export VENVBASE=$BASE/venvs
+export PIPCACHE=$BASE/cache/pip
 export SCRATCH=${SLURM_TMPDIR:-/tmp}
-export SIF=otb.sif                             # any GDAL+Python image works; OTB not required for classify
+export SIF=$BASE/otb.sif                             # any GDAL+Python image works; OTB not required for classify
 
 singularity exec \
-  --bind "$STACK":/data/stack.vrt \
-  --bind "$LABELS":/data/train_labels.gpkg \
-  --bind "$MODEL":/data/rf_model.joblib \
-  --bind "$(dirname "$PRED_OUT")":/data/output \
+  --bind "$PROJECT/layers":/layers \
+  --bind "$PROJECT/model":/model \
+  --bind "$PROJECT/out":/out \
+  --bind "$PROJECT":/project \
   --bind "$VENVBASE":/venvs \
   --bind "$PIPCACHE":/pipcache \
   --bind "$SCRATCH":/localscratch \
@@ -228,21 +224,24 @@ singularity exec \
     export PATH=/venvs/plaknit/bin:$PATH
 
     # Train (optional; skip if model already exists)
-    /venvs/plaknit/bin/plaknit classify train \
-      --image /data/stack.vrt \
-      --labels /data/train_labels.gpkg \
+    plaknit classify train \
+      --image /layers/stack.vrt /layers/mosaic.tif \
+      --labels /project/training_points.gpkg \
       --label-column class \
-      --model-out /data/rf_model.joblib \
-      --n-estimators 500 \
-      --jobs ${SLURM_CPUS_PER_TASK:-8}
+      --model-out /model/rf_model.joblib
 
     # Predict
-    /venvs/plaknit/bin/plaknit classify predict \
-      --image /data/stack.vrt \
-      --model /data/rf_model.joblib \
-      --output /data/output/prediction.tif \
+    plaknit classify predict \
+      --image /layers/stack.vrt /layers/mosaic.tif \
+      --model /model/rf_model.joblib \
+      --output /out/classification.tif \
       --block-shape 512 512 \
-      --smooth none
+      --jobs 8 \
+      --smooth mrf \
+      --beta 1.0 \
+      --neighborhood 4 \
+      --icm-iters 3 \
+      --block-overlap 0
   '
 ```
 
