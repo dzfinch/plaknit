@@ -399,9 +399,7 @@ def _split_train_test(
             stratify=stratify,
         )
     except ValueError:
-        _log(
-            "[yellow]Stratified split failed; falling back to unstratified holdout."
-        )
+        _log("[yellow]Stratified split failed; falling back to unstratified holdout.")
         X_train, X_test, y_train, y_test = train_test_split(
             features,
             labels,
@@ -521,10 +519,7 @@ def train_rf(
         X, y, test_fraction=test_fraction, random_state=random_state
     )
     if X_test is not None:
-        _log(
-            f"[bold cyan]Holding out {X_test.shape[0]:,} samples "
-            "for evaluation."
-        )
+        _log(f"[bold cyan]Holding out {X_test.shape[0]:,} samples " "for evaluation.")
 
     _log(
         f"[bold cyan]Training RandomForest on {X_train.shape[0]:,} samples "
