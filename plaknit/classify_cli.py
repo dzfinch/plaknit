@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from typing import Optional, Sequence
+from typing import List, Optional, Sequence
 
 from .classify import predict_rf, train_rf
 
@@ -50,6 +50,13 @@ def _parse_block_shape(values: Optional[Sequence[int]]) -> Optional[tuple[int, i
     return int(values[0]), int(values[1])
 
 
+def _flatten_image_args(image_args: Sequence[Sequence[str]]) -> List[str]:
+    images: List[str] = []
+    for group in image_args:
+        images.extend(group)
+    return images
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="plaknit classify",
@@ -62,7 +69,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "--image",
         required=True,
         nargs="+",
-        help="Raster input(s): single GeoTIFF/VRT, multiple aligned GeoTIFFs, or directories of TIFFs.",
+        action="append",
+        help=(
+            "Raster input(s): pass one or more GeoTIFF/VRT paths after --image, "
+            "or repeat --image. Directories are expanded to TIFFs."
+        ),
     )
     train_parser.add_argument(
         "--labels", required=True, help="Vector labels (e.g., Shapefile/GeoPackage)."
@@ -101,7 +112,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "--image",
         required=True,
         nargs="+",
-        help="Raster input(s): single GeoTIFF/VRT, multiple aligned GeoTIFFs, or directories of TIFFs.",
+        action="append",
+        help=(
+            "Raster input(s): pass one or more GeoTIFF/VRT paths after --image, "
+            "or repeat --image. Directories are expanded to TIFFs."
+        ),
     )
     predict_parser.add_argument("--model", required=True, help="Trained model path.")
     predict_parser.add_argument(
@@ -125,8 +140,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     if args.command == "train":
+        image_paths = _flatten_image_args(args.image)
         train_rf(
-            image_path=args.image,
+            image_path=image_paths,
             shapefile_path=args.labels,
             label_column=args.label_column,
             model_out=args.model_out,
@@ -137,8 +153,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 0
 
     block_shape = _parse_block_shape(args.block_shape)
+    image_paths = _flatten_image_args(args.image)
     predict_rf(
-        image_path=args.image,
+        image_path=image_paths,
         model_path=args.model,
         output_path=args.output,
         block_shape=block_shape,
