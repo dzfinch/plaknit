@@ -6,20 +6,19 @@
 
 ```bash
 plaknit plan \
-  --aoi aoi_bounds.gpkg \
-  --start 2024-01-01 \
-  --end 2024-06-30 \
-  --cloud-max 0.15 \
+  --aoi /path/to/aoi.gpkg \
+  --start 2019-08-01 \
+  --end 2019-08-31 \
+  --cloud-max 0.05 \
   --sun-elev-min 35 \
-  --coverage-target 0.98 \
-  --min-clear-fraction 0.8 \
-  --min-clear-obs 3 \
+  --coverage-target 0.99 \
+  --min-clear-fraction 0.9 \
+  --min-clear-obs 4 \
   --tile-size-m 1000 \
-  --sr-bands 8 \
+  --sr-bands 4 \
+  --instrument-type PS2.SD \
   --harmonize-to sentinel2 \
-  --out my_monthly_plan.json \
-  --order \
-  --order-prefix plk_demo
+  --out aug_2019_plan.json
 ```
 
 The summary table shows candidate/selected scenes, achieved coverage, clear
@@ -39,12 +38,11 @@ without recomputing coverage:
 
 ```bash
 plaknit order \
-  --plan my_monthly_plan.json \
-  --aoi aoi_bounds.gpkg \
+  --plan aug_2019_plan.json \
+  --aoi /path/to/aoi.gpkg \
   --sr-bands 4 \
   --harmonize-to sentinel2 \
-  --order-prefix plk_demo \
-  --archive-type zip
+  --order-prefix aug2019
 ```
 
 Order output arguments:
@@ -71,11 +69,12 @@ environment that contains GDAL and Orfeo Toolbox, then run the mosaic workflow:
 
 ```bash
 plaknit mosaic \
-  --inputs /data/strips/*.tif \
-  --udms /data/strips/*.udm2.tif \
-  --output /data/mosaics/planet_mosaic.tif \
+  --inputs /path/to/strips \
+  --udms /path/to/udms \
+  --output /path/to/output/aug_2019.tif \
+  --tmpdir /path/to/tmp \
   --jobs 8 \
-  --ram 196608
+  --ram 191072
 ```
 
 You can call the module directly with `python -m plaknit.mosaic`
@@ -114,22 +113,23 @@ the same model to run on 4-band and 8-band inputs. Train + predict from the CLI:
 ```bash
 # Train (writes a .joblib model)
 plaknit classify train \
-  --image /data/stack.vrt \
-  --labels /data/train_labels.gpkg \
+  --image /data/stack.vrt /data/mosaic.tif \
+  --labels /data/training_points.gpkg \
   --label-column class \
-  --model-out /data/rf_model.joblib \
-  --n-estimators 500 \
-  --test-fraction 0.3 \
-  --jobs 32
+  --model-out /data/rf_model.joblib
 
 # Predict (writes a classified GeoTIFF of class IDs)
 plaknit classify predict \
-  --image /data/stack.vrt \
+  --image /data/stack.vrt /data/mosaic.tif \
   --model /data/rf_model.joblib \
-  --output /data/output/prediction.tif \
+  --output /data/output/classification.tif \
   --block-shape 512 512 \
   --jobs 8 \
-  --smooth none
+  --smooth mrf \
+  --beta 1.0 \
+  --neighborhood 4 \
+  --icm-iters 3 \
+  --block-overlap 0
 ```
 
 Python API (same engine, useful for notebooks):
