@@ -194,6 +194,7 @@ This Singularity/Apptainer template mirrors the mosaic example but calls
 `plaknit classify`. The CLI accepts one or more `--image` paths; when bands
 live in separate TIFFs, you can pass them directly (or repeat `--image`) or build
 a VRT first (for example `gdalbuildvrt stack.vrt band1.tif band2.tif ...`).
+Use `--band-indices` (1-based) to select a subset of stacked bands.
 
 ```bash
 #!/bin/bash

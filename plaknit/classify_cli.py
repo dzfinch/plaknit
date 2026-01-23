@@ -76,6 +76,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         ),
     )
     train_parser.add_argument(
+        "--band-indices",
+        nargs="+",
+        type=int,
+        help="Optional 1-based band indices to use from the stacked inputs.",
+    )
+    train_parser.add_argument(
         "--labels", required=True, help="Vector labels (e.g., Shapefile/GeoPackage)."
     )
     train_parser.add_argument(
@@ -118,6 +124,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             "or repeat --image. Directories are expanded to TIFFs."
         ),
     )
+    predict_parser.add_argument(
+        "--band-indices",
+        nargs="+",
+        type=int,
+        help="Optional 1-based band indices to use from the stacked inputs.",
+    )
     predict_parser.add_argument("--model", required=True, help="Trained model path.")
     predict_parser.add_argument(
         "--output", required=True, help="Path for classified GeoTIFF."
@@ -146,6 +158,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             shapefile_path=args.labels,
             label_column=args.label_column,
             model_out=args.model_out,
+            band_indices=args.band_indices,
             n_estimators=args.n_estimators,
             max_depth=args.max_depth,
             n_jobs=args.jobs,
@@ -158,6 +171,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         image_path=image_paths,
         model_path=args.model,
         output_path=args.output,
+        band_indices=args.band_indices,
         block_shape=block_shape,
         smooth=args.smooth,
         beta=args.beta,

@@ -7,7 +7,7 @@ import concurrent.futures
 import os
 import warnings
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import geopandas as gpd
 import joblib
@@ -147,12 +147,17 @@ def _icm_smooth(
 class _RasterStack:
     """Lightweight reader that stacks multiple rasters band-wise."""
 
-    def __init__(self, paths: List[Path]):
+    def __init__(self, paths: List[Path], band_indices: Optional[Sequence[int]] = None):
         self.paths = paths
         self.datasets: List[rasterio.io.DatasetReader] = []
         self.count = 0
         self.nodata_values: List[Optional[float]] = []
         self.template: Optional[rasterio.io.DatasetReader] = None
+        self._requested_band_indices = (
+            list(band_indices) if band_indices is not None else None
+        )
+        self._selected_band_map: Optional[List[Tuple[int, int]]] = None
+        self._all_band_map: List[Tuple[int, int]] = []
 
     def __enter__(self) -> "_RasterStack":
         self.datasets = [rasterio.open(p) for p in self.paths]
@@ -176,9 +181,30 @@ class _RasterStack:
             ):
                 raise ValueError("All rasters must share the same CRS.")
 
-        for ds in self.datasets:
+        for ds_idx, ds in enumerate(self.datasets):
             self.count += ds.count
             self.nodata_values.extend(_normalize_nodata(ds.nodatavals, ds.count))
+            self._all_band_map.extend(
+                (ds_idx, band_idx) for band_idx in range(1, ds.count + 1)
+            )
+
+        if self._requested_band_indices is not None:
+            band_indices = [int(idx) for idx in self._requested_band_indices]
+            if not band_indices:
+                raise ValueError("band_indices must include at least one band.")
+            if len(set(band_indices)) != len(band_indices):
+                raise ValueError("band_indices must not contain duplicates.")
+            total_count = self.count
+            for idx in band_indices:
+                if idx < 1 or idx > total_count:
+                    raise ValueError(
+                        f"band_indices must be between 1 and {total_count}."
+                    )
+            self._selected_band_map = [
+                self._all_band_map[idx - 1] for idx in band_indices
+            ]
+            self.nodata_values = [self.nodata_values[idx - 1] for idx in band_indices]
+            self.count = len(self._selected_band_map)
 
         return self
 
@@ -216,10 +242,29 @@ class _RasterStack:
         return self.template.block_windows(bidx)
 
     def read(self, *, window, out_dtype: str) -> np.ndarray:
-        blocks: List[np.ndarray] = []
-        for ds in self.datasets:
-            blocks.append(ds.read(window=window, out_dtype=out_dtype))
-        return np.concatenate(blocks, axis=0)
+        if self._selected_band_map is None:
+            blocks: List[np.ndarray] = []
+            for ds in self.datasets:
+                blocks.append(ds.read(window=window, out_dtype=out_dtype))
+            return np.concatenate(blocks, axis=0)
+
+        height = int(window.height)
+        width = int(window.width)
+        out = np.empty((self.count, height, width), dtype=out_dtype)
+        read_plan: Dict[int, List[Tuple[int, int]]] = {}
+        for out_idx, (ds_idx, band_idx) in enumerate(self._selected_band_map):
+            read_plan.setdefault(ds_idx, []).append((out_idx, band_idx))
+
+        for ds_idx, selections in read_plan.items():
+            ds = self.datasets[ds_idx]
+            band_ids = [band_idx for _, band_idx in selections]
+            data = ds.read(indexes=band_ids, window=window, out_dtype=out_dtype)
+            if data.ndim == 2:
+                data = data[np.newaxis, :, :]
+            for local_idx, (out_idx, _) in enumerate(selections):
+                out[out_idx] = data[local_idx]
+
+        return out
 
 
 def _expand_raster_inputs(
@@ -259,8 +304,11 @@ def _expand_raster_inputs(
     return paths
 
 
-def _open_raster_stack(image_path: Union[PathLike, Iterable[PathLike]]) -> _RasterStack:
-    return _RasterStack(_expand_raster_inputs(image_path))
+def _open_raster_stack(
+    image_path: Union[PathLike, Iterable[PathLike]],
+    band_indices: Optional[Sequence[int]] = None,
+) -> _RasterStack:
+    return _RasterStack(_expand_raster_inputs(image_path), band_indices=band_indices)
 
 
 def _collect_training_samples(
@@ -332,6 +380,7 @@ def train_rf(
     label_column: str,
     model_out: PathLike,
     *,
+    band_indices: Optional[Sequence[int]] = None,
     n_estimators: int = 500,
     max_depth: Optional[int] = None,
     n_jobs: int = -1,
@@ -341,11 +390,12 @@ def train_rf(
 
     The `image_path` can be a single multi-band raster, a directory of GeoTIFFs
     (expanded), or an iterable of coregistered rasters (elevation, NDVI,
-    spectral bands, etc.).
+    spectral bands, etc.). Use `band_indices` (1-based) to select a subset of
+    stacked bands for training.
     """
 
     _log("[bold cyan]Loading training data...")
-    with _open_raster_stack(image_path) as stack:
+    with _open_raster_stack(image_path, band_indices=band_indices) as stack:
         assert stack.template is not None
         gdf = gpd.read_file(shapefile_path)
         if label_column not in gdf.columns:
@@ -383,6 +433,8 @@ def train_rf(
     )
     rf.fit(X, y)
     rf.label_decoder = decoder  # type: ignore[attr-defined]
+    if band_indices is not None:
+        rf.band_indices = list(band_indices)  # type: ignore[attr-defined]
     if decoder:
         mapping_preview = ", ".join(
             f"{code}:{label}" for code, label in list(decoder.items())[:10]
@@ -541,6 +593,7 @@ def _close_predict_worker() -> None:
 
 def _init_predict_worker(
     image_paths: List[str],
+    band_indices: Optional[Sequence[int]],
     model_path: str,
     out_dtype: str,
     nodata_value: Union[int, float],
@@ -558,7 +611,7 @@ def _init_predict_worker(
     global _PREDICT_NEIGHBORHOOD
     global _PREDICT_ICM_ITERS
 
-    stack = _open_raster_stack(image_paths)
+    stack = _open_raster_stack(image_paths, band_indices=band_indices)
     stack.__enter__()
     _PREDICT_STACK = stack
     _PREDICT_MODEL = joblib.load(model_path)
@@ -597,6 +650,7 @@ def predict_rf(
     model_path: PathLike,
     output_path: PathLike,
     *,
+    band_indices: Optional[Sequence[int]] = None,
     block_shape: Optional[Tuple[int, int]] = None,
     smooth: str = "none",
     beta: float = 1.0,
@@ -610,7 +664,8 @@ def predict_rf(
     The `image_path` can be a single raster, a directory of GeoTIFFs, or an
     iterable of aligned rasters. Optional Potts-MRF smoothing (`smooth="mrf"`)
     uses RF posteriors + ICM to reduce speckle. `jobs` controls block-level
-    parallelism via worker processes.
+    parallelism via worker processes. Use `band_indices` (1-based) to select a
+    subset of stacked bands for prediction.
     """
 
     _log("[bold cyan]Loading model...")
@@ -636,8 +691,23 @@ def predict_rf(
     if jobs <= 0:
         jobs = max(1, os.cpu_count() or 1)
 
-    with _open_raster_stack(image_path) as stack:
+    selected_band_indices: Optional[List[int]]
+    if band_indices is not None:
+        selected_band_indices = list(band_indices)
+    else:
+        model_band_indices = getattr(model, "band_indices", None)
+        selected_band_indices = list(model_band_indices) if model_band_indices else None
+
+    with _open_raster_stack(image_path, band_indices=selected_band_indices) as stack:
         assert stack.template is not None
+        expected_features = getattr(model, "n_features_in_", None)
+        if expected_features is not None and expected_features != stack.count:
+            raise ValueError(
+                "Model expects "
+                f"{expected_features} bands, but input stack has {stack.count}. "
+                "Train a matching model or pass --band-indices to select "
+                "the same bands used during training."
+            )
         profile = _prepare_output_profile(stack.profile, out_dtype, nodata_value)
         # Ensure we write a GeoTIFF even when reading from a VRT source.
         profile["driver"] = "GTiff"
@@ -686,6 +756,7 @@ def predict_rf(
                     initializer=_init_predict_worker,
                     initargs=(
                         image_paths,
+                        selected_band_indices,
                         model_path_str,
                         out_dtype,
                         nodata_value,
