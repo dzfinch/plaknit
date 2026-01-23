@@ -16,6 +16,8 @@ import rasterio
 from rasterio import features, windows
 from rasterio.features import geometry_window
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.model_selection import train_test_split
 
 try:  # pragma: no cover - optional rich dependency
     from rich.console import Console
@@ -374,6 +376,96 @@ def _collect_training_samples(
     return features_arr, labels_arr
 
 
+def _split_train_test(
+    features: np.ndarray,
+    labels: np.ndarray,
+    *,
+    test_fraction: float,
+    random_state: int,
+) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray], Optional[np.ndarray]]:
+    if test_fraction <= 0:
+        return features, labels, None, None
+    if test_fraction >= 1:
+        raise ValueError("test_fraction must be between 0 and 1.")
+
+    unique_labels = np.unique(labels)
+    stratify = labels if unique_labels.size > 1 else None
+    try:
+        X_train, X_test, y_train, y_test = train_test_split(
+            features,
+            labels,
+            test_size=test_fraction,
+            random_state=random_state,
+            stratify=stratify,
+        )
+    except ValueError:
+        _log("[yellow]Stratified split failed; falling back to unstratified holdout.")
+        X_train, X_test, y_train, y_test = train_test_split(
+            features,
+            labels,
+            test_size=test_fraction,
+            random_state=random_state,
+            stratify=None,
+        )
+    return X_train, y_train, X_test, y_test
+
+
+def _format_confusion_matrix(matrix: np.ndarray, labels: Sequence[str]) -> str:
+    label_strings = [str(label) for label in labels]
+    max_label = max((len(label) for label in label_strings), default=0)
+    max_value = max((len(str(val)) for val in matrix.flatten()), default=1)
+    width = max(max_label, max_value)
+
+    header = " " * (width + 1) + " ".join(label.rjust(width) for label in label_strings)
+    rows = [header]
+    for label, row in zip(label_strings, matrix):
+        row_values = " ".join(str(val).rjust(width) for val in row)
+        rows.append(f"{label.rjust(width)} {row_values}")
+    return "\n".join(rows)
+
+
+def _log_holdout_metrics(model: RandomForestClassifier) -> None:
+    test_samples = getattr(model, "test_samples_", None)
+    test_labels = getattr(model, "test_labels_", None)
+    if test_samples is None or test_labels is None or len(test_labels) == 0:
+        _log("[yellow]Model has no holdout samples; skipping evaluation.")
+        return
+
+    predictions = model.predict(test_samples)
+    classes = getattr(model, "classes_", None)
+    if classes is None:
+        classes = np.unique(test_labels)
+    decoder = getattr(model, "label_decoder", None)
+    if decoder:
+        label_names = [str(decoder.get(int(code), code)) for code in classes]
+    else:
+        label_names = [str(code) for code in classes]
+
+    matrix = confusion_matrix(test_labels, predictions, labels=classes)
+    accuracy = accuracy_score(test_labels, predictions)
+    _log(
+        f"[bold cyan]Holdout evaluation: {len(test_labels):,} samples, "
+        f"accuracy {accuracy:.3f}"
+    )
+    _log("[bold cyan]Confusion matrix (rows=true, cols=pred):")
+    _log(_format_confusion_matrix(matrix, label_names))
+
+    importances = getattr(model, "feature_importances_", None)
+    if importances is None:
+        _log("[yellow]Model lacks feature_importances_; skipping band importance.")
+        return
+
+    band_indices = getattr(model, "band_indices", None)
+    if band_indices is None:
+        band_indices = list(range(1, len(importances) + 1))
+    bands = list(zip(band_indices, importances))
+    bands.sort(key=lambda pair: pair[1], reverse=True)
+    lines = ["[bold cyan]Band importance (sorted):"]
+    for band_idx, importance in bands:
+        lines.append(f"band {band_idx}: {importance:.6f}")
+    _log("\n".join(lines))
+
+
 def train_rf(
     image_path: Union[PathLike, Iterable[PathLike]],
     shapefile_path: PathLike,
@@ -385,13 +477,15 @@ def train_rf(
     max_depth: Optional[int] = None,
     n_jobs: int = -1,
     random_state: int = 42,
+    test_fraction: float = 0.3,
 ) -> RandomForestClassifier:
     """Train a Random Forest classifier on raster pixels under training polygons.
 
     The `image_path` can be a single multi-band raster, a directory of GeoTIFFs
     (expanded), or an iterable of coregistered rasters (elevation, NDVI,
     spectral bands, etc.). Use `band_indices` (1-based) to select a subset of
-    stacked bands for training.
+    stacked bands for training. A configurable fraction of samples is held out
+    for evaluation and persisted with the model.
     """
 
     _log("[bold cyan]Loading training data...")
@@ -421,8 +515,15 @@ def train_rf(
         X, y = _collect_training_samples(stack, gdf, code_column)
         y = y.astype("int32", copy=False)
 
+    X_train, y_train, X_test, y_test = _split_train_test(
+        X, y, test_fraction=test_fraction, random_state=random_state
+    )
+    if X_test is not None:
+        _log(f"[bold cyan]Holding out {X_test.shape[0]:,} samples " "for evaluation.")
+
     _log(
-        f"[bold cyan]Training RandomForest on {X.shape[0]:,} samples ({X.shape[1]} bands)..."
+        f"[bold cyan]Training RandomForest on {X_train.shape[0]:,} samples "
+        f"({X_train.shape[1]} bands)..."
     )
     rf = RandomForestClassifier(
         n_estimators=n_estimators,
@@ -431,10 +532,13 @@ def train_rf(
         random_state=random_state,
         oob_score=False,
     )
-    rf.fit(X, y)
+    rf.fit(X_train, y_train)
     rf.label_decoder = decoder  # type: ignore[attr-defined]
     if band_indices is not None:
         rf.band_indices = list(band_indices)  # type: ignore[attr-defined]
+    rf.test_samples_ = X_test  # type: ignore[attr-defined]
+    rf.test_labels_ = y_test  # type: ignore[attr-defined]
+    rf.test_fraction_ = test_fraction  # type: ignore[attr-defined]
     if decoder:
         mapping_preview = ", ".join(
             f"{code}:{label}" for code, label in list(decoder.items())[:10]
@@ -665,11 +769,13 @@ def predict_rf(
     iterable of aligned rasters. Optional Potts-MRF smoothing (`smooth="mrf"`)
     uses RF posteriors + ICM to reduce speckle. `jobs` controls block-level
     parallelism via worker processes. Use `band_indices` (1-based) to select a
-    subset of stacked bands for prediction.
+    subset of stacked bands for prediction. If the model includes holdout
+    samples, prediction logs a confusion matrix and band importance.
     """
 
     _log("[bold cyan]Loading model...")
     model: RandomForestClassifier = joblib.load(model_path)
+    _log_holdout_metrics(model)
     classes = getattr(model, "classes_", None)
     classes_dtype = getattr(classes, "dtype", np.int32)
     if np.issubdtype(classes_dtype, np.integer):

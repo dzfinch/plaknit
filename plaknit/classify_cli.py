@@ -110,6 +110,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         default=-1,
         help="Parallel jobs for training (default: -1 = all cores).",
     )
+    train_parser.add_argument(
+        "--test-fraction",
+        type=float,
+        default=0.3,
+        help="Fraction of samples held out for evaluation (default: 0.3).",
+    )
 
     predict_parser = subparsers.add_parser(
         "predict", help="Apply a trained model to classify a raster stack."
@@ -162,6 +168,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             n_estimators=args.n_estimators,
             max_depth=args.max_depth,
             n_jobs=args.jobs,
+            test_fraction=args.test_fraction,
         )
         return 0
 
