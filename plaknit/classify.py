@@ -327,7 +327,7 @@ def _collect_training_samples(
 
 
 def train_rf(
-    image_path: PathLike,
+    image_path: Union[PathLike, Iterable[PathLike]],
     shapefile_path: PathLike,
     label_column: str,
     model_out: PathLike,
@@ -593,7 +593,7 @@ def _predict_block_worker(win_tuple: WindowTuple, block_overlap: int) -> np.ndar
 
 
 def predict_rf(
-    image_path: PathLike,
+    image_path: Union[PathLike, Iterable[PathLike]],
     model_path: PathLike,
     output_path: PathLike,
     *,

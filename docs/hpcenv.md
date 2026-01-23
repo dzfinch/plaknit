@@ -191,8 +191,9 @@ singularity exec \
 ### Random Forest classification (train + predict)
 
 This Singularity/Apptainer template mirrors the mosaic example but calls
-`plaknit classify`. The CLI currently accepts one `--image` path; when bands
-live in separate TIFFs, build a VRT first (for example `gdalbuildvrt stack.vrt band1.tif band2.tif ...`).
+`plaknit classify`. The CLI accepts one or more `--image` paths; when bands
+live in separate TIFFs, you can pass them directly (or repeat `--image`) or build
+a VRT first (for example `gdalbuildvrt stack.vrt band1.tif band2.tif ...`).
 
 ```bash
 #!/bin/bash

@@ -106,9 +106,9 @@ three bars: Mask tiles → Binary mask → Mosaic (shown when `rich` is installe
 ## Random Forest classification
 
 `plaknit classify` trains and applies a Random Forest to multi-band stacks. The CLI
-expects a single `--image` path; if your bands live in separate TIFFs, build a VRT
-first (`gdalbuildvrt stack.vrt band1.tif band2.tif ...`). Train + predict from the
-CLI:
+accepts one or more `--image` paths; you can pass multiple aligned GeoTIFFs
+directly (or repeat `--image`) or build a VRT first (`gdalbuildvrt stack.vrt band1.tif band2.tif ...`).
+Train + predict from the CLI:
 
 ```bash
 # Train (writes a .joblib model)
