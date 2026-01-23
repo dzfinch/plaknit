@@ -119,6 +119,7 @@ plaknit classify train \
   --label-column class \
   --model-out /data/rf_model.joblib \
   --n-estimators 500 \
+  --test-fraction 0.3 \
   --jobs 32
 
 # Predict (writes a classified GeoTIFF of class IDs)
@@ -142,6 +143,7 @@ rf = train_rf(
     label_column="class_id",
     model_out="planet_rf.joblib",
     n_estimators=600,
+    test_fraction=0.3,
     n_jobs=32,
 )
 
@@ -157,6 +159,8 @@ check. Prediction streams over raster blocks (`--block-shape` overrides block
 size) so it works on laptops and HPC nodes alike; add `--jobs` to parallelize
 block prediction with multiple worker processes (watch for CPU oversubscription
 if the model was trained with `n_jobs` > 1). Classified rasters store numeric
-class IDs; inspect `rf.label_decoder` to map each ID back to its label. See
+class IDs; inspect `rf.label_decoder` to map each ID back to its label. Training
+holds out a fraction of samples for evaluation; prediction logs the holdout
+confusion matrix plus band importance from the stored model. See
 `docs/hpcenv.md` for a Singularity/Apptainer job template that binds the stack,
 labels, model, and venv for training + prediction.
