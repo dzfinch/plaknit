@@ -2,7 +2,6 @@
 
 """Tests for `plaknit` package."""
 
-
 import unittest
 
 from plaknit import plaknit
