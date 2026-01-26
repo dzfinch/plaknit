@@ -5,7 +5,7 @@ from .analysis import (
     normalized_difference_from_files,
     normalized_difference_from_raster,
 )
-from .classify import predict_rf, train_rf
+from .classify import predict_rf, smooth_probs, train_rf
 from .orders import submit_orders_for_plan
 from .planner import plan_monthly_composites, write_plan
 
@@ -19,6 +19,7 @@ __all__ = [
     "normalized_difference_from_files",
     "train_rf",
     "predict_rf",
+    "smooth_probs",
     "plan_monthly_composites",
     "write_plan",
     "submit_orders_for_plan",

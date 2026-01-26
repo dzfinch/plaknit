@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import atexit
 import concurrent.futures
+import contextlib
 import csv
 import os
 import warnings
@@ -145,6 +146,101 @@ def _icm_smooth(
         labels[valid_mask] = best[valid_mask]
 
     return labels
+
+
+def _bayes_smooth(
+    prob_cube: np.ndarray,
+    valid_mask: np.ndarray,
+    *,
+    window_size: int,
+    neigh_fraction: float,
+    smoothness: Union[float, Sequence[float]],
+) -> np.ndarray:
+    """Empirical Bayes smoothing of class probabilities (SITS book)."""
+
+    if window_size < 3 or window_size % 2 == 0:
+        raise ValueError("bayes_window_size must be an odd integer >= 3.")
+    if not (0 < neigh_fraction <= 1):
+        raise ValueError("bayes_neigh_fraction must be in (0, 1].")
+
+    h, w, num_classes = prob_cube.shape
+    if isinstance(smoothness, Sequence) and not isinstance(smoothness, (str, bytes)):
+        smoothness_arr = np.asarray(smoothness, dtype="float32")
+        if smoothness_arr.size != num_classes:
+            raise ValueError("bayes_smoothness must match number of classes.")
+    else:
+        smoothness_arr = np.full(num_classes, float(smoothness), dtype="float32")
+
+    if np.any(smoothness_arr < 0):
+        raise ValueError("bayes_smoothness must be non-negative.")
+
+    if np.all(smoothness_arr == 0):
+        return prob_cube
+
+    eps = np.float32(1e-6)
+    probs = np.clip(prob_cube, eps, 1 - eps).astype("float32", copy=False)
+    logits = np.log(probs) - np.log1p(-probs)
+
+    pad = window_size // 2
+    padded_probs = np.pad(
+        probs, ((pad, pad), (pad, pad), (0, 0)), mode="constant", constant_values=np.nan
+    )
+    padded_logits = np.pad(
+        logits,
+        ((pad, pad), (pad, pad), (0, 0)),
+        mode="constant",
+        constant_values=np.nan,
+    )
+    padded_valid = np.pad(
+        valid_mask, ((pad, pad), (pad, pad)), mode="constant", constant_values=False
+    )
+
+    out_logits = np.full_like(logits, np.nan, dtype="float32")
+
+    for row in range(h):
+        r_slice = slice(row, row + window_size)
+        for col in range(w):
+            if not valid_mask[row, col]:
+                continue
+            c_slice = slice(col, col + window_size)
+            win_valid = padded_valid[r_slice, c_slice]
+            if not np.any(win_valid):
+                out_logits[row, col] = logits[row, col]
+                continue
+
+            for k in range(num_classes):
+                win_probs = padded_probs[r_slice, c_slice, k]
+                win_logits = padded_logits[r_slice, c_slice, k]
+                mask = win_valid & ~np.isnan(win_probs)
+                if not np.any(mask):
+                    out_logits[row, col, k] = logits[row, col, k]
+                    continue
+
+                flat_probs = win_probs[mask]
+                flat_logits = win_logits[mask]
+                keep = max(1, int(np.ceil(neigh_fraction * flat_probs.size)))
+                if keep < flat_probs.size:
+                    idx = np.argpartition(flat_probs, -keep)[-keep:]
+                    selected_logits = flat_logits[idx]
+                else:
+                    selected_logits = flat_logits
+
+                mean_val = float(selected_logits.mean())
+                if selected_logits.size > 1:
+                    var_val = float(selected_logits.var(ddof=1))
+                else:
+                    var_val = 0.0
+
+                sigma2 = float(smoothness_arr[k])
+                denom = var_val + sigma2
+                if denom <= 0:
+                    out_logits[row, col, k] = logits[row, col, k]
+                else:
+                    out_logits[row, col, k] = (var_val / denom) * logits[
+                        row, col, k
+                    ] + (sigma2 / denom) * mean_val
+
+    return 1 / (1 + np.exp(-out_logits))
 
 
 class _RasterStack:
@@ -629,6 +725,12 @@ def _prepare_output_profile(
     return profile
 
 
+def _prepare_prob_profile(profile: dict, *, count: int) -> dict:
+    profile = profile.copy()
+    profile.update(count=count, dtype="float32", nodata=np.nan)
+    return profile
+
+
 def _window_to_tuple(win: windows.Window) -> WindowTuple:
     return (
         int(win.col_off),
@@ -678,8 +780,12 @@ def _predict_block(
     beta: float,
     neighborhood: int,
     icm_iters: int,
+    bayes_window_size: int,
+    bayes_neigh_fraction: float,
+    bayes_smoothness: Union[float, Sequence[float]],
+    return_probs: bool,
     block_overlap: int,
-) -> np.ndarray:
+) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     read_window, write_slice = _window_with_overlap(
         win,
         block_overlap=block_overlap,
@@ -688,32 +794,72 @@ def _predict_block(
     )
     block = stack.read(window=read_window, out_dtype="float32")
     if block.size == 0:
-        return np.full((int(win.height), int(win.width)), nodata_value, dtype=out_dtype)
+        empty_pred = np.full(
+            (int(win.height), int(win.width)), nodata_value, dtype=out_dtype
+        )
+        if not return_probs:
+            return empty_pred
+        class_values = getattr(model, "classes_", None)
+        num_classes = len(class_values) if class_values is not None else 1
+        empty_probs = np.full(
+            (num_classes, int(win.height), int(win.width)),
+            np.nan,
+            dtype="float32",
+        )
+        return empty_pred, empty_probs
 
     samples = block.reshape(stack.count, -1).T
     valid = ~_nodata_pixel_mask(samples, stack.nodata_values)
 
     predictions = np.full(samples.shape[0], nodata_value, dtype=out_dtype)
+    class_values = getattr(model, "classes_", None)
+    if class_values is not None:
+        class_values = np.asarray(class_values)
+    num_classes = len(class_values) if class_values is not None else 1
+    prob_out: Optional[np.ndarray] = None
     if np.any(valid):
-        if smooth == "none":
-            preds = model.predict(samples[valid])
-            predictions[valid] = preds.astype(out_dtype, copy=False)
-            predictions = predictions.reshape(
-                int(read_window.height), int(read_window.width)
-            )
-            predictions = predictions[write_slice[0], write_slice[1]]
-        else:
-            probs = model.predict_proba(samples[valid])
+        block_valid = valid.reshape(int(read_window.height), int(read_window.width))
+        need_probs = return_probs or smooth != "none"
+        if need_probs:
+            probs = model.predict_proba(samples[valid]).astype("float32", copy=False)
             num_classes = probs.shape[1]
+            prob_cube = np.full(
+                (samples.shape[0], num_classes), np.nan, dtype="float32"
+            )
+            prob_cube[valid] = probs
+            prob_cube = prob_cube.reshape(
+                int(read_window.height), int(read_window.width), num_classes
+            )
+            if return_probs:
+                prob_out = prob_cube[write_slice[0], write_slice[1]].transpose(2, 0, 1)
+
+        if smooth == "none":
+            if need_probs:
+                masked_probs = np.where(block_valid[:, :, None], prob_cube, -np.inf)
+                best_idx = masked_probs.argmax(axis=2)
+                if class_values is not None:
+                    best = class_values[best_idx]
+                else:
+                    best = best_idx
+                best[~block_valid] = nodata_value
+                predictions = best[write_slice[0], write_slice[1]].astype(
+                    out_dtype, copy=False
+                )
+            else:
+                preds = model.predict(samples[valid])
+                predictions[valid] = preds.astype(out_dtype, copy=False)
+                predictions = predictions.reshape(
+                    int(read_window.height), int(read_window.width)
+                )
+                predictions = predictions[write_slice[0], write_slice[1]]
+        elif smooth == "mrf":
             log_probs = np.full(
                 (samples.shape[0], num_classes), -np.inf, dtype="float32"
             )
             log_probs[valid] = np.log(probs + 1e-9).astype("float32")
-
             log_probs = log_probs.reshape(
                 int(read_window.height), int(read_window.width), num_classes
             )
-            block_valid = valid.reshape(int(read_window.height), int(read_window.width))
             init_labels = np.full(
                 (int(read_window.height), int(read_window.width)),
                 -1,
@@ -729,18 +875,51 @@ def _predict_block(
                 neighborhood=neighborhood,
                 iters=icm_iters,
             )
+            if class_values is not None:
+                smoothed = class_values[smoothed]
             smoothed[~block_valid] = nodata_value
             smoothed = smoothed[write_slice[0], write_slice[1]].astype(
                 out_dtype, copy=False
             )
             predictions = smoothed
+        else:
+            smoothed_probs = _bayes_smooth(
+                prob_cube,
+                block_valid,
+                window_size=bayes_window_size,
+                neigh_fraction=bayes_neigh_fraction,
+                smoothness=bayes_smoothness,
+            )
+            masked_probs = np.where(block_valid[:, :, None], smoothed_probs, -np.inf)
+            best_idx = masked_probs.argmax(axis=2)
+            if class_values is not None:
+                best = class_values[best_idx]
+            else:
+                best = best_idx
+            best[~block_valid] = nodata_value
+            best = best[write_slice[0], write_slice[1]].astype(out_dtype, copy=False)
+            predictions = best
     else:
         predictions = predictions.reshape(
             int(read_window.height), int(read_window.width)
         )
         predictions = predictions[write_slice[0], write_slice[1]]
+        if return_probs:
+            prob_out = np.full(
+                (num_classes, int(win.height), int(win.width)),
+                np.nan,
+                dtype="float32",
+            )
 
-    return predictions
+    if not return_probs:
+        return predictions
+    if prob_out is None:
+        prob_out = np.full(
+            (num_classes, int(win.height), int(win.width)),
+            np.nan,
+            dtype="float32",
+        )
+    return predictions, prob_out
 
 
 _PREDICT_STACK: Optional[_RasterStack] = None
@@ -751,6 +930,10 @@ _PREDICT_SMOOTH: str = "none"
 _PREDICT_BETA: float = 1.0
 _PREDICT_NEIGHBORHOOD: int = 4
 _PREDICT_ICM_ITERS: int = 3
+_PREDICT_BAYES_WINDOW_SIZE: int = 7
+_PREDICT_BAYES_NEIGH_FRACTION: float = 0.5
+_PREDICT_BAYES_SMOOTHNESS: Union[float, Sequence[float]] = 20.0
+_PREDICT_RETURN_PROBS: bool = False
 
 
 def _close_predict_worker() -> None:
@@ -770,6 +953,10 @@ def _init_predict_worker(
     beta: float,
     neighborhood: int,
     icm_iters: int,
+    bayes_window_size: int,
+    bayes_neigh_fraction: float,
+    bayes_smoothness: Union[float, Sequence[float]],
+    return_probs: bool,
 ) -> None:
     global _PREDICT_STACK
     global _PREDICT_MODEL
@@ -779,6 +966,10 @@ def _init_predict_worker(
     global _PREDICT_BETA
     global _PREDICT_NEIGHBORHOOD
     global _PREDICT_ICM_ITERS
+    global _PREDICT_BAYES_WINDOW_SIZE
+    global _PREDICT_BAYES_NEIGH_FRACTION
+    global _PREDICT_BAYES_SMOOTHNESS
+    global _PREDICT_RETURN_PROBS
 
     stack = _open_raster_stack(image_paths, band_indices=band_indices)
     stack.__enter__()
@@ -790,10 +981,16 @@ def _init_predict_worker(
     _PREDICT_BETA = beta
     _PREDICT_NEIGHBORHOOD = neighborhood
     _PREDICT_ICM_ITERS = icm_iters
+    _PREDICT_BAYES_WINDOW_SIZE = bayes_window_size
+    _PREDICT_BAYES_NEIGH_FRACTION = bayes_neigh_fraction
+    _PREDICT_BAYES_SMOOTHNESS = bayes_smoothness
+    _PREDICT_RETURN_PROBS = return_probs
     atexit.register(_close_predict_worker)
 
 
-def _predict_block_worker(win_tuple: WindowTuple, block_overlap: int) -> np.ndarray:
+def _predict_block_worker(
+    win_tuple: WindowTuple, block_overlap: int
+) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     if _PREDICT_STACK is None or _PREDICT_MODEL is None:
         raise RuntimeError("Prediction worker not initialized.")
     if _PREDICT_OUT_DTYPE is None or _PREDICT_NODATA is None:
@@ -810,6 +1007,10 @@ def _predict_block_worker(win_tuple: WindowTuple, block_overlap: int) -> np.ndar
         beta=_PREDICT_BETA,
         neighborhood=_PREDICT_NEIGHBORHOOD,
         icm_iters=_PREDICT_ICM_ITERS,
+        bayes_window_size=_PREDICT_BAYES_WINDOW_SIZE,
+        bayes_neigh_fraction=_PREDICT_BAYES_NEIGH_FRACTION,
+        bayes_smoothness=_PREDICT_BAYES_SMOOTHNESS,
+        return_probs=_PREDICT_RETURN_PROBS,
         block_overlap=block_overlap,
     )
 
@@ -825,6 +1026,10 @@ def predict_rf(
     beta: float = 1.0,
     neighborhood: int = 4,
     icm_iters: int = 3,
+    bayes_window_size: int = 7,
+    bayes_neigh_fraction: float = 0.5,
+    bayes_smoothness: Union[float, Sequence[float]] = 20.0,
+    probs_out: Optional[PathLike] = None,
     block_overlap: int = 0,
     jobs: int = 1,
 ) -> Path:
@@ -832,10 +1037,14 @@ def predict_rf(
 
     The `image_path` can be a single raster, a directory of GeoTIFFs, or an
     iterable of aligned rasters. Optional Potts-MRF smoothing (`smooth="mrf"`)
-    uses RF posteriors + ICM to reduce speckle. `jobs` controls block-level
+    uses RF posteriors + ICM to reduce speckle. Bayesian smoothing
+    (`smooth="bayes"`) applies empirical Bayes shrinkage to class probabilities
+    using non-isotropic neighborhoods. `jobs` controls block-level
     parallelism via worker processes. Use `band_indices` (1-based) to select a
-    subset of stacked bands for prediction. If the model includes holdout
-    samples, prediction logs a confusion matrix and band importance.
+    subset of stacked bands for prediction. If `probs_out` is set, prediction
+    writes a multi-band GeoTIFF of class probabilities (raw RF posteriors).
+    If the model includes holdout samples, prediction logs a confusion matrix
+    and band importance.
     """
 
     _log("[bold cyan]Loading model...")
@@ -850,8 +1059,14 @@ def predict_rf(
         nodata_value = np.nan
 
     smooth = smooth.lower()
-    if smooth not in {"none", "mrf"}:
-        raise ValueError("smooth must be 'none' or 'mrf'.")
+    if smooth not in {"none", "mrf", "bayes"}:
+        raise ValueError("smooth must be 'none', 'mrf', or 'bayes'.")
+
+    if smooth == "bayes":
+        if bayes_window_size < 3 or bayes_window_size % 2 == 0:
+            raise ValueError("bayes_window_size must be an odd integer >= 3.")
+        if not (0 < bayes_neigh_fraction <= 1):
+            raise ValueError("bayes_neigh_fraction must be in (0, 1].")
 
     if block_overlap < 0:
         raise ValueError("block_overlap must be non-negative.")
@@ -874,6 +1089,17 @@ def predict_rf(
         _log("[yellow]Output path ended with .vrt; writing GeoTIFF to .tif instead.")
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
+    probs_path: Optional[Path] = None
+    if probs_out is not None:
+        probs_path = Path(probs_out)
+        if probs_path.suffix.lower() == ".vrt":
+            probs_path = probs_path.with_suffix(".tif")
+            _log(
+                "[yellow]Probability output path ended with .vrt; writing GeoTIFF to "
+                ".tif instead."
+            )
+        probs_path.parent.mkdir(parents=True, exist_ok=True)
+
     with _open_raster_stack(image_path, band_indices=selected_band_indices) as stack:
         assert stack.template is not None
         expected_features = getattr(model, "n_features_in_", None)
@@ -889,9 +1115,23 @@ def predict_rf(
             _write_holdout_outputs(metrics, out_path)
 
         profile = _prepare_output_profile(stack.profile, out_dtype, nodata_value)
+        probs_profile: Optional[dict] = None
+        if probs_path is not None:
+            num_classes = len(classes) if classes is not None else 1
+            probs_profile = _prepare_prob_profile(stack.profile, count=num_classes)
         # Ensure we write a GeoTIFF even when reading from a VRT source.
         profile["driver"] = "GTiff"
-        with rasterio.open(out_path, "w", **profile) as dst:
+        if probs_profile is not None:
+            probs_profile["driver"] = "GTiff"
+        return_probs = probs_path is not None
+
+        with contextlib.ExitStack() as stack_ctx:
+            dst = stack_ctx.enter_context(rasterio.open(out_path, "w", **profile))
+            probs_dst = (
+                stack_ctx.enter_context(rasterio.open(probs_path, "w", **probs_profile))
+                if probs_path is not None and probs_profile is not None
+                else None
+            )
             _log("[bold cyan]Predicting classes...")
             if block_shape:
                 block_h, block_w = block_shape
@@ -936,6 +1176,10 @@ def predict_rf(
                         beta,
                         neighborhood,
                         icm_iters,
+                        bayes_window_size,
+                        bayes_neigh_fraction,
+                        bayes_smoothness,
+                        return_probs,
                     ),
                 ) as executor:
                     futures: Dict[concurrent.futures.Future, windows.Window] = {}
@@ -951,16 +1195,28 @@ def predict_rf(
                                 futures, return_when=concurrent.futures.FIRST_COMPLETED
                             )
                             for finished in done:
-                                predictions = finished.result()
-                                dst.write(predictions, 1, window=futures[finished])
+                                result = finished.result()
+                                if return_probs and probs_dst is not None:
+                                    predictions, probs = result
+                                    dst.write(predictions, 1, window=futures[finished])
+                                    probs_dst.write(probs, window=futures[finished])
+                                else:
+                                    predictions = result
+                                    dst.write(predictions, 1, window=futures[finished])
                                 del futures[finished]
 
                     for finished in concurrent.futures.as_completed(futures):
-                        predictions = finished.result()
-                        dst.write(predictions, 1, window=futures[finished])
+                        result = finished.result()
+                        if return_probs and probs_dst is not None:
+                            predictions, probs = result
+                            dst.write(predictions, 1, window=futures[finished])
+                            probs_dst.write(probs, window=futures[finished])
+                        else:
+                            predictions = result
+                            dst.write(predictions, 1, window=futures[finished])
             else:
                 for win in window_iter:
-                    predictions = _predict_block(
+                    result = _predict_block(
                         stack,
                         model,
                         win,
@@ -970,9 +1226,355 @@ def predict_rf(
                         beta=beta,
                         neighborhood=neighborhood,
                         icm_iters=icm_iters,
+                        bayes_window_size=bayes_window_size,
+                        bayes_neigh_fraction=bayes_neigh_fraction,
+                        bayes_smoothness=bayes_smoothness,
+                        return_probs=return_probs,
                         block_overlap=block_overlap,
                     )
-                    dst.write(predictions, 1, window=win)
+                    if return_probs and probs_dst is not None:
+                        predictions, probs = result
+                        dst.write(predictions, 1, window=win)
+                        probs_dst.write(probs, window=win)
+                    else:
+                        predictions = result
+                        dst.write(predictions, 1, window=win)
 
     _log(f"[green]Classification saved to {out_path}")
+    return out_path
+
+
+def _smooth_prob_block(
+    dataset: rasterio.io.DatasetReader,
+    win: windows.Window,
+    *,
+    out_dtype: str,
+    nodata_value: Union[int, float],
+    smooth: str,
+    beta: float,
+    neighborhood: int,
+    icm_iters: int,
+    bayes_window_size: int,
+    bayes_neigh_fraction: float,
+    bayes_smoothness: Union[float, Sequence[float]],
+    block_overlap: int,
+    class_values: Optional[np.ndarray],
+) -> np.ndarray:
+    read_window, write_slice = _window_with_overlap(
+        win,
+        block_overlap=block_overlap,
+        raster_width=dataset.width,
+        raster_height=dataset.height,
+    )
+    data = dataset.read(window=read_window, out_dtype="float32")
+    if data.size == 0:
+        return np.full((int(win.height), int(win.width)), nodata_value, dtype=out_dtype)
+
+    if data.ndim == 2:
+        data = data[np.newaxis, :, :]
+
+    prob_cube = data.transpose(1, 2, 0)
+    h, w, num_classes = prob_cube.shape
+    samples = prob_cube.reshape(-1, num_classes)
+
+    nodata_mask = _nodata_pixel_mask(samples, dataset.nodatavals)
+    nodata_mask |= ~np.all(np.isfinite(samples), axis=1)
+    valid = ~nodata_mask
+
+    if not np.any(valid):
+        return np.full((int(win.height), int(win.width)), nodata_value, dtype=out_dtype)
+
+    block_valid = valid.reshape(h, w)
+    if smooth == "none":
+        masked_probs = np.where(block_valid[:, :, None], prob_cube, -np.inf)
+        best_idx = masked_probs.argmax(axis=2)
+        if class_values is not None:
+            best = class_values[best_idx]
+        else:
+            best = best_idx
+    elif smooth == "mrf":
+        log_probs = np.full((samples.shape[0], num_classes), -np.inf, dtype="float32")
+        log_probs[valid] = np.log(np.clip(samples[valid], 1e-9, 1.0))
+        log_probs = log_probs.reshape(h, w, num_classes)
+        init_labels = np.full((h, w), -1, dtype=np.int32)
+        init_labels[block_valid] = log_probs.argmax(axis=2)[block_valid]
+        smoothed = _icm_smooth(
+            log_probs,
+            init_labels,
+            block_valid,
+            beta=beta,
+            neighborhood=neighborhood,
+            iters=icm_iters,
+        )
+        if class_values is not None:
+            best = class_values[smoothed]
+        else:
+            best = smoothed
+    else:
+        smoothed_probs = _bayes_smooth(
+            prob_cube,
+            block_valid,
+            window_size=bayes_window_size,
+            neigh_fraction=bayes_neigh_fraction,
+            smoothness=bayes_smoothness,
+        )
+        masked_probs = np.where(block_valid[:, :, None], smoothed_probs, -np.inf)
+        best_idx = masked_probs.argmax(axis=2)
+        if class_values is not None:
+            best = class_values[best_idx]
+        else:
+            best = best_idx
+
+    best[~block_valid] = nodata_value
+    best = best[write_slice[0], write_slice[1]].astype(out_dtype, copy=False)
+    return best
+
+
+_SMOOTH_DATASET: Optional[rasterio.io.DatasetReader] = None
+_SMOOTH_OUT_DTYPE: Optional[str] = None
+_SMOOTH_NODATA: Optional[Union[int, float]] = None
+_SMOOTH_SMOOTH: str = "none"
+_SMOOTH_BETA: float = 1.0
+_SMOOTH_NEIGHBORHOOD: int = 4
+_SMOOTH_ICM_ITERS: int = 3
+_SMOOTH_BAYES_WINDOW_SIZE: int = 7
+_SMOOTH_BAYES_NEIGH_FRACTION: float = 0.5
+_SMOOTH_BAYES_SMOOTHNESS: Union[float, Sequence[float]] = 20.0
+_SMOOTH_CLASS_VALUES: Optional[np.ndarray] = None
+
+
+def _close_smooth_worker() -> None:
+    global _SMOOTH_DATASET
+    if _SMOOTH_DATASET is not None:
+        _SMOOTH_DATASET.close()
+        _SMOOTH_DATASET = None
+
+
+def _init_smooth_worker(
+    prob_path: str,
+    out_dtype: str,
+    nodata_value: Union[int, float],
+    smooth: str,
+    beta: float,
+    neighborhood: int,
+    icm_iters: int,
+    bayes_window_size: int,
+    bayes_neigh_fraction: float,
+    bayes_smoothness: Union[float, Sequence[float]],
+    class_values: Optional[Sequence[Union[int, float]]],
+) -> None:
+    global _SMOOTH_DATASET
+    global _SMOOTH_OUT_DTYPE
+    global _SMOOTH_NODATA
+    global _SMOOTH_SMOOTH
+    global _SMOOTH_BETA
+    global _SMOOTH_NEIGHBORHOOD
+    global _SMOOTH_ICM_ITERS
+    global _SMOOTH_BAYES_WINDOW_SIZE
+    global _SMOOTH_BAYES_NEIGH_FRACTION
+    global _SMOOTH_BAYES_SMOOTHNESS
+    global _SMOOTH_CLASS_VALUES
+
+    _SMOOTH_DATASET = rasterio.open(prob_path)
+    _SMOOTH_OUT_DTYPE = out_dtype
+    _SMOOTH_NODATA = nodata_value
+    _SMOOTH_SMOOTH = smooth
+    _SMOOTH_BETA = beta
+    _SMOOTH_NEIGHBORHOOD = neighborhood
+    _SMOOTH_ICM_ITERS = icm_iters
+    _SMOOTH_BAYES_WINDOW_SIZE = bayes_window_size
+    _SMOOTH_BAYES_NEIGH_FRACTION = bayes_neigh_fraction
+    _SMOOTH_BAYES_SMOOTHNESS = bayes_smoothness
+    _SMOOTH_CLASS_VALUES = (
+        np.asarray(class_values) if class_values is not None else None
+    )
+    atexit.register(_close_smooth_worker)
+
+
+def _smooth_block_worker(win_tuple: WindowTuple, block_overlap: int) -> np.ndarray:
+    if _SMOOTH_DATASET is None:
+        raise RuntimeError("Smoothing worker not initialized.")
+    if _SMOOTH_OUT_DTYPE is None or _SMOOTH_NODATA is None:
+        raise RuntimeError("Smoothing worker missing output settings.")
+
+    win = _tuple_to_window(win_tuple)
+    return _smooth_prob_block(
+        _SMOOTH_DATASET,
+        win,
+        out_dtype=_SMOOTH_OUT_DTYPE,
+        nodata_value=_SMOOTH_NODATA,
+        smooth=_SMOOTH_SMOOTH,
+        beta=_SMOOTH_BETA,
+        neighborhood=_SMOOTH_NEIGHBORHOOD,
+        icm_iters=_SMOOTH_ICM_ITERS,
+        bayes_window_size=_SMOOTH_BAYES_WINDOW_SIZE,
+        bayes_neigh_fraction=_SMOOTH_BAYES_NEIGH_FRACTION,
+        bayes_smoothness=_SMOOTH_BAYES_SMOOTHNESS,
+        block_overlap=block_overlap,
+        class_values=_SMOOTH_CLASS_VALUES,
+    )
+
+
+def smooth_probs(
+    probability_path: PathLike,
+    output_path: PathLike,
+    *,
+    model_path: Optional[PathLike] = None,
+    class_values: Optional[Sequence[Union[int, float]]] = None,
+    block_shape: Optional[Tuple[int, int]] = None,
+    smooth: str = "mrf",
+    beta: float = 1.0,
+    neighborhood: int = 4,
+    icm_iters: int = 3,
+    bayes_window_size: int = 7,
+    bayes_neigh_fraction: float = 0.5,
+    bayes_smoothness: Union[float, Sequence[float]] = 20.0,
+    block_overlap: int = 0,
+    jobs: int = 1,
+) -> Path:
+    """Smooth a class-probability raster and write a classified GeoTIFF."""
+
+    smooth = smooth.lower()
+    if smooth not in {"none", "mrf", "bayes"}:
+        raise ValueError("smooth must be 'none', 'mrf', or 'bayes'.")
+
+    if model_path is not None and class_values is not None:
+        raise ValueError("Provide either model_path or class_values, not both.")
+
+    if smooth == "bayes":
+        if bayes_window_size < 3 or bayes_window_size % 2 == 0:
+            raise ValueError("bayes_window_size must be an odd integer >= 3.")
+        if not (0 < bayes_neigh_fraction <= 1):
+            raise ValueError("bayes_neigh_fraction must be in (0, 1].")
+
+    if block_overlap < 0:
+        raise ValueError("block_overlap must be non-negative.")
+
+    if jobs is None:
+        jobs = 1
+    if jobs <= 0:
+        jobs = max(1, os.cpu_count() or 1)
+
+    out_path = Path(output_path)
+    if out_path.suffix.lower() == ".vrt":
+        out_path = out_path.with_suffix(".tif")
+        _log("[yellow]Output path ended with .vrt; writing GeoTIFF to .tif instead.")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    model_classes: Optional[np.ndarray] = None
+    if model_path is not None:
+        model: RandomForestClassifier = joblib.load(model_path)
+        model_classes = np.asarray(getattr(model, "classes_", None))
+
+    with rasterio.open(probability_path) as src:
+        num_classes = src.count
+        if num_classes < 1:
+            raise ValueError("Probability raster must have at least one band.")
+
+        if class_values is not None:
+            class_values_arr = np.asarray(class_values)
+        elif model_classes is not None:
+            class_values_arr = model_classes
+        else:
+            class_values_arr = np.arange(num_classes, dtype="int16")
+
+        if class_values_arr.size != num_classes:
+            raise ValueError(
+                "Number of class values must match probability raster bands."
+            )
+
+        if np.issubdtype(class_values_arr.dtype, np.floating):
+            rounded = np.round(class_values_arr)
+            if np.allclose(class_values_arr, rounded):
+                class_values_arr = rounded.astype("int64")
+
+        if np.issubdtype(class_values_arr.dtype, np.integer):
+            out_dtype = "int16"
+            nodata_value: Union[int, float] = -1
+        else:
+            out_dtype = "float32"
+            nodata_value = np.nan
+
+        profile = _prepare_output_profile(src.profile, out_dtype, nodata_value)
+        profile["driver"] = "GTiff"
+
+        if block_shape:
+            block_h, block_w = block_shape
+
+            def custom_windows() -> Iterable[windows.Window]:
+                for row_off in range(0, src.height, block_h):
+                    for col_off in range(0, src.width, block_w):
+                        yield windows.Window(
+                            col_off=col_off,
+                            row_off=row_off,
+                            width=min(block_w, src.width - col_off),
+                            height=min(block_h, src.height - row_off),
+                        )
+
+            window_iter: Iterable[windows.Window] = custom_windows()
+        else:
+            window_iter = (win for _, win in src.block_windows(1))
+
+        with rasterio.open(out_path, "w", **profile) as dst:
+            _log("[bold cyan]Smoothing probabilities...")
+            if jobs > 1:
+                max_workers = jobs
+                max_pending = max_workers * 2
+                with concurrent.futures.ProcessPoolExecutor(
+                    max_workers=max_workers,
+                    initializer=_init_smooth_worker,
+                    initargs=(
+                        str(probability_path),
+                        out_dtype,
+                        nodata_value,
+                        smooth,
+                        beta,
+                        neighborhood,
+                        icm_iters,
+                        bayes_window_size,
+                        bayes_neigh_fraction,
+                        bayes_smoothness,
+                        class_values_arr.tolist(),
+                    ),
+                ) as executor:
+                    futures: Dict[concurrent.futures.Future, windows.Window] = {}
+                    for win in window_iter:
+                        future = executor.submit(
+                            _smooth_block_worker,
+                            _window_to_tuple(win),
+                            block_overlap,
+                        )
+                        futures[future] = win
+                        if len(futures) >= max_pending:
+                            done, _ = concurrent.futures.wait(
+                                futures, return_when=concurrent.futures.FIRST_COMPLETED
+                            )
+                            for finished in done:
+                                smoothed = finished.result()
+                                dst.write(smoothed, 1, window=futures[finished])
+                                del futures[finished]
+
+                    for finished in concurrent.futures.as_completed(futures):
+                        smoothed = finished.result()
+                        dst.write(smoothed, 1, window=futures[finished])
+            else:
+                for win in window_iter:
+                    smoothed = _smooth_prob_block(
+                        src,
+                        win,
+                        out_dtype=out_dtype,
+                        nodata_value=nodata_value,
+                        smooth=smooth,
+                        beta=beta,
+                        neighborhood=neighborhood,
+                        icm_iters=icm_iters,
+                        bayes_window_size=bayes_window_size,
+                        bayes_neigh_fraction=bayes_neigh_fraction,
+                        bayes_smoothness=bayes_smoothness,
+                        block_overlap=block_overlap,
+                        class_values=class_values_arr,
+                    )
+                    dst.write(smoothed, 1, window=win)
+
+    _log(f"[green]Smoothed classification saved to {out_path}")
     return out_path

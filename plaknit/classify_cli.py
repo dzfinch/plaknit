@@ -5,15 +5,18 @@ from __future__ import annotations
 import argparse
 from typing import List, Optional, Sequence
 
-from .classify import predict_rf, train_rf
+from .classify import predict_rf, smooth_probs, train_rf
 
 
 def _add_common_smoothing_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--smooth",
-        choices=["none", "mrf"],
+        choices=["none", "mrf", "bayes"],
         default="none",
-        help="Post-process predictions. 'mrf' enables Potts-MRF ICM smoothing.",
+        help=(
+            "Post-process predictions. 'mrf' enables Potts-MRF ICM smoothing; "
+            "'bayes' enables empirical Bayes smoothing (SITS)."
+        ),
     )
     parser.add_argument(
         "--beta",
@@ -33,6 +36,24 @@ def _add_common_smoothing_args(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=3,
         help="ICM iterations for MRF smoothing.",
+    )
+    parser.add_argument(
+        "--bayes-window-size",
+        type=int,
+        default=7,
+        help="Window size (odd >=3) for Bayesian smoothing.",
+    )
+    parser.add_argument(
+        "--bayes-neigh-fraction",
+        type=float,
+        default=0.5,
+        help="Fraction of neighbors used for Bayesian smoothing (0-1].",
+    )
+    parser.add_argument(
+        "--bayes-smoothness",
+        type=float,
+        default=20.0,
+        help="Smoothness parameter (sigma^2) for Bayesian smoothing.",
     )
     parser.add_argument(
         "--block-overlap",
@@ -141,6 +162,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "--output", required=True, help="Path for classified GeoTIFF."
     )
     predict_parser.add_argument(
+        "--probs-out",
+        help="Optional output path for class probability GeoTIFF.",
+    )
+    predict_parser.add_argument(
         "--block-shape",
         nargs=2,
         type=int,
@@ -154,6 +179,41 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         help="Parallel workers for block prediction (default: 1). Use -1 for all cores.",
     )
     _add_common_smoothing_args(predict_parser)
+
+    smooth_parser = subparsers.add_parser(
+        "smooth", help="Smooth a class-probability raster."
+    )
+    smooth_parser.add_argument(
+        "--probs",
+        required=True,
+        help="Path to class-probability GeoTIFF (bands=classes).",
+    )
+    smooth_parser.add_argument(
+        "--output", required=True, help="Path for smoothed GeoTIFF."
+    )
+    class_group = smooth_parser.add_mutually_exclusive_group()
+    class_group.add_argument("--model", help="Optional model to map class values.")
+    class_group.add_argument(
+        "--class-values",
+        nargs="+",
+        type=float,
+        help="Explicit class values matching the probability bands.",
+    )
+    smooth_parser.add_argument(
+        "--block-shape",
+        nargs=2,
+        type=int,
+        metavar=("HEIGHT", "WIDTH"),
+        help="Override block/window shape for reading (height width).",
+    )
+    smooth_parser.add_argument(
+        "--jobs",
+        type=int,
+        default=1,
+        help="Parallel workers for block smoothing (default: 1). Use -1 for all cores.",
+    )
+    _add_common_smoothing_args(smooth_parser)
+    smooth_parser.set_defaults(smooth="mrf")
 
     args = parser.parse_args(list(argv) if argv is not None else None)
 
@@ -172,6 +232,26 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         )
         return 0
 
+    if args.command == "smooth":
+        block_shape = _parse_block_shape(args.block_shape)
+        smooth_probs(
+            probability_path=args.probs,
+            output_path=args.output,
+            model_path=args.model,
+            class_values=args.class_values,
+            block_shape=block_shape,
+            smooth=args.smooth,
+            beta=args.beta,
+            neighborhood=args.neighborhood,
+            icm_iters=args.icm_iters,
+            bayes_window_size=args.bayes_window_size,
+            bayes_neigh_fraction=args.bayes_neigh_fraction,
+            bayes_smoothness=args.bayes_smoothness,
+            block_overlap=args.block_overlap,
+            jobs=args.jobs,
+        )
+        return 0
+
     block_shape = _parse_block_shape(args.block_shape)
     image_paths = _flatten_image_args(args.image)
     predict_rf(
@@ -184,6 +264,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         beta=args.beta,
         neighborhood=args.neighborhood,
         icm_iters=args.icm_iters,
+        bayes_window_size=args.bayes_window_size,
+        bayes_neigh_fraction=args.bayes_neigh_fraction,
+        bayes_smoothness=args.bayes_smoothness,
+        probs_out=args.probs_out,
         block_overlap=args.block_overlap,
         jobs=args.jobs,
     )
