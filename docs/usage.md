@@ -161,6 +161,7 @@ block prediction with multiple worker processes (watch for CPU oversubscription
 if the model was trained with `n_jobs` > 1). Classified rasters store numeric
 class IDs; inspect `rf.label_decoder` to map each ID back to its label. Training
 holds out a fraction of samples for evaluation; prediction logs the holdout
-confusion matrix plus band importance from the stored model. See
-`docs/hpcenv.md` for a Singularity/Apptainer job template that binds the stack,
+confusion matrix plus band importance from the stored model and writes
+`*_metrics.csv` and `*_metrics.txt` next to the output raster. See `docs/hpcenv.md`
+for a Singularity/Apptainer job template that binds the stack,
 labels, model, and venv for training + prediction.
