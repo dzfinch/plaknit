@@ -465,6 +465,7 @@ def _collect_holdout_metrics(
         "band_importances": bands,
     }
 
+
 def _log_holdout_metrics(model: RandomForestClassifier) -> Optional[Dict[str, Any]]:
     metrics = _collect_holdout_metrics(model)
     if metrics is None:
