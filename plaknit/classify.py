@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import atexit
 import concurrent.futures
+import csv
 import os
 import warnings
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import geopandas as gpd
 import joblib
@@ -424,12 +425,13 @@ def _format_confusion_matrix(matrix: np.ndarray, labels: Sequence[str]) -> str:
     return "\n".join(rows)
 
 
-def _log_holdout_metrics(model: RandomForestClassifier) -> None:
+def _collect_holdout_metrics(
+    model: RandomForestClassifier,
+) -> Optional[Dict[str, Any]]:
     test_samples = getattr(model, "test_samples_", None)
     test_labels = getattr(model, "test_labels_", None)
     if test_samples is None or test_labels is None or len(test_labels) == 0:
-        _log("[yellow]Model has no holdout samples; skipping evaluation.")
-        return
+        return None
 
     predictions = model.predict(test_samples)
     classes = getattr(model, "classes_", None)
@@ -443,27 +445,89 @@ def _log_holdout_metrics(model: RandomForestClassifier) -> None:
 
     matrix = confusion_matrix(test_labels, predictions, labels=classes)
     accuracy = accuracy_score(test_labels, predictions)
-    _log(
-        f"[bold cyan]Holdout evaluation: {len(test_labels):,} samples, "
-        f"accuracy {accuracy:.3f}"
-    )
-    _log("[bold cyan]Confusion matrix (rows=true, cols=pred):")
-    _log(_format_confusion_matrix(matrix, label_names))
 
     importances = getattr(model, "feature_importances_", None)
+    bands: Optional[List[Tuple[int, float]]]
     if importances is None:
-        _log("[yellow]Model lacks feature_importances_; skipping band importance.")
-        return
+        bands = None
+    else:
+        band_indices = getattr(model, "band_indices", None)
+        if band_indices is None:
+            band_indices = list(range(1, len(importances) + 1))
+        bands = list(zip(band_indices, importances))
+        bands.sort(key=lambda pair: pair[1], reverse=True)
 
-    band_indices = getattr(model, "band_indices", None)
-    if band_indices is None:
-        band_indices = list(range(1, len(importances) + 1))
-    bands = list(zip(band_indices, importances))
-    bands.sort(key=lambda pair: pair[1], reverse=True)
-    lines = ["[bold cyan]Band importance (sorted):"]
-    for band_idx, importance in bands:
-        lines.append(f"band {band_idx}: {importance:.6f}")
-    _log("\n".join(lines))
+    return {
+        "sample_count": len(test_labels),
+        "accuracy": float(accuracy),
+        "labels": label_names,
+        "matrix": matrix,
+        "band_importances": bands,
+    }
+
+def _log_holdout_metrics(model: RandomForestClassifier) -> Optional[Dict[str, Any]]:
+    metrics = _collect_holdout_metrics(model)
+    if metrics is None:
+        _log("[yellow]Model has no holdout samples; skipping evaluation.")
+        return None
+
+    _log(
+        f"[bold cyan]Holdout evaluation: {metrics['sample_count']:,} samples, "
+        f"accuracy {metrics['accuracy']:.3f}"
+    )
+    _log("[bold cyan]Confusion matrix (rows=true, cols=pred):")
+    _log(_format_confusion_matrix(metrics["matrix"], metrics["labels"]))
+
+    bands = metrics["band_importances"]
+    if bands is None:
+        _log("[yellow]Model lacks feature_importances_; skipping band importance.")
+    else:
+        lines = ["[bold cyan]Band importance (sorted):"]
+        for band_idx, importance in bands:
+            lines.append(f"band {band_idx}: {importance:.6f}")
+        _log("\n".join(lines))
+
+    return metrics
+
+
+def _metrics_paths(out_path: Path) -> Tuple[Path, Path]:
+    base = out_path.with_suffix("")
+    metrics_csv = base.with_name(f"{base.name}_metrics.csv")
+    metrics_txt = base.with_name(f"{base.name}_metrics.txt")
+    return metrics_csv, metrics_txt
+
+
+def _write_holdout_outputs(metrics: Dict[str, Any], out_path: Path) -> None:
+    metrics_csv, metrics_txt = _metrics_paths(out_path)
+    labels = metrics["labels"]
+    matrix = metrics["matrix"]
+
+    with metrics_csv.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow([""] + labels)
+        for label, row in zip(labels, matrix):
+            writer.writerow([label] + [int(val) for val in row])
+
+    lines = [
+        f"Holdout samples: {metrics['sample_count']}",
+        f"Accuracy: {metrics['accuracy']:.3f}",
+        "",
+        "Confusion matrix (rows=true, cols=pred):",
+        _format_confusion_matrix(matrix, labels),
+    ]
+
+    bands = metrics["band_importances"]
+    if bands is None:
+        lines.append("")
+        lines.append("Band importance unavailable (model has no feature_importances_).")
+    else:
+        lines.append("")
+        lines.append("Band importance (sorted):")
+        for band_idx, importance in bands:
+            lines.append(f"band {band_idx}: {importance:.6f}")
+
+    metrics_txt.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _log(f"[green]Wrote holdout metrics to {metrics_csv} and {metrics_txt}.")
 
 
 def train_rf(
@@ -775,7 +839,6 @@ def predict_rf(
 
     _log("[bold cyan]Loading model...")
     model: RandomForestClassifier = joblib.load(model_path)
-    _log_holdout_metrics(model)
     classes = getattr(model, "classes_", None)
     classes_dtype = getattr(classes, "dtype", np.int32)
     if np.issubdtype(classes_dtype, np.integer):
@@ -804,6 +867,12 @@ def predict_rf(
         model_band_indices = getattr(model, "band_indices", None)
         selected_band_indices = list(model_band_indices) if model_band_indices else None
 
+    out_path = Path(output_path)
+    if out_path.suffix.lower() == ".vrt":
+        out_path = out_path.with_suffix(".tif")
+        _log("[yellow]Output path ended with .vrt; writing GeoTIFF to .tif instead.")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
     with _open_raster_stack(image_path, band_indices=selected_band_indices) as stack:
         assert stack.template is not None
         expected_features = getattr(model, "n_features_in_", None)
@@ -814,17 +883,13 @@ def predict_rf(
                 "Train a matching model or pass --band-indices to select "
                 "the same bands used during training."
             )
+        metrics = _log_holdout_metrics(model)
+        if metrics is not None:
+            _write_holdout_outputs(metrics, out_path)
+
         profile = _prepare_output_profile(stack.profile, out_dtype, nodata_value)
         # Ensure we write a GeoTIFF even when reading from a VRT source.
         profile["driver"] = "GTiff"
-        out_path = Path(output_path)
-        if out_path.suffix.lower() == ".vrt":
-            out_path = out_path.with_suffix(".tif")
-            _log(
-                "[yellow]Output path ended with .vrt; writing GeoTIFF to .tif instead."
-            )
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-
         with rasterio.open(out_path, "w", **profile) as dst:
             _log("[bold cyan]Predicting classes...")
             if block_shape:
