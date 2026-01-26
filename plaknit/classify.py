@@ -236,10 +236,9 @@ def _bayes_smooth(
                 if denom <= 0:
                     out_logits[row, col, k] = logits[row, col, k]
                 else:
-                    out_logits[row, col, k] = (
-                        (var_val / denom) * logits[row, col, k]
-                        + (sigma2 / denom) * mean_val
-                    )
+                    out_logits[row, col, k] = (var_val / denom) * logits[
+                        row, col, k
+                    ] + (sigma2 / denom) * mean_val
 
     return 1 / (1 + np.exp(-out_logits))
 
@@ -836,9 +835,7 @@ def _predict_block(
 
         if smooth == "none":
             if need_probs:
-                masked_probs = np.where(
-                    block_valid[:, :, None], prob_cube, -np.inf
-                )
+                masked_probs = np.where(block_valid[:, :, None], prob_cube, -np.inf)
                 best_idx = masked_probs.argmax(axis=2)
                 if class_values is not None:
                     best = class_values[best_idx]
@@ -893,9 +890,7 @@ def _predict_block(
                 neigh_fraction=bayes_neigh_fraction,
                 smoothness=bayes_smoothness,
             )
-            masked_probs = np.where(
-                block_valid[:, :, None], smoothed_probs, -np.inf
-            )
+            masked_probs = np.where(block_valid[:, :, None], smoothed_probs, -np.inf)
             best_idx = masked_probs.argmax(axis=2)
             if class_values is not None:
                 best = class_values[best_idx]
