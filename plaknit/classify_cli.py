@@ -128,7 +128,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     train_parser.add_argument(
         "--jobs",
         type=int,
-        default=-1,
+        default=1,
         help="Parallel jobs for training (default: -1 = all cores).",
     )
     train_parser.add_argument(
