@@ -137,6 +137,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         default=0.3,
         help="Fraction of samples held out for evaluation (default: 0.3).",
     )
+    train_parser.add_argument(
+        "--grid-size",
+        type=int,
+        default=None,
+        help=(
+            "Grid size in pixels for spatially diverse sampling; keeps at most one "
+            "sample per class per grid cell."
+        ),
+    )
 
     predict_parser = subparsers.add_parser(
         "predict", help="Apply a trained model to classify a raster stack."
@@ -229,6 +238,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             max_depth=args.max_depth,
             n_jobs=args.jobs,
             test_fraction=args.test_fraction,
+            grid_size=args.grid_size,
         )
         return 0
 
