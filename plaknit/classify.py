@@ -856,9 +856,11 @@ def _write_holdout_outputs(
     lines = [
         f"Holdout samples: {metrics['sample_count']}",
         f"Raw accuracy: {metrics['accuracy']:.3f}",
-        f"Training grid sampling: {metrics['train_grid_size']} px per cell."
-        if metrics.get("train_grid_size")
-        else "Training grid sampling: none.",
+        (
+            f"Training grid sampling: {metrics['train_grid_size']} px per cell."
+            if metrics.get("train_grid_size")
+            else "Training grid sampling: none."
+        ),
         "",
         "Raw confusion matrix (rows=true, cols=pred):",
         _format_confusion_matrix(matrix, labels),
@@ -1028,9 +1030,7 @@ def train_rf(
                 grid_size=grid_size,
                 random_state=random_state,
             )
-            _log(
-                f"[bold cyan]Grid sampling kept {X.shape[0]:,} of {before:,} samples."
-            )
+            _log(f"[bold cyan]Grid sampling kept {X.shape[0]:,} of {before:,} samples.")
 
     X_train, y_train, X_test, y_test, _extra_train, extra_test = _split_train_test(
         X,
