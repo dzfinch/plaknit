@@ -5,7 +5,6 @@ from __future__ import annotations
 import atexit
 import concurrent.futures
 import contextlib
-import csv
 import os
 import warnings
 from pathlib import Path
@@ -414,11 +413,17 @@ def _collect_training_samples(
     stack: _RasterStack,
     gdf: gpd.GeoDataFrame,
     label_column: str,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Extract per-pixel samples under each training geometry."""
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Extract per-pixel samples under each training geometry.
+
+    Returns features, labels, source geometry ids, row indices, and column indices.
+    """
 
     feature_chunks: List[np.ndarray] = []
     label_chunks: List[np.ndarray] = []
+    id_chunks: List[np.ndarray] = []
+    row_chunks: List[np.ndarray] = []
+    col_chunks: List[np.ndarray] = []
 
     for idx, row in gdf.iterrows():
         geom = row.geometry
@@ -464,13 +469,63 @@ def _collect_training_samples(
 
         feature_chunks.append(samples[valid])
         label_chunks.append(label_flat[valid])
+        id_chunks.append(np.full(np.count_nonzero(valid), idx, dtype=object))
+
+        valid_mask = valid.reshape(int(win.height), int(win.width))
+        rows, cols = np.where(valid_mask)
+        row_chunks.append(rows + int(win.row_off))
+        col_chunks.append(cols + int(win.col_off))
 
     if not feature_chunks:
         raise ValueError("No training samples were extracted. Check label geometries.")
 
     features_arr = np.vstack(feature_chunks)
     labels_arr = np.concatenate(label_chunks)
-    return features_arr, labels_arr
+    ids_arr = np.concatenate(id_chunks)
+    rows_arr = np.concatenate(row_chunks).astype("int32", copy=False)
+    cols_arr = np.concatenate(col_chunks).astype("int32", copy=False)
+    return features_arr, labels_arr, ids_arr, rows_arr, cols_arr
+
+
+def _grid_thin_samples(
+    features: np.ndarray,
+    labels: np.ndarray,
+    sample_ids: np.ndarray,
+    rows: np.ndarray,
+    cols: np.ndarray,
+    *,
+    grid_size: int,
+    random_state: int,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    if grid_size <= 1:
+        return features, labels, sample_ids, rows, cols
+
+    rng = np.random.default_rng(random_state)
+    indices = np.arange(labels.shape[0])
+    rng.shuffle(indices)
+
+    seen: set[Tuple[int, int, int]] = set()
+    keep: List[int] = []
+    for idx in indices:
+        key = (
+            int(labels[idx]),
+            int(rows[idx] // grid_size),
+            int(cols[idx] // grid_size),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        keep.append(int(idx))
+
+    keep_idx = np.asarray(keep, dtype=np.int64)
+    keep_idx.sort()
+    return (
+        features[keep_idx],
+        labels[keep_idx],
+        sample_ids[keep_idx],
+        rows[keep_idx],
+        cols[keep_idx],
+    )
 
 
 def _split_train_test(
@@ -479,32 +534,76 @@ def _split_train_test(
     *,
     test_fraction: float,
     random_state: int,
-) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray], Optional[np.ndarray]]:
+    extra: Optional[Sequence[np.ndarray]] = None,
+) -> Tuple[
+    np.ndarray,
+    np.ndarray,
+    Optional[np.ndarray],
+    Optional[np.ndarray],
+    Optional[List[np.ndarray]],
+    Optional[List[np.ndarray]],
+]:
     if test_fraction <= 0:
-        return features, labels, None, None
+        return features, labels, None, None, None, None
     if test_fraction >= 1:
         raise ValueError("test_fraction must be between 0 and 1.")
 
+    extra = list(extra) if extra is not None else []
     unique_labels = np.unique(labels)
     stratify = labels if unique_labels.size > 1 else None
+    indices = np.arange(labels.shape[0])
     try:
-        X_train, X_test, y_train, y_test = train_test_split(
-            features,
-            labels,
+        train_idx, test_idx = train_test_split(
+            indices,
             test_size=test_fraction,
             random_state=random_state,
             stratify=stratify,
         )
     except ValueError:
         _log("[yellow]Stratified split failed; falling back to unstratified holdout.")
-        X_train, X_test, y_train, y_test = train_test_split(
-            features,
-            labels,
+        train_idx, test_idx = train_test_split(
+            indices,
             test_size=test_fraction,
             random_state=random_state,
             stratify=None,
         )
-    return X_train, y_train, X_test, y_test
+
+    X_train = features[train_idx]
+    y_train = labels[train_idx]
+    X_test = features[test_idx]
+    y_test = labels[test_idx]
+
+    if extra:
+        extra_train = [arr[train_idx] for arr in extra]
+        extra_test = [arr[test_idx] for arr in extra]
+    else:
+        extra_train = None
+        extra_test = None
+
+    return X_train, y_train, X_test, y_test, extra_train, extra_test
+
+
+def _compute_class_band_stats(
+    features: np.ndarray,
+    labels: np.ndarray,
+    classes: np.ndarray,
+) -> Dict[str, np.ndarray]:
+    num_classes = classes.shape[0]
+    num_bands = features.shape[1]
+    counts = np.zeros(num_classes, dtype=np.int64)
+    means = np.full((num_classes, num_bands), np.nan, dtype="float64")
+    stds = np.full((num_classes, num_bands), np.nan, dtype="float64")
+
+    for idx, class_value in enumerate(classes):
+        mask = labels == class_value
+        if not np.any(mask):
+            continue
+        class_samples = features[mask]
+        counts[idx] = class_samples.shape[0]
+        means[idx] = np.nanmean(class_samples, axis=0)
+        stds[idx] = np.nanstd(class_samples, axis=0)
+
+    return {"classes": classes, "counts": counts, "mean": means, "std": stds}
 
 
 def _format_confusion_matrix(matrix: np.ndarray, labels: Sequence[str]) -> str:
@@ -557,8 +656,19 @@ def _collect_holdout_metrics(
         "sample_count": len(test_labels),
         "accuracy": float(accuracy),
         "labels": label_names,
+        "classes": classes,
         "matrix": matrix,
         "band_importances": bands,
+        "test_labels": test_labels,
+        "predictions": predictions,
+        "test_ids": getattr(model, "test_ids_", None),
+        "test_rows": getattr(model, "test_rows_", None),
+        "test_cols": getattr(model, "test_cols_", None),
+        "train_shape": getattr(model, "train_shape_", None),
+        "train_transform": getattr(model, "train_transform_", None),
+        "train_crs": getattr(model, "train_crs_", None),
+        "train_grid_size": getattr(model, "train_grid_size_", None),
+        "class_band_stats": getattr(model, "class_band_stats_", None),
     }
 
 
@@ -587,31 +697,217 @@ def _log_holdout_metrics(model: RandomForestClassifier) -> Optional[Dict[str, An
     return metrics
 
 
-def _metrics_paths(out_path: Path) -> Tuple[Path, Path]:
+def _metrics_path(out_path: Path) -> Path:
     base = out_path.with_suffix("")
-    metrics_csv = base.with_name(f"{base.name}_metrics.csv")
     metrics_txt = base.with_name(f"{base.name}_metrics.txt")
-    return metrics_csv, metrics_txt
+    return metrics_txt
 
 
-def _write_holdout_outputs(metrics: Dict[str, Any], out_path: Path) -> None:
-    metrics_csv, metrics_txt = _metrics_paths(out_path)
+def _write_point_gpkg(
+    out_path: Path,
+    rows: np.ndarray,
+    cols: np.ndarray,
+    true_labels: np.ndarray,
+    pred_labels: np.ndarray,
+    sample_ids: Optional[np.ndarray],
+    *,
+    transform: Any,
+    crs: Optional[Any],
+) -> None:
+    xs, ys = rasterio.transform.xy(transform, rows, cols, offset="center")
+    data: Dict[str, Any] = {
+        "true": np.asarray(true_labels),
+        "pred": np.asarray(pred_labels),
+    }
+    if sample_ids is not None:
+        data["source_id"] = np.asarray(sample_ids)
+
+    geometry = gpd.points_from_xy(xs, ys, crs=crs)
+    gdf = gpd.GeoDataFrame(data, geometry=geometry, crs=crs)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    gdf.to_file(out_path, driver="GPKG", index=False)
+    _log(f"[green]Wrote sample points to {out_path}.")
+
+
+def _misclassified_ids(
+    labels: np.ndarray,
+    predictions: np.ndarray,
+    sample_ids: Optional[np.ndarray],
+) -> Optional[List[str]]:
+    if sample_ids is None:
+        return None
+    mismatched = labels != predictions
+    if not np.any(mismatched):
+        return []
+    unique_ids = np.unique(sample_ids[mismatched])
+    return [str(value) for value in unique_ids]
+
+
+def _collect_smoothed_holdout_metrics(
+    metrics: Dict[str, Any],
+    out_path: Path,
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    test_rows = metrics.get("test_rows")
+    test_cols = metrics.get("test_cols")
+    if test_rows is None or test_cols is None:
+        return None, "Holdout sample locations missing from model."
+
+    test_rows_arr = np.asarray(test_rows)
+    test_cols_arr = np.asarray(test_cols)
+    test_labels = metrics["test_labels"]
+    test_ids = metrics.get("test_ids")
+
+    with rasterio.open(out_path) as src:
+        train_shape = metrics.get("train_shape")
+        if train_shape and (src.height, src.width) != tuple(train_shape):
+            return None, "Prediction grid shape differs from training grid."
+
+        train_transform = metrics.get("train_transform")
+        if train_transform is not None:
+            if not np.allclose(tuple(src.transform), tuple(train_transform)):
+                return None, "Prediction transform differs from training transform."
+
+        train_crs = metrics.get("train_crs")
+        if train_crs is not None and src.crs is not None and train_crs != src.crs:
+            return None, "Prediction CRS differs from training CRS."
+
+        in_bounds = (
+            (test_rows_arr >= 0)
+            & (test_rows_arr < src.height)
+            & (test_cols_arr >= 0)
+            & (test_cols_arr < src.width)
+        )
+        if not np.any(in_bounds):
+            return None, "No holdout samples fall within prediction bounds."
+
+        if not np.all(in_bounds):
+            dropped_bounds = int(np.count_nonzero(~in_bounds))
+        else:
+            dropped_bounds = 0
+
+        test_rows_arr = test_rows_arr[in_bounds]
+        test_cols_arr = test_cols_arr[in_bounds]
+        test_labels = test_labels[in_bounds]
+        if test_ids is not None:
+            test_ids = test_ids[in_bounds]
+
+        coords = [
+            rasterio.transform.xy(src.transform, int(row), int(col), offset="center")
+            for row, col in zip(test_rows_arr, test_cols_arr)
+        ]
+        sampled = np.array([val[0] for val in src.sample(coords)])
+
+        nodata = src.nodata
+        if nodata is None:
+            valid = np.ones(sampled.shape[0], dtype=bool)
+        elif np.isnan(nodata):
+            valid = ~np.isnan(sampled)
+        else:
+            valid = sampled != nodata
+
+        if not np.any(valid):
+            return None, "All holdout samples landed on nodata in predictions."
+
+        dropped_nodata = int(np.count_nonzero(~valid))
+        if dropped_nodata:
+            test_labels = test_labels[valid]
+            sampled = sampled[valid]
+            if test_ids is not None:
+                test_ids = test_ids[valid]
+
+        classes = metrics["classes"]
+        matrix = confusion_matrix(test_labels, sampled, labels=classes)
+        accuracy = accuracy_score(test_labels, sampled)
+
+        note = None
+        total_dropped = dropped_bounds + dropped_nodata
+        if total_dropped:
+            note = (
+                "Dropped "
+                f"{total_dropped} holdout samples outside raster or on nodata."
+            )
+
+        return (
+            {
+                "sample_count": len(test_labels),
+                "accuracy": float(accuracy),
+                "matrix": matrix,
+                "predictions": sampled,
+                "test_labels": test_labels,
+                "test_ids": test_ids,
+                "note": note,
+            },
+            None,
+        )
+
+
+def _write_holdout_outputs(
+    metrics: Dict[str, Any],
+    out_path: Path,
+    *,
+    smoothed: Optional[Dict[str, Any]] = None,
+    smoothed_note: Optional[str] = None,
+    smooth: str = "none",
+) -> None:
+    metrics_txt = _metrics_path(out_path)
     labels = metrics["labels"]
     matrix = metrics["matrix"]
 
-    with metrics_csv.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.writer(handle)
-        writer.writerow([""] + labels)
-        for label, row in zip(labels, matrix):
-            writer.writerow([label] + [int(val) for val in row])
-
     lines = [
         f"Holdout samples: {metrics['sample_count']}",
-        f"Accuracy: {metrics['accuracy']:.3f}",
+        f"Raw accuracy: {metrics['accuracy']:.3f}",
+        (
+            f"Training grid sampling: {metrics['train_grid_size']} px per cell."
+            if metrics.get("train_grid_size")
+            else "Training grid sampling: none."
+        ),
         "",
-        "Confusion matrix (rows=true, cols=pred):",
+        "Raw confusion matrix (rows=true, cols=pred):",
         _format_confusion_matrix(matrix, labels),
     ]
+
+    raw_ids = _misclassified_ids(
+        metrics["test_labels"], metrics["predictions"], metrics.get("test_ids")
+    )
+    if raw_ids is None:
+        lines.append("")
+        lines.append("Misclassified validation IDs (raw): unavailable.")
+    else:
+        lines.append("")
+        lines.append(
+            "Misclassified validation IDs (raw): "
+            + (", ".join(raw_ids) if raw_ids else "none")
+        )
+
+    lines.append("")
+    lines.append(f"Smoothing mode: {smooth}")
+    if smoothed is None:
+        lines.append("Smoothed accuracy: unavailable.")
+        if smoothed_note:
+            lines.append(f"Smoothed metrics note: {smoothed_note}")
+        lines.append("")
+        lines.append("Smoothed confusion matrix: unavailable.")
+    else:
+        lines.append(f"Smoothed accuracy: {smoothed['accuracy']:.3f}")
+        lines.append("")
+        lines.append("Smoothed confusion matrix (rows=true, cols=pred):")
+        lines.append(_format_confusion_matrix(smoothed["matrix"], labels))
+        if smoothed.get("note"):
+            lines.append(smoothed["note"])
+
+        smoothed_ids = _misclassified_ids(
+            smoothed["test_labels"],
+            smoothed["predictions"],
+            smoothed.get("test_ids"),
+        )
+        lines.append("")
+        if smoothed_ids is None:
+            lines.append("Misclassified validation IDs (smoothed): unavailable.")
+        else:
+            lines.append(
+                "Misclassified validation IDs (smoothed): "
+                + (", ".join(smoothed_ids) if smoothed_ids else "none")
+            )
 
     bands = metrics["band_importances"]
     if bands is None:
@@ -623,8 +919,42 @@ def _write_holdout_outputs(metrics: Dict[str, Any], out_path: Path) -> None:
         for band_idx, importance in bands:
             lines.append(f"band {band_idx}: {importance:.6f}")
 
+    class_stats = metrics.get("class_band_stats")
+    if class_stats is None:
+        lines.append("")
+        lines.append("Per-class band stats (train): unavailable.")
+    else:
+        stats_classes = class_stats.get("classes")
+        counts = class_stats.get("counts")
+        means = class_stats.get("mean")
+        stds = class_stats.get("std")
+        band_indices = class_stats.get("band_indices")
+        if (
+            stats_classes is None
+            or counts is None
+            or means is None
+            or stds is None
+            or band_indices is None
+        ):
+            lines.append("")
+            lines.append("Per-class band stats (train): unavailable.")
+        else:
+            label_map = {cls: name for cls, name in zip(stats_classes, labels)}
+            lines.append("")
+            lines.append("Per-class band stats (train):")
+            for idx, class_value in enumerate(stats_classes):
+                label = label_map.get(class_value, str(class_value))
+                lines.append(f"class {label} (n={int(counts[idx])}):")
+                for band_idx, mean_val, std_val in zip(
+                    band_indices, means[idx], stds[idx]
+                ):
+                    lines.append(
+                        f"band {int(band_idx)}: mean={mean_val:.6f} "
+                        f"std={std_val:.6f}"
+                    )
+
     metrics_txt.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    _log(f"[green]Wrote holdout metrics to {metrics_csv} and {metrics_txt}.")
+    _log(f"[green]Wrote holdout metrics to {metrics_txt}.")
 
 
 def train_rf(
@@ -639,6 +969,7 @@ def train_rf(
     n_jobs: int = -1,
     random_state: int = 42,
     test_fraction: float = 0.3,
+    grid_size: Optional[int] = None,
 ) -> RandomForestClassifier:
     """Train a Random Forest classifier on raster pixels under training polygons.
 
@@ -673,11 +1004,40 @@ def train_rf(
         categories = list(label_cat.cat.categories)
         decoder = {idx + 1: value for idx, value in enumerate(categories)}
 
-        X, y = _collect_training_samples(stack, gdf, code_column)
+        X, y, sample_ids, sample_rows, sample_cols = _collect_training_samples(
+            stack, gdf, code_column
+        )
         y = y.astype("int32", copy=False)
+        train_shape = (stack.height, stack.width)
+        train_transform = stack.transform
+        train_crs = stack.crs
 
-    X_train, y_train, X_test, y_test = _split_train_test(
-        X, y, test_fraction=test_fraction, random_state=random_state
+    if grid_size is not None:
+        if grid_size < 1:
+            raise ValueError("grid_size must be >= 1.")
+        if grid_size > 1:
+            _log(
+                f"[bold cyan]Applying grid sampling (size={grid_size} px) for spatial "
+                "diversity..."
+            )
+            before = X.shape[0]
+            X, y, sample_ids, sample_rows, sample_cols = _grid_thin_samples(
+                X,
+                y,
+                sample_ids,
+                sample_rows,
+                sample_cols,
+                grid_size=grid_size,
+                random_state=random_state,
+            )
+            _log(f"[bold cyan]Grid sampling kept {X.shape[0]:,} of {before:,} samples.")
+
+    X_train, y_train, X_test, y_test, _extra_train, extra_test = _split_train_test(
+        X,
+        y,
+        test_fraction=test_fraction,
+        random_state=random_state,
+        extra=[sample_ids, sample_rows, sample_cols],
     )
     if X_test is not None:
         _log(f"[bold cyan]Holding out {X_test.shape[0]:,} samples " "for evaluation.")
@@ -700,6 +1060,18 @@ def train_rf(
     rf.test_samples_ = X_test  # type: ignore[attr-defined]
     rf.test_labels_ = y_test  # type: ignore[attr-defined]
     rf.test_fraction_ = test_fraction  # type: ignore[attr-defined]
+    rf.train_shape_ = train_shape  # type: ignore[attr-defined]
+    rf.train_transform_ = train_transform  # type: ignore[attr-defined]
+    rf.train_crs_ = train_crs  # type: ignore[attr-defined]
+    rf.train_grid_size_ = grid_size  # type: ignore[attr-defined]
+    if extra_test is not None:
+        rf.test_ids_ = extra_test[0]  # type: ignore[attr-defined]
+        rf.test_rows_ = extra_test[1]  # type: ignore[attr-defined]
+        rf.test_cols_ = extra_test[2]  # type: ignore[attr-defined]
+    else:
+        rf.test_ids_ = None  # type: ignore[attr-defined]
+        rf.test_rows_ = None  # type: ignore[attr-defined]
+        rf.test_cols_ = None  # type: ignore[attr-defined]
     if decoder:
         mapping_preview = ", ".join(
             f"{code}:{label}" for code, label in list(decoder.items())[:10]
@@ -708,10 +1080,69 @@ def train_rf(
             f"[green]Label codes => classes: {mapping_preview}"
             + (" ..." if len(decoder) > 10 else "")
         )
+
+    classes = getattr(rf, "classes_", np.unique(y_train))
+    class_stats = _compute_class_band_stats(X_train, y_train, classes=classes)
+    band_ids = (
+        list(band_indices)
+        if band_indices is not None
+        else list(range(1, X_train.shape[1] + 1))
+    )
+    class_stats["band_indices"] = np.asarray(band_ids, dtype=np.int64)
+    rf.class_band_stats_ = class_stats  # type: ignore[attr-defined]
+
+    missing = class_stats["counts"] == 0
+    if np.any(missing):
+        missing_classes = classes[missing]
+        _log(
+            "[yellow]Some classes have no training samples after sampling: "
+            + ", ".join(str(val) for val in missing_classes)
+        )
     _log("[green]Training complete. Saving model...")
 
     model_out = Path(model_out)
     model_out.parent.mkdir(parents=True, exist_ok=True)
+
+    points_base = model_out.with_suffix("")
+    if extra_test is not None and _extra_train is not None:
+        train_ids, train_rows, train_cols = _extra_train
+        val_ids, val_rows, val_cols = extra_test
+        train_pred = rf.predict(X_train)
+        _write_point_gpkg(
+            points_base.with_name(f"{points_base.name}_train_points.gpkg"),
+            train_rows,
+            train_cols,
+            y_train,
+            train_pred,
+            train_ids,
+            transform=train_transform,
+            crs=train_crs,
+        )
+        if X_test is not None and val_rows is not None:
+            val_pred = rf.predict(X_test)
+            _write_point_gpkg(
+                points_base.with_name(f"{points_base.name}_val_points.gpkg"),
+                val_rows,
+                val_cols,
+                y_test,
+                val_pred,
+                val_ids,
+                transform=train_transform,
+                crs=train_crs,
+            )
+    else:
+        all_pred = rf.predict(X)
+        _write_point_gpkg(
+            points_base.with_name(f"{points_base.name}_train_points.gpkg"),
+            sample_rows,
+            sample_cols,
+            y,
+            all_pred,
+            sample_ids,
+            transform=train_transform,
+            crs=train_crs,
+        )
+
     joblib.dump(rf, model_out)
     _log(f"[green]Model saved to {model_out}")
     return rf
@@ -1111,8 +1542,6 @@ def predict_rf(
                 "the same bands used during training."
             )
         metrics = _log_holdout_metrics(model)
-        if metrics is not None:
-            _write_holdout_outputs(metrics, out_path)
 
         profile = _prepare_output_profile(stack.profile, out_dtype, nodata_value)
         probs_profile: Optional[dict] = None
@@ -1239,6 +1668,30 @@ def predict_rf(
                     else:
                         predictions = result
                         dst.write(predictions, 1, window=win)
+
+    if metrics is not None:
+        if smooth == "none":
+            smoothed_metrics = {
+                "sample_count": metrics["sample_count"],
+                "accuracy": metrics["accuracy"],
+                "matrix": metrics["matrix"],
+                "predictions": metrics["predictions"],
+                "test_labels": metrics["test_labels"],
+                "test_ids": metrics.get("test_ids"),
+                "note": "Smoothing disabled; metrics match raw predictions.",
+            }
+            smoothed_note = None
+        else:
+            smoothed_metrics, smoothed_note = _collect_smoothed_holdout_metrics(
+                metrics, out_path
+            )
+        _write_holdout_outputs(
+            metrics,
+            out_path,
+            smoothed=smoothed_metrics,
+            smoothed_note=smoothed_note,
+            smooth=smooth,
+        )
 
     _log(f"[green]Classification saved to {out_path}")
     return out_path
