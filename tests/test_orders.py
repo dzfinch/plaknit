@@ -138,7 +138,6 @@ def test_submit_orders_drops_inaccessible_scenes(monkeypatch):
     assert result["2024-01"]["item_ids"] == ["item-1"]
 
 
-
 def test_extract_inaccessible_item_ids_handles_null_field():
     payload = {"field": None, "general": [{"message": "AOI too complex"}]}
 
@@ -171,6 +170,7 @@ def test_clip_geojson_simplifies_when_vertex_count_exceeds_limit(monkeypatch):
 
     assert called["max_vertices"] == 1500
     assert shape(geojson).equals(simplified_geom)
+
 
 def test_order_cli_reads_plan_and_submits(monkeypatch, tmp_path):
     plan = {"2024-01": {"items": [{"id": "item-1"}]}}
