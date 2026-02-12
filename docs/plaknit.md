@@ -1,9 +1,9 @@
 # plaknit API reference
 
-This reference is intentionally focused on the three core modules you are most
-likely to automate against: `plaknit.mosaic`, `plaknit.analysis`, and
-`plaknit.classify`. Each section annotates the public functions/classes so you
-can wire them into HPC batch jobs, notebooks, or downstream services.
+This reference is intentionally focused on the two core modules you are most
+likely to automate against: `plaknit.mosaic` and `plaknit.classify`. Each
+section annotates the public functions/classes so you can wire them into HPC
+batch jobs, notebooks, or downstream services.
 
 ## Mosaic workflow (`plaknit.mosaic`)
 
@@ -15,17 +15,6 @@ script the same behavior without shell wrappers.
 ::: plaknit.mosaic.MosaicWorkflow
 
 ::: plaknit.mosaic.run_mosaic
-
-## Spectral indices (`plaknit.analysis`)
-
-Helpers for computing normalized-difference style indices directly from
-NumPy arrays or raster files (single dataset or two separate stacks).
-
-::: plaknit.analysis.normalized_difference
-
-::: plaknit.analysis.normalized_difference_from_raster
-
-::: plaknit.analysis.normalized_difference_from_files
 
 ## Random Forest classification (`plaknit.classify`)
 
