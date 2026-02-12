@@ -6,7 +6,7 @@ import json
 from contextlib import asynccontextmanager
 from typing import Any
 
-from shapely.geometry import box
+from shapely.geometry import box, shape
 
 from plaknit import orders
 
@@ -137,6 +137,40 @@ def test_submit_orders_drops_inaccessible_scenes(monkeypatch):
     assert request["products"][0]["item_ids"] == ["item-1"]
     assert result["2024-01"]["item_ids"] == ["item-1"]
 
+
+
+def test_extract_inaccessible_item_ids_handles_null_field():
+    payload = {"field": None, "general": [{"message": "AOI too complex"}]}
+
+    result = orders._extract_inaccessible_item_ids(RuntimeError(json.dumps(payload)))
+
+    assert result == []
+
+
+def test_clip_geojson_simplifies_when_vertex_count_exceeds_limit(monkeypatch):
+    detailed_geom = box(0, 0, 1, 1)
+    simplified_geom = box(0, 0, 0.5, 0.5)
+
+    monkeypatch.setattr(
+        orders, "load_aoi_geometry", lambda path: (detailed_geom, "EPSG:4326")
+    )
+    monkeypatch.setattr(orders, "reproject_geometry", lambda geom, src, dst: geom)
+
+    counts = iter([1601, 300])
+    monkeypatch.setattr(orders, "geometry_vertex_count", lambda geom: next(counts))
+
+    called: dict[str, Any] = {}
+
+    def fake_simplify(geom, max_vertices):
+        called["max_vertices"] = max_vertices
+        return simplified_geom
+
+    monkeypatch.setattr(orders, "simplify_geometry_to_vertex_limit", fake_simplify)
+
+    geojson = orders._clip_geojson("aoi.geojson")
+
+    assert called["max_vertices"] == 1500
+    assert shape(geojson).equals(simplified_geom)
 
 def test_order_cli_reads_plan_and_submits(monkeypatch, tmp_path):
     plan = {"2024-01": {"items": [{"id": "item-1"}]}}
