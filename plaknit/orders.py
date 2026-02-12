@@ -18,7 +18,12 @@ from typing import Any, Dict, List, Optional, Sequence
 from pystac_client import Client
 from shapely.geometry import mapping
 
-from .geometry import load_aoi_geometry, reproject_geometry
+from .geometry import (
+    geometry_vertex_count,
+    load_aoi_geometry,
+    reproject_geometry,
+    simplify_geometry_to_vertex_limit,
+)
 
 ORDER_LOGGER_NAME = "plaknit.plan"
 PLANET_STAC_URL = "https://api.planet.com/x/data/"
@@ -76,6 +81,16 @@ def _bundle_for_sr_bands(sr_bands: int) -> str:
 def _clip_geojson(aoi_path: str) -> Dict[str, Any]:
     geometry, crs = load_aoi_geometry(aoi_path)
     geom_wgs84 = reproject_geometry(geometry, crs, "EPSG:4326")
+    vertex_limit = 1500
+    current_vertices = geometry_vertex_count(geom_wgs84)
+    if current_vertices > vertex_limit:
+        geom_wgs84 = simplify_geometry_to_vertex_limit(geom_wgs84, vertex_limit)
+        simplified_vertices = geometry_vertex_count(geom_wgs84)
+        _get_logger().info(
+            "Simplified AOI vertices from %d to %d.",
+            current_vertices,
+            simplified_vertices,
+        )
     return mapping(geom_wgs84)
 
 
@@ -135,8 +150,10 @@ def _extract_inaccessible_item_ids(error: Exception) -> List[str]:
     if not payload:
         return []
 
-    field = payload.get("field", {})
-    details = field.get("Details") or field.get("details") or []
+    field = payload.get("field")
+    details: List[Dict[str, Any]] = []
+    if isinstance(field, dict):
+        details = field.get("Details") or field.get("details") or []
     inaccessible: List[str] = []
     for detail in details:
         message = detail.get("message")
