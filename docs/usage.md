@@ -79,7 +79,8 @@ plaknit mosaic \
 
 You can call the module directly with `python -m plaknit.mosaic`
 if you prefer to pin the interpreter. The progress display stays minimal with
-three bars: Mask tiles → Binary mask → Mosaic (shown when `rich` is installed).
+four bars: Radiometry (optional) → Mask tiles → Binary mask → Mosaic
+(shown when `rich` is installed).
 
 ### Required arguments
 
@@ -93,13 +94,23 @@ three bars: Mask tiles → Binary mask → Mosaic (shown when `rich` is installe
   `--skip-masking` is supplied.
 - `--skip-masking`: Use the provided inputs directly without applying the
   gdal-based UDM mask.
+- `--harmonize-radiometry`: Enable graph-based radiometric harmonization
+  (Harmoni-Planet style) before masking/projection.
+- `--metadata-jsons / -meta`: Metadata JSON files/directories used to build the
+  overlap/time graph; required only when `--harmonize-radiometry` is enabled.
 - `--sr-bands`: Surface reflectance bundle size (4 or 8).
-- `--ndvi`: Append an NDVI band (NIR/Red uses bands 4/3 for 4-band, 8/6 for 8-band).
+- `--target-crs`: Optional CRS override (for example `EPSG:32735`) applied to
+  every tile before mosaicking.
 - `--workdir / --tmpdir`: Override the locations used for intermediate strips
   and OTB scratch files. Defaults are automatically managed temp directories.
 - `--jobs`: Number of parallel masking workers (defaults to 4).
 - `--ram`: RAM hint for OTB in MB (defaults to 131072).
 - `-v/ -vv`: Increase logging verbosity.
+
+By default, `plaknit mosaic` now checks every input CRS and reprojects
+non-matching rasters to a single target CRS before running OTB. The target is
+chosen from the majority CRS across inputs; ties are resolved by choosing the
+CRS from the tile nearest the geographic center of the stack.
 
 
 ## Random Forest classification
