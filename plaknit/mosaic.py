@@ -1169,7 +1169,9 @@ class MosaicWorkflow:
             ) from exc
 
         with rasterio.open(masked_path) as repaired:
-            repaired_ok = repaired.crs is not None and not repaired.transform.is_identity
+            repaired_ok = (
+                repaired.crs is not None and not repaired.transform.is_identity
+            )
         if not repaired_ok:
             raise ValueError(
                 f"Masked raster '{masked_path}' is still missing CRS/transform metadata "

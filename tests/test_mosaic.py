@@ -213,7 +213,9 @@ def test_warn_on_proj_layout_mismatch_logs_remediation(monkeypatch, caplog):
             (Path("/opt/proj-b"), (1, 4)),
         ],
     )
-    workflow = mosaic.MosaicWorkflow(mosaic.MosaicJob(inputs=["in.tif"], output="out.tif"))
+    workflow = mosaic.MosaicWorkflow(
+        mosaic.MosaicJob(inputs=["in.tif"], output="out.tif")
+    )
 
     with caplog.at_level("WARNING", logger="plaknit.mosaic"):
         workflow._warn_on_proj_layout_mismatch()
@@ -233,7 +235,9 @@ def test_warn_on_proj_layout_mismatch_silent_when_layouts_match(monkeypatch, cap
             (Path("/opt/proj-b"), (1, 4)),
         ],
     )
-    workflow = mosaic.MosaicWorkflow(mosaic.MosaicJob(inputs=["in.tif"], output="out.tif"))
+    workflow = mosaic.MosaicWorkflow(
+        mosaic.MosaicJob(inputs=["in.tif"], output="out.tif")
+    )
 
     with caplog.at_level("WARNING", logger="plaknit.mosaic"):
         workflow._warn_on_proj_layout_mismatch()
@@ -284,7 +288,9 @@ def test_mask_single_strip_repairs_missing_georeferencing(monkeypatch, caplog):
 
     monkeypatch.setattr(mosaic.rasterio, "open", _fake_open)
     monkeypatch.setattr(mosaic.subprocess, "run", lambda *args, **kwargs: None)
-    workflow = mosaic.MosaicWorkflow(mosaic.MosaicJob(inputs=["in.tif"], output="out.tif"))
+    workflow = mosaic.MosaicWorkflow(
+        mosaic.MosaicJob(inputs=["in.tif"], output="out.tif")
+    )
 
     with caplog.at_level("WARNING", logger="plaknit.mosaic"):
         result = workflow._mask_single_strip(
