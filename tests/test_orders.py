@@ -65,8 +65,10 @@ class _FakeStacSearch:
 class _FakeStacClient:
     def __init__(self, items):
         self._items = items
+        self.last_kwargs: dict[str, Any] | None = None
 
     def search(self, **kwargs):
+        self.last_kwargs = kwargs
         return _FakeStacSearch(self._items)
 
 
@@ -250,35 +252,56 @@ def test_order_cli_reads_plan_and_submits(monkeypatch):
     assert captured["single_archive"] is False
 
 
-def test_find_replacement_items_applies_quality_filters():
+def test_find_replacement_items_ignores_udm_filters_and_ranks_by_clear_fraction():
     plan_entry = {
         "filters": {
             "item_type": "PSScene",
             "month_start": "2024-01-01",
             "month_end": "2024-01-31",
+            "cloud_max": 0.1,
+            "sun_elevation_min": 35.0,
             "min_clear_fraction": 0.5,
             "require_ground_control": True,
             "max_shadow_fraction": 0.05,
+            "max_view_angle": 10,
             "quality_weight": 0.5,
         }
     }
     items = [
         _FakeStacItem(
-            "good",
+            "lower-clear",
             {
                 "clear_percent": 96,
-                "cloud_cover": 0.04,
-                "ground_control": True,
-                "shadow_percent": 1,
+                "eo:cloud_cover": 0.04,
+                "pl:ground_control": True,
+                "pl:shadow_percent": 1,
+                "view:off_nadir": 5.0,
+                "view:sun_elevation": 47.0,
+                "view:sun_azimuth": 130.0,
+                "datetime": "2024-01-10T10:00:00Z",
             },
         ),
         _FakeStacItem(
-            "bad-shadow",
+            "higher-clear-high-shadow",
             {
                 "clear_percent": 99,
-                "cloud_cover": 0.01,
-                "ground_control": True,
-                "shadow_percent": 40,
+                "eo:cloud_cover": 0.01,
+                "pl:ground_control": True,
+                "pl:shadow_percent": 40,
+                "view:off_nadir": 2.0,
+                "view:sun_elevation": 48.0,
+                "view:sun_azimuth": 131.0,
+                "datetime": "2024-01-11T10:00:00Z",
+            },
+        ),
+        _FakeStacItem(
+            "highest-clear-no-ground-control",
+            {
+                "clear_percent": 100,
+                "eo:cloud_cover": 0.0,
+                "pl:ground_control": False,
+                "view:off_nadir": 1.0,
+                "view:sun_elevation": 49.0,
             },
         ),
     ]
@@ -289,8 +312,25 @@ def test_find_replacement_items_applies_quality_filters():
         plan_entry=plan_entry,
         month="2024-01",
         aoi_geojson={"type": "Polygon", "coordinates": []},
-        desired_count=2,
+        desired_count=3,
         exclude_ids=set(),
     )
 
-    assert [item["id"] for item in replacements] == ["good"]
+    # require_ground_control still applies; max_shadow_fraction is ignored.
+    assert [item["id"] for item in replacements] == [
+        "higher-clear-high-shadow",
+        "lower-clear",
+    ]
+    assert stac_client.last_kwargs is not None
+    assert stac_client.last_kwargs["query"]["view:sun_elevation"] == {"gte": 35.0}
+    assert stac_client.last_kwargs["query"]["eo:cloud_cover"] == {"lte": 0.1}
+    assert replacements[0]["properties"]["sun_elevation"] == 48.0
+    assert replacements[0]["properties"]["sun_azimuth"] == 131.0
+    assert replacements[0]["properties"]["acquired"] == "2024-01-11T10:00:00Z"
+    assert replacements[0]["properties"]["view_angle"] == 2.0
+    assert "visible_confidence_percent" not in replacements[0]["properties"]
+    assert "clear_confidence_percent" not in replacements[0]["properties"]
+    assert "shadow_percent" not in replacements[0]["properties"]
+    assert "snow_ice_percent" not in replacements[0]["properties"]
+    assert "heavy_haze_percent" not in replacements[0]["properties"]
+    assert "anomalous_pixels" not in replacements[0]["properties"]

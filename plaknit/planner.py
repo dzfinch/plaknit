@@ -11,7 +11,7 @@ import warnings
 from base64 import b64encode
 from calendar import monthrange
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 try:
@@ -45,6 +45,30 @@ DEPTH_TARGET_FRACTION = 0.95
 PLANET_MAX_ROI_VERTICES = 1500
 PLANETSCOPE_IMAGERY_TYPE = "planetscope"
 PLANETSCOPE_INSTRUMENT_IDS = ("PS2", "PS2.SD", "PSB.SD")
+CLOUD_COVER_KEYS = (
+    "eo:cloud_cover",
+    "cloud_cover",
+    "pl:cloud_cover",
+    "pl_cloud_cover",
+    "cloud_percent",
+    "pl:cloud_percent",
+    "pl_cloud_percent",
+)
+CLEAR_FRACTION_KEYS = (
+    "clear_percent",
+    "pl:clear_percent",
+    "pl_clear_percent",
+    "clear_fraction",
+    "pl:clear_fraction",
+)
+SUN_ELEVATION_KEYS = ("view:sun_elevation", "sun_elevation")
+SUN_AZIMUTH_KEYS = ("view:sun_azimuth", "sun_azimuth")
+ACQUIRED_KEYS = ("datetime", "acquired")
+VIEW_ANGLE_KEYS = ("view:off_nadir", "view_angle")
+GROUND_CONTROL_KEYS = ("pl:ground_control", "ground_control")
+QUALITY_CATEGORY_KEYS = ("pl:quality_category", "quality_category")
+PUBLISHING_STAGE_KEYS = ("pl:publishing_stage", "publishing_stage")
+GSD_KEYS = ("gsd", "pixel_resolution", "pl:pixel_resolution")
 
 
 class _ProgressManager:
@@ -166,6 +190,39 @@ def _iterate_months(start: date, end: date) -> Iterable[tuple[str, date, date]]:
             current = date(current.year, current.month + 1, 1)
 
 
+def _window_key(window_start: date, window_end: date) -> str:
+    if window_start == window_end:
+        return window_start.isoformat()
+    return f"{window_start.isoformat()}_to_{window_end.isoformat()}"
+
+
+def _iterate_windows(
+    start: date,
+    end: date,
+    *,
+    grouping: str,
+    window_days: Optional[int] = None,
+) -> Iterable[tuple[str, date, date]]:
+    if grouping == "calendar":
+        yield from _iterate_months(start, end)
+        return
+    if grouping == "single":
+        yield (_window_key(start, end), start, end)
+        return
+    if grouping == "fixed":
+        if window_days is None or window_days <= 0:
+            raise ValueError(
+                "window_days must be a positive integer for fixed grouping."
+            )
+        current = start
+        while current <= end:
+            window_end = min(end, current + timedelta(days=window_days - 1))
+            yield (_window_key(current, window_end), current, window_end)
+            current = window_end + timedelta(days=1)
+        return
+    raise ValueError("grouping must be one of: calendar, single, fixed.")
+
+
 def _generate_tiles(geometry: BaseGeometry, tile_size: int) -> List[BaseGeometry]:
     minx, miny, maxx, maxy = geometry.bounds
     tiles: List[BaseGeometry] = []
@@ -255,30 +312,11 @@ def _normalize_fraction_threshold(value: Optional[float]) -> Optional[float]:
 
 
 def _clear_fraction(properties: Dict[str, Any]) -> Optional[float]:
-    clear_fraction = _property_fraction(
-        properties,
-        [
-            "clear_percent",
-            "pl:clear_percent",
-            "pl_clear_percent",
-            "clear_fraction",
-            "pl:clear_fraction",
-        ],
-    )
+    clear_fraction = _property_fraction(properties, CLEAR_FRACTION_KEYS)
     if clear_fraction is not None:
         return clear_fraction
 
-    cloud_fraction = _property_fraction(
-        properties,
-        [
-            "cloud_cover",
-            "pl:cloud_cover",
-            "pl_cloud_cover",
-            "cloud_percent",
-            "pl:cloud_percent",
-            "pl_cloud_percent",
-        ],
-    )
+    cloud_fraction = _property_fraction(properties, CLOUD_COVER_KEYS)
     if cloud_fraction is not None:
         return max(0.0, min(1.0, 1.0 - cloud_fraction))
 
@@ -412,12 +450,12 @@ def _passes_quality_filters(
     max_view_angle: Optional[float],
 ) -> bool:
     if require_ground_control:
-        ground_control = _bool_or_none(properties.get("ground_control"))
+        ground_control = _bool_or_none(_get_property(properties, GROUND_CONTROL_KEYS))
         if ground_control is not True:
             return False
 
     if quality_category:
-        value = properties.get("quality_category")
+        value = _get_property(properties, QUALITY_CATEGORY_KEYS)
         if (
             not isinstance(value, str)
             or value.strip().lower() != quality_category.lower()
@@ -425,56 +463,20 @@ def _passes_quality_filters(
             return False
 
     if publishing_stage:
-        value = properties.get("publishing_stage")
+        value = _get_property(properties, PUBLISHING_STAGE_KEYS)
         if (
             not isinstance(value, str)
             or value.strip().lower() != publishing_stage.lower()
         ):
             return False
 
-    if max_anomalous_pixels is not None:
-        anomalous = _float_or_none(properties.get("anomalous_pixels"))
-        if anomalous is None or anomalous > max_anomalous_pixels:
-            return False
-
     if max_view_angle is not None:
-        view_angle = _float_or_none(properties.get("view_angle"))
+        view_angle = _float_or_none(_get_property(properties, VIEW_ANGLE_KEYS))
         if view_angle is None or abs(view_angle) > max_view_angle:
             return False
 
-    shadow_fraction = _property_percent_fraction(properties, ["shadow_percent"])
-    if max_shadow_fraction is not None and (
-        shadow_fraction is None or shadow_fraction > max_shadow_fraction
-    ):
-        return False
-
-    snow_ice_fraction = _property_percent_fraction(properties, ["snow_ice_percent"])
-    if max_snow_ice_fraction is not None and (
-        snow_ice_fraction is None or snow_ice_fraction > max_snow_ice_fraction
-    ):
-        return False
-
-    heavy_haze_fraction = _property_percent_fraction(properties, ["heavy_haze_percent"])
-    if max_heavy_haze_fraction is not None and (
-        heavy_haze_fraction is None or heavy_haze_fraction > max_heavy_haze_fraction
-    ):
-        return False
-
-    visible_confidence = _property_percent_fraction(
-        properties, ["visible_confidence_percent"]
-    )
-    if min_visible_confidence is not None and (
-        visible_confidence is None or visible_confidence < min_visible_confidence
-    ):
-        return False
-
-    clear_confidence = _property_percent_fraction(
-        properties, ["clear_confidence_percent"]
-    )
-    if min_clear_confidence is not None and (
-        clear_confidence is None or clear_confidence < min_clear_confidence
-    ):
-        return False
+    # Planet STAC does not reliably expose UDM-derived confidence/haze/shadow
+    # and anomalous fields, so these filters are intentionally ignored.
 
     return True
 
@@ -482,36 +484,12 @@ def _passes_quality_filters(
 def _quality_score(properties: Dict[str, Any]) -> float:
     metrics: List[tuple[float, float]] = []
 
-    visible_confidence = _property_percent_fraction(
-        properties, ["visible_confidence_percent"]
-    )
-    if visible_confidence is not None:
-        metrics.append((0.2, visible_confidence))
-
-    clear_confidence = _property_percent_fraction(
-        properties, ["clear_confidence_percent"]
-    )
-    if clear_confidence is not None:
-        metrics.append((0.2, clear_confidence))
-
-    shadow_fraction = _property_percent_fraction(properties, ["shadow_percent"])
-    if shadow_fraction is not None:
-        metrics.append((0.15, max(0.0, min(1.0, 1.0 - shadow_fraction))))
-
-    snow_ice_fraction = _property_percent_fraction(properties, ["snow_ice_percent"])
-    if snow_ice_fraction is not None:
-        metrics.append((0.15, max(0.0, min(1.0, 1.0 - snow_ice_fraction))))
-
-    heavy_haze_fraction = _property_percent_fraction(properties, ["heavy_haze_percent"])
-    if heavy_haze_fraction is not None:
-        metrics.append((0.1, max(0.0, min(1.0, 1.0 - heavy_haze_fraction))))
-
-    view_angle = _float_or_none(properties.get("view_angle"))
+    view_angle = _float_or_none(_get_property(properties, VIEW_ANGLE_KEYS))
     if view_angle is not None:
         view_score = math.exp(-((abs(view_angle) / 15.0) ** 2))
         metrics.append((0.1, view_score))
 
-    gsd = _float_or_none(_get_property(properties, ["gsd", "pixel_resolution"]))
+    gsd = _float_or_none(_get_property(properties, GSD_KEYS))
     if gsd is not None and gsd > 0:
         gsd_score = math.exp(-((max(0.0, gsd - 3.0) / 1.5) ** 2))
         metrics.append((0.1, gsd_score))
@@ -576,16 +554,16 @@ def plan_monthly_composites(
     max_view_angle: Optional[float] = None,
     quality_weight: float = 0.35,
     month_grouping: str = "calendar",
+    window_days: Optional[int] = None,
     limit: int | None = None,
     tile_size_m: int = 1000,
     progress: Optional[_ProgressManager] = None,
 ) -> dict:
     """
-    Plan monthly PlanetScope composites over an AOI.
+    Plan PlanetScope composites over an AOI with configurable time windows.
     """
 
-    if month_grouping != "calendar":
-        raise ValueError("Only 'calendar' month grouping is supported.")
+    month_grouping = (month_grouping or "calendar").lower()
     if tile_size_m <= 0:
         raise ValueError("tile_size_m must be positive.")
     quality_weight = max(0.0, min(1.0, float(quality_weight)))
@@ -637,7 +615,14 @@ def plan_monthly_composites(
     if start > end:
         raise ValueError("start_date must be before or equal to end_date.")
 
-    month_definitions = list(_iterate_months(start, end))
+    window_definitions = list(
+        _iterate_windows(
+            start,
+            end,
+            grouping=month_grouping,
+            window_days=window_days,
+        )
+    )
     progress_log = progress or _ProgressManager(
         enabled=logging.getLogger().isEnabledFor(logging.INFO)
     )
@@ -650,7 +635,7 @@ def plan_monthly_composites(
         optimize_task = (
             progress_log.add("Optimizing tiles", total=0) if progress_log else None
         )
-        for month_id, month_start, month_end in month_definitions:
+        for month_id, month_start, month_end in window_definitions:
             month_plan = _plan_single_month(
                 month_id=month_id,
                 month_start=month_start,
@@ -688,33 +673,31 @@ def plan_monthly_composites(
             month_plan["tile_size_m"] = tile_size_m
             month_plan["coverage_target"] = coverage_target
             month_plan["min_clear_obs"] = min_clear_obs
-            month_plan["filters"] = {
+            filters: Dict[str, Any] = {
                 "item_type": item_type,
-                "collection": collection,
-                "imagery_type": imagery_type,
-                "instrument_types": (
-                    list(instrument_types) if instrument_types else None
-                ),
                 "cloud_max": cloud_max,
                 "sun_elevation_min": sun_elevation_min,
                 "min_clear_fraction": min_clear_fraction,
-                "require_ground_control": require_ground_control,
-                "quality_category": quality_category,
-                "publishing_stage": publishing_stage,
-                "max_anomalous_pixels": max_anomalous_pixels,
-                "max_shadow_fraction": max_shadow_fraction,
-                "max_snow_ice_fraction": max_snow_ice_fraction,
-                "max_heavy_haze_fraction": max_heavy_haze_fraction,
-                "min_visible_confidence": min_visible_confidence,
-                "min_clear_confidence": min_clear_confidence,
-                "max_view_angle": max_view_angle,
-                "quality_weight": quality_weight,
                 "month_start": month_start.isoformat(),
                 "month_end": month_end.isoformat(),
-                "azimuth_sigma": azimuth_sigma,
-                "elevation_sigma": elevation_sigma,
-                "limit": limit,
             }
+            if collection:
+                filters["collection"] = collection
+            if imagery_type:
+                filters["imagery_type"] = imagery_type
+            if instrument_types:
+                filters["instrument_types"] = list(instrument_types)
+            if require_ground_control:
+                filters["require_ground_control"] = True
+            if quality_category:
+                filters["quality_category"] = quality_category
+            if publishing_stage:
+                filters["publishing_stage"] = publishing_stage
+            if max_view_angle is not None:
+                filters["max_view_angle"] = max_view_angle
+            if limit is not None:
+                filters["limit"] = limit
+            month_plan["filters"] = filters
             plan[month_id] = month_plan
         if progress_log:
             progress_log.complete(filtering_task)
@@ -763,10 +746,10 @@ def _plan_single_month(
     logger = _get_logger()
     datetime_range = f"{month_start.isoformat()}/{month_end.isoformat()}"
     query: Dict[str, Any] = {
-        "sun_elevation": {"gte": sun_elevation_min},
+        "view:sun_elevation": {"gte": sun_elevation_min},
     }
     if cloud_max is not None:
-        query["cloud_cover"] = {"lte": cloud_max}
+        query["eo:cloud_cover"] = {"lte": cloud_max}
     if imagery_type:
         query["pl:imagery_type"] = {"eq": imagery_type}
     if instrument_types:
@@ -798,17 +781,7 @@ def _plan_single_month(
     for item in items:
         properties = dict(item.properties)
         properties["id"] = item.id
-        cloud_value = _get_property(
-            properties,
-            [
-                "cloud_cover",
-                "pl:cloud_cover",
-                "pl_cloud_cover",
-                "cloud_percent",
-                "pl:cloud_percent",
-                "pl_cloud_percent",
-            ],
-        )
+        cloud_value = _get_property(properties, CLOUD_COVER_KEYS)
         if cloud_value is not None and cloud_max is not None:
             try:
                 cloud_fraction = float(cloud_value)
@@ -819,7 +792,7 @@ def _plan_single_month(
             except (ValueError, TypeError):
                 pass
 
-        sun_value = properties.get("sun_elevation")
+        sun_value = _get_property(properties, SUN_ELEVATION_KEYS)
         if sun_value is not None:
             try:
                 if float(sun_value) < sun_elevation_min:
@@ -857,8 +830,8 @@ def _plan_single_month(
             max_view_angle=max_view_angle,
         ):
             continue
-        sun_azimuth = _float_or_none(properties.get("sun_azimuth"))
-        sun_elevation = _float_or_none(properties.get("sun_elevation"))
+        sun_azimuth = _float_or_none(_get_property(properties, SUN_AZIMUTH_KEYS))
+        sun_elevation = _float_or_none(_get_property(properties, SUN_ELEVATION_KEYS))
         quality_score = _quality_score(properties)
 
         candidates.append(
@@ -941,45 +914,26 @@ def _plan_single_month(
             "collection": candidate.collection_id,
             "clear_fraction": candidate.clear_fraction,
             "properties": {
-                "cloud_cover": _get_property(
-                    candidate.properties,
-                    [
-                        "cloud_cover",
-                        "pl:cloud_cover",
-                        "pl_cloud_cover",
-                        "cloud_percent",
-                        "pl:cloud_percent",
-                        "pl_cloud_percent",
-                    ],
-                ),
+                "cloud_cover": _get_property(candidate.properties, CLOUD_COVER_KEYS),
                 "clear_percent": _get_property(
-                    candidate.properties,
-                    [
-                        "clear_percent",
-                        "pl:clear_percent",
-                        "pl_clear_percent",
-                        "clear_fraction",
-                        "pl:clear_fraction",
-                    ],
+                    candidate.properties, CLEAR_FRACTION_KEYS
                 ),
-                "sun_elevation": candidate.properties.get("sun_elevation"),
-                "sun_azimuth": candidate.properties.get("sun_azimuth"),
-                "acquired": candidate.properties.get("acquired"),
-                "visible_confidence_percent": candidate.properties.get(
-                    "visible_confidence_percent"
+                "sun_elevation": _get_property(
+                    candidate.properties, SUN_ELEVATION_KEYS
                 ),
-                "clear_confidence_percent": candidate.properties.get(
-                    "clear_confidence_percent"
+                "sun_azimuth": _get_property(candidate.properties, SUN_AZIMUTH_KEYS),
+                "acquired": _get_property(candidate.properties, ACQUIRED_KEYS),
+                "view_angle": _get_property(candidate.properties, VIEW_ANGLE_KEYS),
+                "ground_control": _get_property(
+                    candidate.properties, GROUND_CONTROL_KEYS
                 ),
-                "shadow_percent": candidate.properties.get("shadow_percent"),
-                "snow_ice_percent": candidate.properties.get("snow_ice_percent"),
-                "heavy_haze_percent": candidate.properties.get("heavy_haze_percent"),
-                "view_angle": candidate.properties.get("view_angle"),
-                "ground_control": candidate.properties.get("ground_control"),
-                "quality_category": candidate.properties.get("quality_category"),
-                "publishing_stage": candidate.properties.get("publishing_stage"),
-                "anomalous_pixels": candidate.properties.get("anomalous_pixels"),
-                "gsd": candidate.properties.get("gsd"),
+                "quality_category": _get_property(
+                    candidate.properties, QUALITY_CATEGORY_KEYS
+                ),
+                "publishing_stage": _get_property(
+                    candidate.properties, PUBLISHING_STAGE_KEYS
+                ),
+                "gsd": _get_property(candidate.properties, GSD_KEYS),
             },
         }
         for candidate in selected
@@ -1025,7 +979,7 @@ def build_plan_parser() -> argparse.ArgumentParser:
     """Create an argparse parser for the plan command."""
     parser = argparse.ArgumentParser(
         prog="plaknit plan",
-        description="Plan monthly PlanetScope composites and optionally submit orders.",
+        description="Plan PlanetScope composites over flexible date windows and optionally submit orders.",
     )
     parser.add_argument(
         "--aoi", "-a", required=True, help="AOI file (.geojson/.json/.shp/.gpkg)."
@@ -1156,7 +1110,21 @@ def build_plan_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--limit",
         type=int,
-        help="Maximum number of STAC items per month (passes through to the STAC search).",
+        help="Maximum number of STAC items per planning window (passes through to STAC search).",
+    )
+    parser.add_argument(
+        "--grouping",
+        choices=("calendar", "single", "fixed"),
+        default="calendar",
+        help=(
+            "Planning window grouping: calendar month buckets, single full range, "
+            "or fixed-size windows (use with --window-days)."
+        ),
+    )
+    parser.add_argument(
+        "--window-days",
+        type=int,
+        help="Window size in days when --grouping fixed (for example 1=daily, 90=seasonal).",
     )
     parser.add_argument(
         "--sr-bands",
@@ -1223,6 +1191,13 @@ def _is_planetscope_request(args: argparse.Namespace) -> bool:
 def parse_plan_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = build_plan_parser()
     args = parser.parse_args(argv)
+    if args.grouping == "fixed":
+        if args.window_days is None or args.window_days <= 0:
+            parser.error(
+                "--window-days must be a positive integer when --grouping fixed."
+            )
+    elif args.window_days is not None:
+        parser.error("--window-days is only valid when --grouping fixed.")
     if (
         _is_planetscope_request(args)
         and len(PLANETSCOPE_INSTRUMENT_IDS) > 1
@@ -1241,10 +1216,12 @@ def _harmonize_display(value: str) -> str:
     return "-"
 
 
-def _order_id_for_month(order_results: Dict[str, Dict[str, Any]], month: str) -> str:
-    if month not in order_results:
+def _order_id_for_window(
+    order_results: Dict[str, Dict[str, Any]], window_key: str
+) -> str:
+    if window_key not in order_results:
         return "-"
-    order_id = order_results[month].get("order_id")
+    order_id = order_results[window_key].get("order_id")
     return order_id or "-"
 
 
@@ -1254,21 +1231,21 @@ def _print_summary(
     sr_bands: int,
     harmonize: str,
 ) -> None:
-    header = "Month     Candidates  Filtered  Selected  Coverage  MinClearObs  SR-bands  Harmonize     Order ID"
+    header = "Window                     Candidates  Filtered  Selected  Coverage  MinClearObs  SR-bands  Harmonize     Order ID"
     divider = "-" * len(header)
     print(header)
     print(divider)
-    for month in sorted(plan.keys()):
-        entry = plan[month]
+    for window_key in sorted(plan.keys()):
+        entry = plan[window_key]
         coverage = entry.get("aoi_coverage", 0.0)
         min_clear_obs = entry.get("min_clear_obs", 0.0)
         candidate_count = entry.get("candidate_count", 0)
         filtered_count = entry.get("filtered_count", 0)
         selected_count = entry.get("selected_count", 0)
         print(
-            f"{month:8}  {candidate_count:10d}  {filtered_count:8d}  {selected_count:8d}  "
+            f"{window_key:24}  {candidate_count:10d}  {filtered_count:8d}  {selected_count:8d}  "
             f"{coverage:8.3f}  {min_clear_obs:11.1f}  {sr_bands:8d}  "
-            f"{_harmonize_display(harmonize):11}  {_order_id_for_month(order_results, month)}"
+            f"{_harmonize_display(harmonize):11}  {_order_id_for_window(order_results, window_key)}"
         )
 
 
@@ -1326,14 +1303,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         min_clear_confidence=args.min_clear_confidence,
         max_view_angle=args.max_view_angle,
         quality_weight=args.quality_weight,
-        month_grouping="calendar",
+        month_grouping=args.grouping,
+        window_days=args.window_days,
         limit=args.limit,
         tile_size_m=args.tile_size_m,
     )
 
     order_results: Dict[str, Dict[str, Any]] = {}
     if args.order:
-        logger.info("Submitting Planet orders for %d months.", len(plan))
+        logger.info("Submitting Planet orders for %d windows.", len(plan))
         order_results = submit_orders_for_plan(
             plan=plan,
             aoi_path=args.aoi,

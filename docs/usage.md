@@ -1,8 +1,8 @@
 # Usage
 
-## Planning & Ordering Monthly Planet Composites
+## Planning & Ordering Planet Composites
 
-`plaknit plan` can run on local devices to query Planet's Data/STAC API, filter PSScene candidates, tile the AOI, and pick the smallest monthly set that meets both coverage and clear-observation targets. You can optionally submit Planet orders with clipped surface reflectance scenes (4- or 8-band SR + UDM2) and Sentinel-2 harmonization, chunked into batches of up to 100 scenes with predictable order/ZIP names.
+`plaknit plan` can run on local devices to query Planet's Data/STAC API, filter PSScene candidates, tile the AOI, and pick the smallest set that meets both coverage and clear-observation targets for each planning window. You can optionally submit Planet orders with clipped surface reflectance scenes (4- or 8-band SR + UDM2) and Sentinel-2 harmonization, chunked into batches of up to 100 scenes with predictable order/ZIP names.
 
 ```bash
 plaknit plan \
@@ -20,6 +20,11 @@ plaknit plan \
   --harmonize-to sentinel2 \
   --out aug_2019_plan.json
 ```
+
+Windowing options:
+- `--grouping calendar` (default): Calendar-month windows.
+- `--grouping single`: One window covering the full `--start` to `--end` range.
+- `--grouping fixed --window-days N`: Split range into fixed-size windows (for example `1` for daily or `90` for seasonal blocks).
 
 The summary table shows candidate/selected scenes, achieved coverage, clear
 observation depth, and any resulting order IDs. Orders deliver single-archive
@@ -46,7 +51,7 @@ plaknit order \
 ```
 
 Order output arguments:
-- `--plan`: Plan JSON/GeoJSON that defines which scene IDs (and months) are ordered.
+- `--plan`: Plan JSON/GeoJSON that defines which scene IDs (and windows) are ordered.
 - `--aoi`: Geometry used for clipping; the clip AOI is applied to delivered scenes.
 - `--sr-bands`: Chooses 4- or 8-band SR bundle; changes the bands in each scene.
 - `--harmonize-to`: `sentinel2` harmonizes to Sentinel-2; `none` keeps native SR.
@@ -57,7 +62,7 @@ Order output arguments:
 
 The order subcommand loads the stored plan, clips to the provided AOI, and
 submits orders (chunked at 100 scenes max) while reporting the returned order
-IDs. If Planet reports any “no access to assets …” errors, `plaknit order`
+IDs. If Planet reports any "no access to assets ..." errors, `plaknit order`
 automatically drops the inaccessible scene IDs and retries so the remaining
 items can still be delivered.
 
@@ -79,7 +84,7 @@ plaknit mosaic \
 
 You can call the module directly with `python -m plaknit.mosaic`
 if you prefer to pin the interpreter. The progress display stays minimal with
-four bars: Radiometry (optional) → Mask tiles → Binary mask → Mosaic
+four bars: Mask tiles -> Binary mask -> Projection -> Mosaic
 (shown when `rich` is installed).
 
 ### Required arguments
@@ -94,10 +99,6 @@ four bars: Radiometry (optional) → Mask tiles → Binary mask → Mosaic
   `--skip-masking` is supplied.
 - `--skip-masking`: Use the provided inputs directly without applying the
   gdal-based UDM mask.
-- `--harmonize-radiometry`: Enable graph-based radiometric harmonization
-  (Harmoni-Planet style) before masking/projection.
-- `--metadata-jsons / -meta`: Metadata JSON files/directories used to build the
-  overlap/time graph; required only when `--harmonize-radiometry` is enabled.
 - `--sr-bands`: Surface reflectance bundle size (4 or 8).
 - `--target-crs`: Optional CRS override (for example `EPSG:32735`) applied to
   every tile before mosaicking.
