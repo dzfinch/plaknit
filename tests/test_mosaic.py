@@ -1,9 +1,12 @@
 """Tests for mosaic projection harmonization helpers."""
 
+import sqlite3
 from pathlib import Path
 from datetime import datetime
+from uuid import uuid4
 
 import pytest
+from affine import Affine
 from rasterio.crs import CRS
 
 from plaknit import mosaic
@@ -177,3 +180,124 @@ def test_collect_projection_info_falls_back_to_native_center(monkeypatch, caplog
 
     assert projections[0].center_lonlat == (20.0, 40.0)
     assert "using native bounds center for CRS tie-breaking" in caplog.text
+
+
+def test_read_proj_layout_version_reads_major_minor():
+    proj_db_path = Path.cwd() / f"test_proj_{uuid4().hex}.db"
+    try:
+        with sqlite3.connect(str(proj_db_path)) as conn:
+            conn.execute("CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT)")
+            conn.execute(
+                "INSERT INTO metadata (key, value) VALUES (?, ?)",
+                ("DATABASE.LAYOUT.VERSION.MAJOR", "1"),
+            )
+            conn.execute(
+                "INSERT INTO metadata (key, value) VALUES (?, ?)",
+                ("DATABASE.LAYOUT.VERSION.MINOR", "4"),
+            )
+
+        assert mosaic._read_proj_layout_version(proj_db_path) == (1, 4)
+    finally:
+        try:
+            proj_db_path.unlink()
+        except (FileNotFoundError, PermissionError):
+            pass
+
+
+def test_warn_on_proj_layout_mismatch_logs_remediation(monkeypatch, caplog):
+    monkeypatch.setattr(
+        mosaic,
+        "_collect_proj_layout_versions",
+        lambda: [
+            (Path("/opt/proj-a"), (1, 2)),
+            (Path("/opt/proj-b"), (1, 4)),
+        ],
+    )
+    workflow = mosaic.MosaicWorkflow(
+        mosaic.MosaicJob(inputs=["in.tif"], output="out.tif")
+    )
+
+    with caplog.at_level("WARNING", logger="plaknit.mosaic"):
+        workflow._warn_on_proj_layout_mismatch()
+
+    assert "Detected mixed PROJ database layouts" in caplog.text
+    assert "PROJ_DATA and PROJ_LIB" in caplog.text
+    assert "proj-a (layout 1.2)" in caplog.text
+    assert "proj-b (layout 1.4)" in caplog.text
+
+
+def test_warn_on_proj_layout_mismatch_silent_when_layouts_match(monkeypatch, caplog):
+    monkeypatch.setattr(
+        mosaic,
+        "_collect_proj_layout_versions",
+        lambda: [
+            (Path("/opt/proj-a"), (1, 4)),
+            (Path("/opt/proj-b"), (1, 4)),
+        ],
+    )
+    workflow = mosaic.MosaicWorkflow(
+        mosaic.MosaicJob(inputs=["in.tif"], output="out.tif")
+    )
+
+    with caplog.at_level("WARNING", logger="plaknit.mosaic"):
+        workflow._warn_on_proj_layout_mismatch()
+
+    assert "Detected mixed PROJ database layouts" not in caplog.text
+
+
+def test_mask_single_strip_repairs_missing_georeferencing(monkeypatch, caplog):
+    source_state = {
+        "crs": CRS.from_epsg(32631),
+        "transform": Affine(3.0, 0.0, 100.0, 0.0, -3.0, 200.0),
+    }
+    masked_state = {"crs": None, "transform": Affine.identity()}
+
+    class _FakeDataset:
+        def __init__(self, state):
+            self._state = state
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        @property
+        def crs(self):
+            return self._state["crs"]
+
+        @crs.setter
+        def crs(self, value):
+            self._state["crs"] = value
+
+        @property
+        def transform(self):
+            return self._state["transform"]
+
+        @transform.setter
+        def transform(self, value):
+            self._state["transform"] = value
+
+    def _fake_open(path, mode="r", **kwargs):
+        path_str = str(path)
+        if path_str.endswith("source.tif"):
+            return _FakeDataset(source_state)
+        if path_str.endswith("masked.tif"):
+            return _FakeDataset(masked_state)
+        raise AssertionError(f"Unexpected path: {path_str}")
+
+    monkeypatch.setattr(mosaic.rasterio, "open", _fake_open)
+    monkeypatch.setattr(mosaic.subprocess, "run", lambda *args, **kwargs: None)
+    workflow = mosaic.MosaicWorkflow(
+        mosaic.MosaicJob(inputs=["in.tif"], output="out.tif")
+    )
+
+    with caplog.at_level("WARNING", logger="plaknit.mosaic"):
+        result = workflow._mask_single_strip(
+            Path("source.tif"), Path("udm.tif"), Path("masked.tif")
+        )
+
+    assert result == Path("masked.tif")
+    assert masked_state["crs"] == source_state["crs"]
+    assert masked_state["transform"] == source_state["transform"]
+    assert "repaired from" in caplog.text

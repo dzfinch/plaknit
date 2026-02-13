@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 import logging
 import math
 import os
+import sqlite3
 import shutil
 import subprocess
 import tempfile
@@ -193,6 +194,96 @@ def _bbox_overlap_ratio(
     return overlap / denom
 
 
+def _split_env_paths(raw: Optional[str]) -> List[Path]:
+    if not raw:
+        return []
+    paths: List[Path] = []
+    for entry in raw.split(os.pathsep):
+        entry = entry.strip()
+        if not entry:
+            continue
+        path = Path(entry).expanduser()
+        if path.name == "proj.db":
+            path = path.parent
+        paths.append(path)
+    return paths
+
+
+def _discover_proj_directories() -> List[Path]:
+    candidates: List[Path] = []
+    seen: Set[str] = set()
+
+    for env_var in ("PROJ_DATA", "PROJ_LIB"):
+        for path in _split_env_paths(os.environ.get(env_var)):
+            key = str(path)
+            if key in seen:
+                continue
+            seen.add(key)
+            candidates.append(path)
+
+    try:
+        from rasterio.env import PROJDataFinder
+
+        discovered = PROJDataFinder().search()
+    except Exception:
+        discovered = None
+    if discovered:
+        path = Path(discovered).expanduser()
+        key = str(path)
+        if key not in seen:
+            seen.add(key)
+            candidates.append(path)
+
+    otb_proj_dir = Path("/app/otb/share/proj")
+    if otb_proj_dir.exists():
+        key = str(otb_proj_dir)
+        if key not in seen:
+            seen.add(key)
+            candidates.append(otb_proj_dir)
+
+    return candidates
+
+
+def _read_proj_layout_version(proj_db_path: Path) -> Optional[Tuple[int, int]]:
+    if not proj_db_path.exists():
+        return None
+    try:
+        with sqlite3.connect(str(proj_db_path)) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT value FROM metadata WHERE key='DATABASE.LAYOUT.VERSION.MAJOR'"
+            )
+            major_row = cursor.fetchone()
+            cursor.execute(
+                "SELECT value FROM metadata WHERE key='DATABASE.LAYOUT.VERSION.MINOR'"
+            )
+            minor_row = cursor.fetchone()
+    except Exception:
+        return None
+
+    if not major_row or not minor_row:
+        return None
+    try:
+        return (int(major_row[0]), int(minor_row[0]))
+    except (TypeError, ValueError):
+        return None
+
+
+def _collect_proj_layout_versions() -> List[Tuple[Path, Tuple[int, int]]]:
+    collected: List[Tuple[Path, Tuple[int, int]]] = []
+    for directory in _discover_proj_directories():
+        proj_db_path = directory / "proj.db"
+        version = _read_proj_layout_version(proj_db_path)
+        if version is None:
+            continue
+        try:
+            display_dir = directory.resolve()
+        except Exception:
+            display_dir = directory
+        collected.append((display_dir, version))
+    return collected
+
+
 def _extract_bbox_from_coordinates(
     coordinates: Any,
 ) -> Optional[Tuple[float, float, float, float]]:
@@ -305,6 +396,7 @@ class MosaicWorkflow:
             raise ValueError("sr_bands must be 4 or 8 when --ndvi is requested.")
 
         self._configure_environment()
+        self._warn_on_proj_layout_mismatch()
         inputs = self._expand(job.inputs, label="inputs")
         tmpdir = self._prepare_tmpdir()
         with self._progress(enabled=self.log.isEnabledFor(logging.INFO)) as progress:
@@ -418,6 +510,25 @@ class MosaicWorkflow:
         os.environ.setdefault("ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS", str(jobs))
         os.environ.setdefault("OTB_MAX_RAM_HINT", str(self.job.ram))
         os.environ.setdefault("GTIFF_SRS_SOURCE", "EPSG")
+
+    def _warn_on_proj_layout_mismatch(self) -> None:
+        versions = _collect_proj_layout_versions()
+        if len(versions) < 2:
+            return
+
+        unique_versions = {version for _, version in versions}
+        if len(unique_versions) <= 1:
+            return
+
+        details = ", ".join(
+            f"{directory} (layout {version[0]}.{version[1]})"
+            for directory, version in versions
+        )
+        self.log.warning(
+            "Detected mixed PROJ database layouts: %s. "
+            "Set PROJ_DATA and PROJ_LIB to the same PROJ directory before running.",
+            details,
+        )
 
     def _center_lonlat_for_bounds(
         self, path: Path, crs: CRS, bounds: Tuple[float, float, float, float]
@@ -1021,6 +1132,59 @@ class MosaicWorkflow:
         self.log.debug("Reprojecting raster with command: %s", " ".join(cmd))
         subprocess.run(cmd, check=True)
 
+    def _ensure_masked_georeferencing(
+        self, strip_path: Path, masked_path: Path
+    ) -> None:
+        with rasterio.open(strip_path) as source:
+            source_crs = source.crs
+            source_transform = source.transform
+
+        with rasterio.open(masked_path) as masked:
+            masked_crs = masked.crs
+            masked_transform = masked.transform
+
+        has_crs = masked_crs is not None
+        has_transform = not masked_transform.is_identity
+        if has_crs and has_transform:
+            return
+
+        if source_crs is None or source_transform.is_identity:
+            raise ValueError(
+                f"Masked raster '{masked_path}' is missing CRS/transform metadata and "
+                f"cannot be repaired from source '{strip_path}'. This often indicates "
+                "mixed PROJ installations; set PROJ_DATA and PROJ_LIB to the same "
+                "directory."
+            )
+
+        try:
+            with rasterio.open(masked_path, "r+") as masked_fix:
+                if masked_fix.crs is None:
+                    masked_fix.crs = source_crs
+                if masked_fix.transform.is_identity:
+                    masked_fix.transform = source_transform
+        except Exception as exc:
+            raise ValueError(
+                f"Failed to repair CRS/transform metadata for masked raster "
+                f"'{masked_path}'. This may indicate a PROJ/GDAL environment mismatch."
+            ) from exc
+
+        with rasterio.open(masked_path) as repaired:
+            repaired_ok = (
+                repaired.crs is not None and not repaired.transform.is_identity
+            )
+        if not repaired_ok:
+            raise ValueError(
+                f"Masked raster '{masked_path}' is still missing CRS/transform metadata "
+                "after attempted repair. This may indicate a PROJ/GDAL environment "
+                "mismatch."
+            )
+
+        self.log.warning(
+            "Masked raster '%s' was missing CRS/transform metadata; repaired from '%s'.",
+            masked_path,
+            strip_path,
+        )
+
     def _mask_single_strip(
         self, strip_path: Path, udm_path: Path, masked_path: Path
     ) -> Path:
@@ -1052,6 +1216,7 @@ class MosaicWorkflow:
         ]
         self.log.debug("Masking strip with command: %s", " ".join(cmd))
         subprocess.run(cmd, check=True)
+        self._ensure_masked_georeferencing(strip_path, masked_path)
         return masked_path
 
     def _run_mosaic(
