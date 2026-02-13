@@ -121,6 +121,7 @@ class _Candidate:
     tile_indexes: List[int]
     sun_azimuth: Optional[float] = None
     sun_elevation: Optional[float] = None
+    quality_score: float = 1.0
     selected: bool = False
 
 
@@ -203,8 +204,56 @@ def _float_or_none(value: Any) -> Optional[float]:
         return None
 
 
+def _bool_or_none(value: Any) -> Optional[bool]:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "y"}:
+            return True
+        if normalized in {"false", "0", "no", "n"}:
+            return False
+    return None
+
+
+def _normalized_fraction(value: Any) -> Optional[float]:
+    parsed = _float_or_none(value)
+    if parsed is None:
+        return None
+    if parsed > 1:
+        parsed /= 100.0
+    return max(0.0, min(1.0, parsed))
+
+
+def _property_fraction(properties: Dict[str, Any], keys: Sequence[str]) -> Optional[float]:
+    return _normalized_fraction(_get_property(properties, keys))
+
+
+def _normalized_percent(value: Any) -> Optional[float]:
+    parsed = _float_or_none(value)
+    if parsed is None:
+        return None
+    if parsed >= 1:
+        parsed /= 100.0
+    return max(0.0, min(1.0, parsed))
+
+
+def _property_percent_fraction(
+    properties: Dict[str, Any], keys: Sequence[str]
+) -> Optional[float]:
+    return _normalized_percent(_get_property(properties, keys))
+
+
+def _normalize_fraction_threshold(value: Optional[float]) -> Optional[float]:
+    if value is None:
+        return None
+    return _normalized_fraction(value)
+
+
 def _clear_fraction(properties: Dict[str, Any]) -> Optional[float]:
-    clear_value = _get_property(
+    clear_fraction = _property_fraction(
         properties,
         [
             "clear_percent",
@@ -214,16 +263,10 @@ def _clear_fraction(properties: Dict[str, Any]) -> Optional[float]:
             "pl:clear_fraction",
         ],
     )
-    if clear_value is not None:
-        try:
-            clear_float = float(clear_value)
-            if clear_float > 1:
-                clear_float /= 100.0
-            return max(0.0, min(1.0, clear_float))
-        except (ValueError, TypeError):
-            pass
+    if clear_fraction is not None:
+        return clear_fraction
 
-    cloud_value = _get_property(
+    cloud_fraction = _property_fraction(
         properties,
         [
             "cloud_cover",
@@ -234,14 +277,8 @@ def _clear_fraction(properties: Dict[str, Any]) -> Optional[float]:
             "pl_cloud_percent",
         ],
     )
-    if cloud_value is not None:
-        try:
-            cloud_fraction = float(cloud_value)
-            if cloud_fraction > 1:
-                cloud_fraction /= 100.0
-            return max(0.0, min(1.0, 1.0 - cloud_fraction))
-        except (ValueError, TypeError):
-            pass
+    if cloud_fraction is not None:
+        return max(0.0, min(1.0, 1.0 - cloud_fraction))
 
     logger = _get_logger()
     logger.warning(
@@ -334,7 +371,11 @@ def _score_candidate(
     min_clear_obs: float,
     azimuth_sigma: float,
     elevation_sigma: float,
+    quality_weight: float,
 ) -> float:
+    quality_multiplier = max(
+        0.0, 1.0 + quality_weight * (candidate.quality_score - 0.5) * 2.0
+    )
     score = 0.0
     for idx in candidate.tile_indexes:
         tile_state = tile_states[idx]
@@ -350,8 +391,125 @@ def _score_candidate(
                 azimuth_sigma,
                 elevation_sigma,
             )
-            score += weight * candidate.clear_fraction * similarity
+            score += (
+                weight * candidate.clear_fraction * similarity * quality_multiplier
+            )
     return score
+
+
+def _passes_quality_filters(
+    properties: Dict[str, Any],
+    *,
+    require_ground_control: bool,
+    quality_category: Optional[str],
+    publishing_stage: Optional[str],
+    max_anomalous_pixels: Optional[float],
+    max_shadow_fraction: Optional[float],
+    max_snow_ice_fraction: Optional[float],
+    max_heavy_haze_fraction: Optional[float],
+    min_visible_confidence: Optional[float],
+    min_clear_confidence: Optional[float],
+    max_view_angle: Optional[float],
+) -> bool:
+    if require_ground_control:
+        ground_control = _bool_or_none(properties.get("ground_control"))
+        if ground_control is not True:
+            return False
+
+    if quality_category:
+        value = properties.get("quality_category")
+        if not isinstance(value, str) or value.strip().lower() != quality_category.lower():
+            return False
+
+    if publishing_stage:
+        value = properties.get("publishing_stage")
+        if not isinstance(value, str) or value.strip().lower() != publishing_stage.lower():
+            return False
+
+    if max_anomalous_pixels is not None:
+        anomalous = _float_or_none(properties.get("anomalous_pixels"))
+        if anomalous is None or anomalous > max_anomalous_pixels:
+            return False
+
+    if max_view_angle is not None:
+        view_angle = _float_or_none(properties.get("view_angle"))
+        if view_angle is None or abs(view_angle) > max_view_angle:
+            return False
+
+    shadow_fraction = _property_percent_fraction(properties, ["shadow_percent"])
+    if max_shadow_fraction is not None and (
+        shadow_fraction is None or shadow_fraction > max_shadow_fraction
+    ):
+        return False
+
+    snow_ice_fraction = _property_percent_fraction(properties, ["snow_ice_percent"])
+    if max_snow_ice_fraction is not None and (
+        snow_ice_fraction is None or snow_ice_fraction > max_snow_ice_fraction
+    ):
+        return False
+
+    heavy_haze_fraction = _property_percent_fraction(properties, ["heavy_haze_percent"])
+    if max_heavy_haze_fraction is not None and (
+        heavy_haze_fraction is None or heavy_haze_fraction > max_heavy_haze_fraction
+    ):
+        return False
+
+    visible_confidence = _property_percent_fraction(
+        properties, ["visible_confidence_percent"]
+    )
+    if min_visible_confidence is not None and (
+        visible_confidence is None or visible_confidence < min_visible_confidence
+    ):
+        return False
+
+    clear_confidence = _property_percent_fraction(properties, ["clear_confidence_percent"])
+    if min_clear_confidence is not None and (
+        clear_confidence is None or clear_confidence < min_clear_confidence
+    ):
+        return False
+
+    return True
+
+
+def _quality_score(properties: Dict[str, Any]) -> float:
+    metrics: List[tuple[float, float]] = []
+
+    visible_confidence = _property_percent_fraction(
+        properties, ["visible_confidence_percent"]
+    )
+    if visible_confidence is not None:
+        metrics.append((0.2, visible_confidence))
+
+    clear_confidence = _property_percent_fraction(properties, ["clear_confidence_percent"])
+    if clear_confidence is not None:
+        metrics.append((0.2, clear_confidence))
+
+    shadow_fraction = _property_percent_fraction(properties, ["shadow_percent"])
+    if shadow_fraction is not None:
+        metrics.append((0.15, max(0.0, min(1.0, 1.0 - shadow_fraction))))
+
+    snow_ice_fraction = _property_percent_fraction(properties, ["snow_ice_percent"])
+    if snow_ice_fraction is not None:
+        metrics.append((0.15, max(0.0, min(1.0, 1.0 - snow_ice_fraction))))
+
+    heavy_haze_fraction = _property_percent_fraction(properties, ["heavy_haze_percent"])
+    if heavy_haze_fraction is not None:
+        metrics.append((0.1, max(0.0, min(1.0, 1.0 - heavy_haze_fraction))))
+
+    view_angle = _float_or_none(properties.get("view_angle"))
+    if view_angle is not None:
+        view_score = math.exp(-((abs(view_angle) / 15.0) ** 2))
+        metrics.append((0.1, view_score))
+
+    gsd = _float_or_none(_get_property(properties, ["gsd", "pixel_resolution"]))
+    if gsd is not None and gsd > 0:
+        gsd_score = math.exp(-((max(0.0, gsd - 3.0) / 1.5) ** 2))
+        metrics.append((0.1, gsd_score))
+
+    if not metrics:
+        return 0.5
+    total_weight = sum(weight for weight, _ in metrics)
+    return sum(weight * value for weight, value in metrics) / total_weight
 
 
 def _apply_candidate(candidate: _Candidate, tile_states: List[_TileState]) -> None:
@@ -396,6 +554,17 @@ def plan_monthly_composites(
     min_clear_obs: float = 3.0,
     azimuth_sigma: float = 20.0,
     elevation_sigma: float = 10.0,
+    require_ground_control: bool = False,
+    quality_category: Optional[str] = None,
+    publishing_stage: Optional[str] = None,
+    max_anomalous_pixels: Optional[float] = None,
+    max_shadow_fraction: Optional[float] = None,
+    max_snow_ice_fraction: Optional[float] = None,
+    max_heavy_haze_fraction: Optional[float] = None,
+    min_visible_confidence: Optional[float] = None,
+    min_clear_confidence: Optional[float] = None,
+    max_view_angle: Optional[float] = None,
+    quality_weight: float = 0.35,
     month_grouping: str = "calendar",
     limit: int | None = None,
     tile_size_m: int = 1000,
@@ -409,6 +578,16 @@ def plan_monthly_composites(
         raise ValueError("Only 'calendar' month grouping is supported.")
     if tile_size_m <= 0:
         raise ValueError("tile_size_m must be positive.")
+    quality_weight = max(0.0, min(1.0, float(quality_weight)))
+    max_shadow_fraction = _normalize_fraction_threshold(max_shadow_fraction)
+    max_snow_ice_fraction = _normalize_fraction_threshold(max_snow_ice_fraction)
+    max_heavy_haze_fraction = _normalize_fraction_threshold(max_heavy_haze_fraction)
+    min_visible_confidence = _normalize_fraction_threshold(min_visible_confidence)
+    min_clear_confidence = _normalize_fraction_threshold(min_clear_confidence)
+    if quality_category is not None and quality_category.lower() == "none":
+        quality_category = None
+    if publishing_stage is not None and publishing_stage.lower() == "none":
+        publishing_stage = None
 
     logger = _get_logger()
     api_key = _require_api_key()
@@ -480,6 +659,17 @@ def plan_monthly_composites(
                 min_clear_obs=min_clear_obs,
                 azimuth_sigma=azimuth_sigma,
                 elevation_sigma=elevation_sigma,
+                require_ground_control=require_ground_control,
+                quality_category=quality_category,
+                publishing_stage=publishing_stage,
+                max_anomalous_pixels=max_anomalous_pixels,
+                max_shadow_fraction=max_shadow_fraction,
+                max_snow_ice_fraction=max_snow_ice_fraction,
+                max_heavy_haze_fraction=max_heavy_haze_fraction,
+                min_visible_confidence=min_visible_confidence,
+                min_clear_confidence=min_clear_confidence,
+                max_view_angle=max_view_angle,
+                quality_weight=quality_weight,
                 limit=limit,
                 filtering_task=filtering_task,
                 optimize_task=optimize_task,
@@ -498,6 +688,17 @@ def plan_monthly_composites(
                 "cloud_max": cloud_max,
                 "sun_elevation_min": sun_elevation_min,
                 "min_clear_fraction": min_clear_fraction,
+                "require_ground_control": require_ground_control,
+                "quality_category": quality_category,
+                "publishing_stage": publishing_stage,
+                "max_anomalous_pixels": max_anomalous_pixels,
+                "max_shadow_fraction": max_shadow_fraction,
+                "max_snow_ice_fraction": max_snow_ice_fraction,
+                "max_heavy_haze_fraction": max_heavy_haze_fraction,
+                "min_visible_confidence": min_visible_confidence,
+                "min_clear_confidence": min_clear_confidence,
+                "max_view_angle": max_view_angle,
+                "quality_weight": quality_weight,
                 "month_start": month_start.isoformat(),
                 "month_end": month_end.isoformat(),
                 "azimuth_sigma": azimuth_sigma,
@@ -533,6 +734,17 @@ def _plan_single_month(
     min_clear_obs: float,
     azimuth_sigma: float,
     elevation_sigma: float,
+    require_ground_control: bool,
+    quality_category: Optional[str],
+    publishing_stage: Optional[str],
+    max_anomalous_pixels: Optional[float],
+    max_shadow_fraction: Optional[float],
+    max_snow_ice_fraction: Optional[float],
+    max_heavy_haze_fraction: Optional[float],
+    min_visible_confidence: Optional[float],
+    min_clear_confidence: Optional[float],
+    max_view_angle: Optional[float],
+    quality_weight: float,
     limit: int | None,
     filtering_task: Optional[int],
     optimize_task: Optional[int],
@@ -621,8 +833,23 @@ def _plan_single_month(
             continue
         if clear_fraction < min_clear_fraction:
             continue
+        if not _passes_quality_filters(
+            properties,
+            require_ground_control=require_ground_control,
+            quality_category=quality_category,
+            publishing_stage=publishing_stage,
+            max_anomalous_pixels=max_anomalous_pixels,
+            max_shadow_fraction=max_shadow_fraction,
+            max_snow_ice_fraction=max_snow_ice_fraction,
+            max_heavy_haze_fraction=max_heavy_haze_fraction,
+            min_visible_confidence=min_visible_confidence,
+            min_clear_confidence=min_clear_confidence,
+            max_view_angle=max_view_angle,
+        ):
+            continue
         sun_azimuth = _float_or_none(properties.get("sun_azimuth"))
         sun_elevation = _float_or_none(properties.get("sun_elevation"))
+        quality_score = _quality_score(properties)
 
         candidates.append(
             _Candidate(
@@ -633,6 +860,7 @@ def _plan_single_month(
                 tile_indexes=tile_indexes,
                 sun_azimuth=sun_azimuth,
                 sun_elevation=sun_elevation,
+                quality_score=quality_score,
             )
         )
         if progress:
@@ -666,6 +894,7 @@ def _plan_single_month(
                 min_clear_obs,
                 azimuth_sigma,
                 elevation_sigma,
+                quality_weight,
             )
             if score > best_score:
                 best_candidate = candidate
@@ -726,6 +955,21 @@ def _plan_single_month(
                 "sun_elevation": candidate.properties.get("sun_elevation"),
                 "sun_azimuth": candidate.properties.get("sun_azimuth"),
                 "acquired": candidate.properties.get("acquired"),
+                "visible_confidence_percent": candidate.properties.get(
+                    "visible_confidence_percent"
+                ),
+                "clear_confidence_percent": candidate.properties.get(
+                    "clear_confidence_percent"
+                ),
+                "shadow_percent": candidate.properties.get("shadow_percent"),
+                "snow_ice_percent": candidate.properties.get("snow_ice_percent"),
+                "heavy_haze_percent": candidate.properties.get("heavy_haze_percent"),
+                "view_angle": candidate.properties.get("view_angle"),
+                "ground_control": candidate.properties.get("ground_control"),
+                "quality_category": candidate.properties.get("quality_category"),
+                "publishing_stage": candidate.properties.get("publishing_stage"),
+                "anomalous_pixels": candidate.properties.get("anomalous_pixels"),
+                "gsd": candidate.properties.get("gsd"),
             },
         }
         for candidate in selected
@@ -836,6 +1080,62 @@ def build_plan_parser() -> argparse.ArgumentParser:
         type=float,
         default=10.0,
         help="Gaussian sigma in degrees for sun elevation similarity penalty (default: 10).",
+    )
+    parser.add_argument(
+        "--require-ground-control",
+        action="store_true",
+        help="Require ground_control=true metadata for candidate scenes.",
+    )
+    parser.add_argument(
+        "--quality-category",
+        default="none",
+        help="Require a specific quality_category value (default: none).",
+    )
+    parser.add_argument(
+        "--publishing-stage",
+        default="none",
+        help="Require a specific publishing_stage value (default: none).",
+    )
+    parser.add_argument(
+        "--max-anomalous-pixels",
+        type=float,
+        help="Maximum anomalous_pixels allowed per scene (for example 0).",
+    )
+    parser.add_argument(
+        "--max-shadow",
+        type=float,
+        help="Maximum shadow fraction (0-1 or 0-100).",
+    )
+    parser.add_argument(
+        "--max-snow-ice",
+        type=float,
+        help="Maximum snow/ice fraction (0-1 or 0-100).",
+    )
+    parser.add_argument(
+        "--max-heavy-haze",
+        type=float,
+        help="Maximum heavy haze fraction (0-1 or 0-100).",
+    )
+    parser.add_argument(
+        "--min-visible-confidence",
+        type=float,
+        help="Minimum visible confidence fraction (0-1 or 0-100).",
+    )
+    parser.add_argument(
+        "--min-clear-confidence",
+        type=float,
+        help="Minimum clear confidence fraction (0-1 or 0-100).",
+    )
+    parser.add_argument(
+        "--max-view-angle",
+        type=float,
+        help="Maximum absolute view angle in degrees.",
+    )
+    parser.add_argument(
+        "--quality-weight",
+        type=float,
+        default=0.35,
+        help="Weight [0-1] for quality metadata in candidate ranking (default: 0.35).",
     )
     parser.add_argument(
         "--tile-size-m",
@@ -983,6 +1283,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     else:
         instrument_filters = None
 
+    quality_category = args.quality_category
+    if quality_category and quality_category.lower() == "none":
+        quality_category = None
+    publishing_stage = args.publishing_stage
+    if publishing_stage and publishing_stage.lower() == "none":
+        publishing_stage = None
+
     plan = plan_monthly_composites(
         aoi_path=args.aoi,
         start_date=args.start,
@@ -998,6 +1305,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         min_clear_obs=args.min_clear_obs,
         azimuth_sigma=args.azimuth_sigma,
         elevation_sigma=args.elevation_sigma,
+        require_ground_control=args.require_ground_control,
+        quality_category=quality_category,
+        publishing_stage=publishing_stage,
+        max_anomalous_pixels=args.max_anomalous_pixels,
+        max_shadow_fraction=args.max_shadow,
+        max_snow_ice_fraction=args.max_snow_ice,
+        max_heavy_haze_fraction=args.max_heavy_haze,
+        min_visible_confidence=args.min_visible_confidence,
+        min_clear_confidence=args.min_clear_confidence,
+        max_view_angle=args.max_view_angle,
+        quality_weight=args.quality_weight,
         month_grouping="calendar",
         limit=args.limit,
         tile_size_m=args.tile_size_m,

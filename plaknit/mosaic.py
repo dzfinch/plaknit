@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 import logging
 import math
 import os
+import re
 import sqlite3
 import shutil
 import subprocess
@@ -164,8 +165,10 @@ def _scene_key(path: Path) -> str:
 
 def _parse_iso_datetime(value: str) -> datetime:
     normalized = value.strip()
-    if normalized.endswith("Z"):
+    if normalized.endswith(("Z", "z")):
         normalized = normalized[:-1] + "+00:00"
+    normalized = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", normalized)
+    normalized = re.sub(r"\.(\d{6})\d+(?=(?:[+-]\d{2}:\d{2})?$)", r".\1", normalized)
     parsed = datetime.fromisoformat(normalized)
     if parsed.tzinfo is not None:
         parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
@@ -321,6 +324,26 @@ def _extract_bbox_from_metadata(
         bbox_from_geom = _extract_bbox_from_coordinates(coordinates)
         if bbox_from_geom is not None:
             return bbox_from_geom
+
+    features = metadata.get("features")
+    if isinstance(features, list):
+        for feature in features:
+            if not isinstance(feature, dict):
+                continue
+            feature_bbox = feature.get("bbox")
+            if isinstance(feature_bbox, list) and len(feature_bbox) >= 4:
+                return (
+                    float(feature_bbox[0]),
+                    float(feature_bbox[1]),
+                    float(feature_bbox[2]),
+                    float(feature_bbox[3]),
+                )
+            feature_geometry = feature.get("geometry")
+            if isinstance(feature_geometry, dict):
+                coordinates = feature_geometry.get("coordinates")
+                bbox_from_geom = _extract_bbox_from_coordinates(coordinates)
+                if bbox_from_geom is not None:
+                    return bbox_from_geom
 
     return None
 
@@ -606,12 +629,28 @@ class MosaicWorkflow:
         if not isinstance(properties, dict):
             properties = {}
 
-        candidates = (
+        candidates = [
             properties.get("acquired"),
             properties.get("datetime"),
             metadata.get("acquired"),
             metadata.get("datetime"),
-        )
+        ]
+        features = metadata.get("features")
+        if isinstance(features, list):
+            for feature in features:
+                if not isinstance(feature, dict):
+                    continue
+                feature_properties = feature.get("properties")
+                if not isinstance(feature_properties, dict):
+                    feature_properties = {}
+                candidates.extend(
+                    [
+                        feature_properties.get("acquired"),
+                        feature_properties.get("datetime"),
+                        feature.get("acquired"),
+                        feature.get("datetime"),
+                    ]
+                )
         for candidate in candidates:
             if isinstance(candidate, str) and candidate.strip():
                 try:
@@ -620,7 +659,8 @@ class MosaicWorkflow:
                     continue
 
         raise ValueError(
-            f"Metadata '{metadata_path}' is missing a parseable acquisition datetime."
+            f"Metadata '{metadata_path}' is missing a parseable acquisition datetime "
+            "(expected acquired/datetime in metadata properties)."
         )
 
     def _match_metadata_to_rasters(

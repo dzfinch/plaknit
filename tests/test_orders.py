@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from shapely.geometry import box, shape
 
@@ -45,6 +47,29 @@ class _AccessErrorOrdersClient:
         return {"id": "order-success"}
 
 
+class _FakeStacItem:
+    def __init__(self, item_id: str, properties: dict):
+        self.id = item_id
+        self.properties = properties
+        self.collection_id = "PSScene"
+
+
+class _FakeStacSearch:
+    def __init__(self, items):
+        self._items = items
+
+    def items(self):
+        return iter(self._items)
+
+
+class _FakeStacClient:
+    def __init__(self, items):
+        self._items = items
+
+    def search(self, **kwargs):
+        return _FakeStacSearch(self._items)
+
+
 def test_submit_orders_for_plan_builds_correct_request(monkeypatch):
     plan = {
         "2024-01": {
@@ -63,6 +88,7 @@ def test_submit_orders_for_plan_builds_correct_request(monkeypatch):
         orders, "load_aoi_geometry", lambda path: (fake_geom, "EPSG:4326")
     )
     monkeypatch.setattr(orders, "reproject_geometry", lambda geom, src, dst: geom)
+    monkeypatch.setattr(orders, "_open_planet_stac_client", lambda key: _FakeStacClient([]))
 
     fake_client = _FakeOrdersClient()
 
@@ -113,6 +139,7 @@ def test_submit_orders_drops_inaccessible_scenes(monkeypatch):
         orders, "load_aoi_geometry", lambda path: (fake_geom, "EPSG:4326")
     )
     monkeypatch.setattr(orders, "reproject_geometry", lambda geom, src, dst: geom)
+    monkeypatch.setattr(orders, "_open_planet_stac_client", lambda key: _FakeStacClient([]))
 
     fake_client = _AccessErrorOrdersClient()
 
@@ -172,10 +199,10 @@ def test_clip_geojson_simplifies_when_vertex_count_exceeds_limit(monkeypatch):
     assert shape(geojson).equals(simplified_geom)
 
 
-def test_order_cli_reads_plan_and_submits(monkeypatch, tmp_path):
+def test_order_cli_reads_plan_and_submits(monkeypatch):
     plan = {"2024-01": {"items": [{"id": "item-1"}]}}
-    plan_path = tmp_path / "plan.geojson"
-    plan_path.write_text(json.dumps(plan))
+    plan_path = Path.cwd() / f"test_plan_{uuid4().hex}.geojson"
+    plan_path.write_text(json.dumps(plan), encoding="utf-8")
 
     captured: dict[str, Any] = {}
 
@@ -185,23 +212,29 @@ def test_order_cli_reads_plan_and_submits(monkeypatch, tmp_path):
 
     monkeypatch.setattr(orders, "submit_orders_for_plan", fake_submit)
 
-    exit_code = orders.main(
-        [
-            "--plan",
-            str(plan_path),
-            "--aoi",
-            "aoi.geojson",
-            "--sr-bands",
-            "8",
-            "--harmonize-to",
-            "none",
-            "--order-prefix",
-            "demo",
-            "--archive-type",
-            "tar",
-            "--no-single-archive",
-        ]
-    )
+    try:
+        exit_code = orders.main(
+            [
+                "--plan",
+                str(plan_path),
+                "--aoi",
+                "aoi.geojson",
+                "--sr-bands",
+                "8",
+                "--harmonize-to",
+                "none",
+                "--order-prefix",
+                "demo",
+                "--archive-type",
+                "tar",
+                "--no-single-archive",
+            ]
+        )
+    finally:
+        try:
+            plan_path.unlink()
+        except FileNotFoundError:
+            pass
 
     assert exit_code == 0
     assert captured["plan"] == plan
@@ -211,3 +244,49 @@ def test_order_cli_reads_plan_and_submits(monkeypatch, tmp_path):
     assert captured["order_prefix"] == "demo"
     assert captured["archive_type"] == "tar"
     assert captured["single_archive"] is False
+
+
+def test_find_replacement_items_applies_quality_filters():
+    plan_entry = {
+        "filters": {
+            "item_type": "PSScene",
+            "month_start": "2024-01-01",
+            "month_end": "2024-01-31",
+            "min_clear_fraction": 0.5,
+            "require_ground_control": True,
+            "max_shadow_fraction": 0.05,
+            "quality_weight": 0.5,
+        }
+    }
+    items = [
+        _FakeStacItem(
+            "good",
+            {
+                "clear_percent": 96,
+                "cloud_cover": 0.04,
+                "ground_control": True,
+                "shadow_percent": 1,
+            },
+        ),
+        _FakeStacItem(
+            "bad-shadow",
+            {
+                "clear_percent": 99,
+                "cloud_cover": 0.01,
+                "ground_control": True,
+                "shadow_percent": 40,
+            },
+        ),
+    ]
+    stac_client = _FakeStacClient(items)
+
+    replacements = orders._find_replacement_items(
+        stac_client=stac_client,
+        plan_entry=plan_entry,
+        month="2024-01",
+        aoi_geojson={"type": "Polygon", "coordinates": []},
+        desired_count=2,
+        exclude_ids=set(),
+    )
+
+    assert [item["id"] for item in replacements] == ["good"]

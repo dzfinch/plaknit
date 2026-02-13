@@ -7,6 +7,7 @@ import asyncio
 import copy
 import json
 import logging
+import math
 import os
 import warnings
 from base64 import b64encode
@@ -211,6 +212,179 @@ def _clear_fraction(properties: Dict[str, Any]) -> Optional[float]:
     return None
 
 
+def _get_property(properties: Dict[str, Any], keys: Sequence[str]) -> Any:
+    for key in keys:
+        if key in properties and properties[key] not in (None, ""):
+            return properties[key]
+    return None
+
+
+def _float_or_none(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _bool_or_none(value: Any) -> Optional[bool]:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "y"}:
+            return True
+        if normalized in {"false", "0", "no", "n"}:
+            return False
+    return None
+
+
+def _normalized_fraction(value: Any) -> Optional[float]:
+    parsed = _float_or_none(value)
+    if parsed is None:
+        return None
+    if parsed > 1:
+        parsed /= 100.0
+    return max(0.0, min(1.0, parsed))
+
+
+def _property_fraction(properties: Dict[str, Any], keys: Sequence[str]) -> Optional[float]:
+    return _normalized_fraction(_get_property(properties, keys))
+
+
+def _normalized_percent(value: Any) -> Optional[float]:
+    parsed = _float_or_none(value)
+    if parsed is None:
+        return None
+    if parsed >= 1:
+        parsed /= 100.0
+    return max(0.0, min(1.0, parsed))
+
+
+def _property_percent_fraction(
+    properties: Dict[str, Any], keys: Sequence[str]
+) -> Optional[float]:
+    return _normalized_percent(_get_property(properties, keys))
+
+
+def _passes_quality_filters(
+    properties: Dict[str, Any],
+    *,
+    require_ground_control: bool,
+    quality_category: Optional[str],
+    publishing_stage: Optional[str],
+    max_anomalous_pixels: Optional[float],
+    max_shadow_fraction: Optional[float],
+    max_snow_ice_fraction: Optional[float],
+    max_heavy_haze_fraction: Optional[float],
+    min_visible_confidence: Optional[float],
+    min_clear_confidence: Optional[float],
+    max_view_angle: Optional[float],
+) -> bool:
+    if require_ground_control:
+        ground_control = _bool_or_none(properties.get("ground_control"))
+        if ground_control is not True:
+            return False
+
+    if quality_category:
+        value = properties.get("quality_category")
+        if not isinstance(value, str) or value.strip().lower() != quality_category.lower():
+            return False
+
+    if publishing_stage:
+        value = properties.get("publishing_stage")
+        if not isinstance(value, str) or value.strip().lower() != publishing_stage.lower():
+            return False
+
+    if max_anomalous_pixels is not None:
+        anomalous = _float_or_none(properties.get("anomalous_pixels"))
+        if anomalous is None or anomalous > max_anomalous_pixels:
+            return False
+
+    if max_view_angle is not None:
+        view_angle = _float_or_none(properties.get("view_angle"))
+        if view_angle is None or abs(view_angle) > max_view_angle:
+            return False
+
+    shadow_fraction = _property_percent_fraction(properties, ["shadow_percent"])
+    if max_shadow_fraction is not None and (
+        shadow_fraction is None or shadow_fraction > max_shadow_fraction
+    ):
+        return False
+
+    snow_ice_fraction = _property_percent_fraction(properties, ["snow_ice_percent"])
+    if max_snow_ice_fraction is not None and (
+        snow_ice_fraction is None or snow_ice_fraction > max_snow_ice_fraction
+    ):
+        return False
+
+    heavy_haze_fraction = _property_percent_fraction(properties, ["heavy_haze_percent"])
+    if max_heavy_haze_fraction is not None and (
+        heavy_haze_fraction is None or heavy_haze_fraction > max_heavy_haze_fraction
+    ):
+        return False
+
+    visible_confidence = _property_percent_fraction(
+        properties, ["visible_confidence_percent"]
+    )
+    if min_visible_confidence is not None and (
+        visible_confidence is None or visible_confidence < min_visible_confidence
+    ):
+        return False
+
+    clear_confidence = _property_percent_fraction(properties, ["clear_confidence_percent"])
+    if min_clear_confidence is not None and (
+        clear_confidence is None or clear_confidence < min_clear_confidence
+    ):
+        return False
+
+    return True
+
+
+def _quality_score(properties: Dict[str, Any]) -> float:
+    metrics: List[tuple[float, float]] = []
+
+    visible_confidence = _property_percent_fraction(
+        properties, ["visible_confidence_percent"]
+    )
+    if visible_confidence is not None:
+        metrics.append((0.2, visible_confidence))
+
+    clear_confidence = _property_percent_fraction(properties, ["clear_confidence_percent"])
+    if clear_confidence is not None:
+        metrics.append((0.2, clear_confidence))
+
+    shadow_fraction = _property_percent_fraction(properties, ["shadow_percent"])
+    if shadow_fraction is not None:
+        metrics.append((0.15, max(0.0, min(1.0, 1.0 - shadow_fraction))))
+
+    snow_ice_fraction = _property_percent_fraction(properties, ["snow_ice_percent"])
+    if snow_ice_fraction is not None:
+        metrics.append((0.15, max(0.0, min(1.0, 1.0 - snow_ice_fraction))))
+
+    heavy_haze_fraction = _property_percent_fraction(properties, ["heavy_haze_percent"])
+    if heavy_haze_fraction is not None:
+        metrics.append((0.1, max(0.0, min(1.0, 1.0 - heavy_haze_fraction))))
+
+    view_angle = _float_or_none(properties.get("view_angle"))
+    if view_angle is not None:
+        view_score = math.exp(-((abs(view_angle) / 15.0) ** 2))
+        metrics.append((0.1, view_score))
+
+    gsd = _float_or_none(_get_property(properties, ["gsd", "pixel_resolution"]))
+    if gsd is not None and gsd > 0:
+        gsd_score = math.exp(-((max(0.0, gsd - 3.0) / 1.5) ** 2))
+        metrics.append((0.1, gsd_score))
+
+    if not metrics:
+        return 0.5
+    total_weight = sum(weight for weight, _ in metrics)
+    return sum(weight * value for weight, value in metrics) / total_weight
+
+
 def _find_replacement_items(
     *,
     stac_client: Client,
@@ -231,7 +405,25 @@ def _find_replacement_items(
     cloud_max = filters.get("cloud_max")
     sun_elevation_min = filters.get("sun_elevation_min")
     min_clear_fraction = filters.get("min_clear_fraction", 0.0) or 0.0
+    require_ground_control = bool(filters.get("require_ground_control", False))
+    quality_category = filters.get("quality_category")
+    publishing_stage = filters.get("publishing_stage")
+    max_anomalous_pixels = filters.get("max_anomalous_pixels")
+    max_shadow_fraction = _normalized_fraction(filters.get("max_shadow_fraction"))
+    max_snow_ice_fraction = _normalized_fraction(filters.get("max_snow_ice_fraction"))
+    max_heavy_haze_fraction = _normalized_fraction(filters.get("max_heavy_haze_fraction"))
+    min_visible_confidence = _normalized_fraction(filters.get("min_visible_confidence"))
+    min_clear_confidence = _normalized_fraction(filters.get("min_clear_confidence"))
+    max_view_angle = _float_or_none(filters.get("max_view_angle"))
+    quality_weight = _float_or_none(filters.get("quality_weight"))
+    if quality_weight is None:
+        quality_weight = 0.35
+    quality_weight = max(0.0, min(1.0, quality_weight))
     limit = filters.get("limit")
+    if isinstance(quality_category, str) and quality_category.lower() == "none":
+        quality_category = None
+    if isinstance(publishing_stage, str) and publishing_stage.lower() == "none":
+        publishing_stage = None
 
     item_collections = [collection] if collection else [item_type]
     query: Dict[str, Any] = {}
@@ -261,7 +453,7 @@ def _find_replacement_items(
         query=query,
         max_items=limit,
     )
-    candidates: List[tuple[float, Any]] = []
+    candidates: List[tuple[float, float, Any]] = []
     for item in search.items():
         if item.id in exclude_ids:
             continue
@@ -270,11 +462,28 @@ def _find_replacement_items(
         clear_fraction = _clear_fraction(properties)
         if clear_fraction is None or clear_fraction < min_clear_fraction:
             continue
-        candidates.append((clear_fraction, item))
+        if not _passes_quality_filters(
+            properties,
+            require_ground_control=require_ground_control,
+            quality_category=quality_category,
+            publishing_stage=publishing_stage,
+            max_anomalous_pixels=_float_or_none(max_anomalous_pixels),
+            max_shadow_fraction=max_shadow_fraction,
+            max_snow_ice_fraction=max_snow_ice_fraction,
+            max_heavy_haze_fraction=max_heavy_haze_fraction,
+            min_visible_confidence=min_visible_confidence,
+            min_clear_confidence=min_clear_confidence,
+            max_view_angle=max_view_angle,
+        ):
+            continue
+        quality_score = _quality_score(properties)
+        quality_multiplier = max(0.0, 1.0 + quality_weight * (quality_score - 0.5) * 2.0)
+        combined_score = clear_fraction * quality_multiplier
+        candidates.append((combined_score, clear_fraction, item))
 
-    candidates.sort(key=lambda pair: pair[0], reverse=True)
+    candidates.sort(key=lambda pair: (pair[0], pair[1]), reverse=True)
     replacements: List[Dict[str, Any]] = []
-    for clear_fraction, item in candidates[:desired_count]:
+    for _, clear_fraction, item in candidates[:desired_count]:
         replacements.append(
             {
                 "id": item.id,
@@ -286,6 +495,21 @@ def _find_replacement_items(
                     "sun_elevation": item.properties.get("sun_elevation"),
                     "sun_azimuth": item.properties.get("sun_azimuth"),
                     "acquired": item.properties.get("acquired"),
+                    "visible_confidence_percent": item.properties.get(
+                        "visible_confidence_percent"
+                    ),
+                    "clear_confidence_percent": item.properties.get(
+                        "clear_confidence_percent"
+                    ),
+                    "shadow_percent": item.properties.get("shadow_percent"),
+                    "snow_ice_percent": item.properties.get("snow_ice_percent"),
+                    "heavy_haze_percent": item.properties.get("heavy_haze_percent"),
+                    "view_angle": item.properties.get("view_angle"),
+                    "ground_control": item.properties.get("ground_control"),
+                    "quality_category": item.properties.get("quality_category"),
+                    "publishing_stage": item.properties.get("publishing_stage"),
+                    "anomalous_pixels": item.properties.get("anomalous_pixels"),
+                    "gsd": item.properties.get("gsd"),
                 },
             }
         )
