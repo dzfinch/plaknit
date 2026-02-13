@@ -148,3 +148,32 @@ def test_construct_harmoni_graph_applies_overlap_and_time_filters():
     assert 0 in graph[1]
     assert graph[0][1] > 0.0
     assert graph[2] == {}
+
+
+def test_collect_projection_info_falls_back_to_native_center(monkeypatch, caplog):
+    class _FakeDataset:
+        def __init__(self):
+            self.crs = CRS.from_epsg(32631)
+            self.bounds = (10.0, 20.0, 30.0, 60.0)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(mosaic.rasterio, "open", lambda path: _FakeDataset())
+    monkeypatch.setattr(
+        mosaic,
+        "transform_bounds",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("bad wkt")),
+    )
+
+    workflow = mosaic.MosaicWorkflow(
+        mosaic.MosaicJob(inputs=["in.tif"], output="out.tif")
+    )
+    with caplog.at_level("WARNING", logger="plaknit.mosaic"):
+        projections = workflow._collect_projection_info(["in.tif"])
+
+    assert projections[0].center_lonlat == (20.0, 40.0)
+    assert "using native bounds center for CRS tie-breaking" in caplog.text
