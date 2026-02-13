@@ -64,6 +64,12 @@ def test_parse_iso_datetime_accepts_no_colon_tz_and_long_fraction():
     assert parsed == datetime(2023, 3, 1, 6, 53, 48, 52582)
 
 
+def test_parse_iso_datetime_accepts_short_fraction_with_z_suffix():
+    parsed = mosaic._parse_iso_datetime("2023-03-01T06:53:52.42882Z")
+
+    assert parsed == datetime(2023, 3, 1, 6, 53, 52, 428820)
+
+
 def test_choose_target_projection_rejects_invalid_override():
     projections = [_projection("a.tif", 32631, 1.0, 1.0)]
 

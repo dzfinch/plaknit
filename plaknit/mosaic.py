@@ -168,6 +168,15 @@ def _parse_iso_datetime(value: str) -> datetime:
     if normalized.endswith(("Z", "z")):
         normalized = normalized[:-1] + "+00:00"
     normalized = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", normalized)
+    fraction_match = re.search(r"\.(\d+)(?=(?:[+-]\d{2}:\d{2})?$)", normalized)
+    if fraction_match:
+        fraction = fraction_match.group(1)
+        if len(fraction) < 6:
+            normalized = (
+                normalized[: fraction_match.start(1)]
+                + fraction.ljust(6, "0")
+                + normalized[fraction_match.end(1) :]
+            )
     normalized = re.sub(r"\.(\d{6})\d+(?=(?:[+-]\d{2}:\d{2})?$)", r".\1", normalized)
     parsed = datetime.fromisoformat(normalized)
     if parsed.tzinfo is not None:
