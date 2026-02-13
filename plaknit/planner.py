@@ -211,7 +211,9 @@ def _iterate_windows(
         return
     if grouping == "fixed":
         if window_days is None or window_days <= 0:
-            raise ValueError("window_days must be a positive integer for fixed grouping.")
+            raise ValueError(
+                "window_days must be a positive integer for fixed grouping."
+            )
         current = start
         while current <= end:
             window_end = min(end, current + timedelta(days=window_days - 1))
@@ -913,12 +915,18 @@ def _plan_single_month(
             "clear_fraction": candidate.clear_fraction,
             "properties": {
                 "cloud_cover": _get_property(candidate.properties, CLOUD_COVER_KEYS),
-                "clear_percent": _get_property(candidate.properties, CLEAR_FRACTION_KEYS),
-                "sun_elevation": _get_property(candidate.properties, SUN_ELEVATION_KEYS),
+                "clear_percent": _get_property(
+                    candidate.properties, CLEAR_FRACTION_KEYS
+                ),
+                "sun_elevation": _get_property(
+                    candidate.properties, SUN_ELEVATION_KEYS
+                ),
                 "sun_azimuth": _get_property(candidate.properties, SUN_AZIMUTH_KEYS),
                 "acquired": _get_property(candidate.properties, ACQUIRED_KEYS),
                 "view_angle": _get_property(candidate.properties, VIEW_ANGLE_KEYS),
-                "ground_control": _get_property(candidate.properties, GROUND_CONTROL_KEYS),
+                "ground_control": _get_property(
+                    candidate.properties, GROUND_CONTROL_KEYS
+                ),
                 "quality_category": _get_property(
                     candidate.properties, QUALITY_CATEGORY_KEYS
                 ),
@@ -1185,7 +1193,9 @@ def parse_plan_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if args.grouping == "fixed":
         if args.window_days is None or args.window_days <= 0:
-            parser.error("--window-days must be a positive integer when --grouping fixed.")
+            parser.error(
+                "--window-days must be a positive integer when --grouping fixed."
+            )
     elif args.window_days is not None:
         parser.error("--window-days is only valid when --grouping fixed.")
     if (
@@ -1206,7 +1216,9 @@ def _harmonize_display(value: str) -> str:
     return "-"
 
 
-def _order_id_for_window(order_results: Dict[str, Dict[str, Any]], window_key: str) -> str:
+def _order_id_for_window(
+    order_results: Dict[str, Dict[str, Any]], window_key: str
+) -> str:
     if window_key not in order_results:
         return "-"
     order_id = order_results[window_key].get("order_id")

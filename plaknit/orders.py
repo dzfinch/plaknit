@@ -47,7 +47,10 @@ CLEAR_FRACTION_KEYS = (
 SUN_ELEVATION_KEYS = ("view:sun_elevation", "sun_elevation")
 SUN_AZIMUTH_KEYS = ("view:sun_azimuth", "sun_azimuth")
 ACQUIRED_KEYS = ("datetime", "acquired")
-VISIBLE_CONFIDENCE_KEYS = ("pl:visible_confidence_percent", "visible_confidence_percent")
+VISIBLE_CONFIDENCE_KEYS = (
+    "pl:visible_confidence_percent",
+    "visible_confidence_percent",
+)
 CLEAR_CONFIDENCE_KEYS = ("pl:clear_confidence_percent", "clear_confidence_percent")
 SHADOW_PERCENT_KEYS = ("pl:shadow_percent", "shadow_percent")
 SNOW_ICE_PERCENT_KEYS = ("pl:snow_ice_percent", "snow_ice_percent")
@@ -350,7 +353,9 @@ def _passes_quality_filters(
     ):
         return False
 
-    heavy_haze_fraction = _property_percent_fraction(properties, HEAVY_HAZE_PERCENT_KEYS)
+    heavy_haze_fraction = _property_percent_fraction(
+        properties, HEAVY_HAZE_PERCENT_KEYS
+    )
     if max_heavy_haze_fraction is not None and (
         heavy_haze_fraction is None or heavy_haze_fraction > max_heavy_haze_fraction
     ):
@@ -474,12 +479,16 @@ def _find_replacement_items(
                 "clear_fraction": clear_fraction,
                 "properties": {
                     "cloud_cover": _get_property(item.properties, CLOUD_COVER_KEYS),
-                    "clear_percent": _get_property(item.properties, CLEAR_FRACTION_KEYS),
+                    "clear_percent": _get_property(
+                        item.properties, CLEAR_FRACTION_KEYS
+                    ),
                     "sun_elevation": _get_property(item.properties, SUN_ELEVATION_KEYS),
                     "sun_azimuth": _get_property(item.properties, SUN_AZIMUTH_KEYS),
                     "acquired": _get_property(item.properties, ACQUIRED_KEYS),
                     "view_angle": _get_property(item.properties, VIEW_ANGLE_KEYS),
-                    "ground_control": _get_property(item.properties, GROUND_CONTROL_KEYS),
+                    "ground_control": _get_property(
+                        item.properties, GROUND_CONTROL_KEYS
+                    ),
                     "quality_category": _get_property(
                         item.properties, QUALITY_CATEGORY_KEYS
                     ),
