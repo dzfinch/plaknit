@@ -100,6 +100,17 @@ def _normalize_crs_label(crs: CRS) -> str:
     return crs.to_string()
 
 
+def _canonicalize_crs(crs: CRS) -> CRS:
+    """Prefer official EPSG definitions when possible."""
+    epsg = crs.to_epsg()
+    if epsg is None:
+        return crs
+    try:
+        return CRS.from_epsg(epsg)
+    except Exception:
+        return crs
+
+
 def _choose_target_projection(
     projections: Sequence[ProjectionInfo], requested_crs: Optional[str]
 ) -> CRS:
@@ -293,6 +304,7 @@ class MosaicWorkflow:
         if job.add_ndvi and job.sr_bands not in (4, 8):
             raise ValueError("sr_bands must be 4 or 8 when --ndvi is requested.")
 
+        self._configure_environment()
         inputs = self._expand(job.inputs, label="inputs")
         tmpdir = self._prepare_tmpdir()
         with self._progress(enabled=self.log.isEnabledFor(logging.INFO)) as progress:
@@ -340,7 +352,6 @@ class MosaicWorkflow:
                     masked_paths, tmpdir, progress, projection_task
                 )
                 self._prepare_output_directory()
-                self._configure_environment()
 
                 # Binary mask prep is handled inside OTB; mark as ready before launch.
                 if progress and prep_task is not None:
@@ -406,6 +417,26 @@ class MosaicWorkflow:
         jobs = max(1, self.job.jobs)
         os.environ.setdefault("ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS", str(jobs))
         os.environ.setdefault("OTB_MAX_RAM_HINT", str(self.job.ram))
+        os.environ.setdefault("GTIFF_SRS_SOURCE", "EPSG")
+
+    def _center_lonlat_for_bounds(
+        self, path: Path, crs: CRS, bounds: Tuple[float, float, float, float]
+    ) -> Tuple[float, float]:
+        try:
+            with rasterio.Env(GTIFF_SRS_SOURCE="EPSG"):
+                left, bottom, right, top = transform_bounds(
+                    _canonicalize_crs(crs), "EPSG:4326", *bounds, densify_pts=21
+                )
+            return ((left + right) / 2.0, (bottom + top) / 2.0)
+        except Exception as exc:
+            self.log.warning(
+                "Could not transform bounds to EPSG:4326 for '%s' (%s); "
+                "using native bounds center for CRS tie-breaking.",
+                path,
+                exc,
+            )
+            left, bottom, right, top = bounds
+            return ((left + right) / 2.0, (bottom + top) / 2.0)
 
     def _mask_inputs(
         self,
@@ -551,9 +582,23 @@ class MosaicWorkflow:
             bbox = _extract_bbox_from_metadata(metadata)
             if bbox is None:
                 with rasterio.open(raster) as dataset:
-                    bbox = transform_bounds(
-                        dataset.crs, "EPSG:4326", *dataset.bounds, densify_pts=21
-                    )
+                    if dataset.crs is None:
+                        raise ValueError(
+                            f"Input raster '{raster}' has no CRS metadata and cannot be used."
+                        )
+                    dataset_crs = _canonicalize_crs(dataset.crs)
+                    try:
+                        with rasterio.Env(GTIFF_SRS_SOURCE="EPSG"):
+                            bbox = transform_bounds(
+                                dataset_crs,
+                                "EPSG:4326",
+                                *dataset.bounds,
+                                densify_pts=21,
+                            )
+                    except Exception as exc:
+                        raise ValueError(
+                            f"Unable to derive WGS84 bounds from '{raster}'."
+                        ) from exc
             area = _bbox_area(bbox)
             if area <= 0.0:
                 raise ValueError(
@@ -747,9 +792,14 @@ class MosaicWorkflow:
                 return None
 
             try:
-                source_bounds_in_ref = transform_bounds(
-                    src.crs, ref.crs, *src.bounds, densify_pts=21
-                )
+                if src.crs is None or ref.crs is None:
+                    return None
+                src_crs = _canonicalize_crs(src.crs)
+                ref_crs = _canonicalize_crs(ref.crs)
+                with rasterio.Env(GTIFF_SRS_SOURCE="EPSG"):
+                    source_bounds_in_ref = transform_bounds(
+                        src_crs, ref_crs, *src.bounds, densify_pts=21
+                    )
             except Exception:
                 return None
 
@@ -943,15 +993,15 @@ class MosaicWorkflow:
                         f"Input raster '{path}' has no CRS metadata and cannot be mosaicked."
                     )
 
-                left, bottom, right, top = transform_bounds(
-                    src.crs, "EPSG:4326", *src.bounds, densify_pts=21
+                canonical_crs = _canonicalize_crs(src.crs)
+                center = self._center_lonlat_for_bounds(
+                    path, canonical_crs, tuple(src.bounds)
                 )
-                center = ((left + right) / 2.0, (bottom + top) / 2.0)
                 projections.append(
                     ProjectionInfo(
                         path=path,
-                        crs=src.crs,
-                        label=_normalize_crs_label(src.crs),
+                        crs=canonical_crs,
+                        label=_normalize_crs_label(canonical_crs),
                         center_lonlat=center,
                     )
                 )
