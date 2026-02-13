@@ -204,7 +204,9 @@ def test_construct_harmoni_graph_applies_overlap_and_time_filters():
 
 
 def test_chain_levels_respect_parent_child_dependencies():
-    workflow = mosaic.MosaicWorkflow(mosaic.MosaicJob(inputs=["in.tif"], output="out.tif"))
+    workflow = mosaic.MosaicWorkflow(
+        mosaic.MosaicJob(inputs=["in.tif"], output="out.tif")
+    )
     chain = [
         (0, 1, 0.9),
         (0, 2, 0.8),
@@ -266,8 +268,14 @@ def test_harmonize_radiometry_parallelizes_edges_with_ready_parents(monkeypatch)
     ]
 
     monkeypatch.setattr(workflow, "_expand_jsons", lambda entries, label: ["meta.json"])
-    monkeypatch.setattr(workflow, "_load_harmoni_scenes", lambda rasters, metadata: scenes)
-    monkeypatch.setattr(workflow, "_construct_harmoni_graph", lambda _scenes: {0: {}, 1: {}, 2: {}, 3: {}})
+    monkeypatch.setattr(
+        workflow, "_load_harmoni_scenes", lambda rasters, metadata: scenes
+    )
+    monkeypatch.setattr(
+        workflow,
+        "_construct_harmoni_graph",
+        lambda _scenes: {0: {}, 1: {}, 2: {}, 3: {}},
+    )
     monkeypatch.setattr(workflow, "_graph_components", lambda graph: [{0, 1, 2, 3}])
     monkeypatch.setattr(
         workflow,
