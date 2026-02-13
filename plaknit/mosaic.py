@@ -1132,12 +1132,19 @@ class MosaicWorkflow:
         self.log.debug("Reprojecting raster with command: %s", " ".join(cmd))
         subprocess.run(cmd, check=True)
 
-    def _ensure_masked_georeferencing(
-        self, strip_path: Path, masked_path: Path
-    ) -> None:
-        with rasterio.open(strip_path) as source:
+    def _read_valid_georeferencing(
+        self, path: Path
+    ) -> Optional[Tuple[CRS, Any]]:
+        with rasterio.open(path) as source:
             source_crs = source.crs
             source_transform = source.transform
+        if source_crs is None or source_transform.is_identity:
+            return None
+        return (source_crs, source_transform)
+
+    def _ensure_masked_georeferencing(
+        self, strip_path: Path, udm_path: Path, masked_path: Path
+    ) -> None:
 
         with rasterio.open(masked_path) as masked:
             masked_crs = masked.crs
@@ -1148,13 +1155,20 @@ class MosaicWorkflow:
         if has_crs and has_transform:
             return
 
-        if source_crs is None or source_transform.is_identity:
+        source_candidate = self._read_valid_georeferencing(strip_path)
+        repair_source = strip_path
+        if source_candidate is None:
+            source_candidate = self._read_valid_georeferencing(udm_path)
+            repair_source = udm_path
+
+        if source_candidate is None:
             raise ValueError(
                 f"Masked raster '{masked_path}' is missing CRS/transform metadata and "
-                f"cannot be repaired from source '{strip_path}'. This often indicates "
-                "mixed PROJ installations; set PROJ_DATA and PROJ_LIB to the same "
-                "directory."
+                f"cannot be repaired from strip '{strip_path}' or UDM '{udm_path}'. "
+                "This often indicates mixed PROJ installations; set PROJ_DATA and "
+                "PROJ_LIB to the same directory."
             )
+        source_crs, source_transform = source_candidate
 
         try:
             with rasterio.open(masked_path, "r+") as masked_fix:
@@ -1182,7 +1196,7 @@ class MosaicWorkflow:
         self.log.warning(
             "Masked raster '%s' was missing CRS/transform metadata; repaired from '%s'.",
             masked_path,
-            strip_path,
+            repair_source,
         )
 
     def _mask_single_strip(
@@ -1216,7 +1230,7 @@ class MosaicWorkflow:
         ]
         self.log.debug("Masking strip with command: %s", " ".join(cmd))
         subprocess.run(cmd, check=True)
-        self._ensure_masked_georeferencing(strip_path, masked_path)
+        self._ensure_masked_georeferencing(strip_path, udm_path, masked_path)
         return masked_path
 
     def _run_mosaic(

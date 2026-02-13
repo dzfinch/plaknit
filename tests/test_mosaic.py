@@ -301,3 +301,64 @@ def test_mask_single_strip_repairs_missing_georeferencing(monkeypatch, caplog):
     assert masked_state["crs"] == source_state["crs"]
     assert masked_state["transform"] == source_state["transform"]
     assert "repaired from" in caplog.text
+
+
+def test_mask_single_strip_repairs_from_udm_when_source_missing(monkeypatch, caplog):
+    source_state = {"crs": None, "transform": Affine.identity()}
+    udm_state = {
+        "crs": CRS.from_epsg(32637),
+        "transform": Affine(3.0, 0.0, 500.0, 0.0, -3.0, 1000.0),
+    }
+    masked_state = {"crs": None, "transform": Affine.identity()}
+
+    class _FakeDataset:
+        def __init__(self, state):
+            self._state = state
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        @property
+        def crs(self):
+            return self._state["crs"]
+
+        @crs.setter
+        def crs(self, value):
+            self._state["crs"] = value
+
+        @property
+        def transform(self):
+            return self._state["transform"]
+
+        @transform.setter
+        def transform(self, value):
+            self._state["transform"] = value
+
+    def _fake_open(path, mode="r", **kwargs):
+        path_str = str(path)
+        if path_str.endswith("source.tif"):
+            return _FakeDataset(source_state)
+        if path_str.endswith("udm.tif"):
+            return _FakeDataset(udm_state)
+        if path_str.endswith("masked.tif"):
+            return _FakeDataset(masked_state)
+        raise AssertionError(f"Unexpected path: {path_str}")
+
+    monkeypatch.setattr(mosaic.rasterio, "open", _fake_open)
+    monkeypatch.setattr(mosaic.subprocess, "run", lambda *args, **kwargs: None)
+    workflow = mosaic.MosaicWorkflow(
+        mosaic.MosaicJob(inputs=["in.tif"], output="out.tif")
+    )
+
+    with caplog.at_level("WARNING", logger="plaknit.mosaic"):
+        result = workflow._mask_single_strip(
+            Path("source.tif"), Path("udm.tif"), Path("masked.tif")
+        )
+
+    assert result == Path("masked.tif")
+    assert masked_state["crs"] == udm_state["crs"]
+    assert masked_state["transform"] == udm_state["transform"]
+    assert "udm.tif" in caplog.text.lower()
