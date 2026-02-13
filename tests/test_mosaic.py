@@ -58,6 +58,12 @@ def test_choose_target_projection_respects_explicit_override():
     assert target.to_epsg() == 32731
 
 
+def test_parse_iso_datetime_accepts_no_colon_tz_and_long_fraction():
+    parsed = mosaic._parse_iso_datetime("2023-03-01T06:53:48.052582123+0000")
+
+    assert parsed == datetime(2023, 3, 1, 6, 53, 48, 52582)
+
+
 def test_choose_target_projection_rejects_invalid_override():
     projections = [_projection("a.tif", 32631, 1.0, 1.0)]
 
@@ -100,6 +106,44 @@ def test_parse_args_accepts_radiometric_harmonization_flags():
 
     assert args.harmonize_radiometry is True
     assert args.metadata_jsons == ["meta_dir", "more_meta"]
+
+
+def test_extract_bbox_from_metadata_supports_feature_collection_geometry():
+    metadata = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [[0.0, 0.0], [2.0, 0.0], [2.0, 1.0], [0.0, 1.0], [0.0, 0.0]]
+                    ],
+                },
+            }
+        ],
+    }
+
+    assert mosaic._extract_bbox_from_metadata(metadata) == (0.0, 0.0, 2.0, 1.0)
+
+
+def test_extract_scene_acquired_supports_feature_collection_properties():
+    workflow = mosaic.MosaicWorkflow(
+        mosaic.MosaicJob(inputs=["in.tif"], output="out.tif")
+    )
+    metadata = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"acquired": "2023-03-01T06:53:48.052582Z"},
+            }
+        ],
+    }
+
+    parsed = workflow._extract_scene_acquired(metadata, Path("meta.json"))
+
+    assert parsed == datetime(2023, 3, 1, 6, 53, 48, 52582)
 
 
 def test_run_requires_metadata_jsons_only_when_harmonization_enabled():

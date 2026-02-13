@@ -143,3 +143,94 @@ def test_lighting_similarity_ignores_missing_metadata():
     )
 
     assert similarity == pytest.approx(1.0, rel=1e-6)
+
+
+def test_plan_filters_on_quality_metadata(monkeypatch):
+    geom = box(0.0, 0.0, 0.01, 0.01)
+    fake_items = [
+        _FakeItem(
+            "scene-good",
+            mapping(geom),
+            {
+                "cloud_cover": 0.05,
+                "sun_elevation": 50,
+                "shadow_percent": 1,
+                "ground_control": True,
+                "quality_category": "standard",
+            },
+        ),
+        _FakeItem(
+            "scene-bad-shadow",
+            mapping(geom),
+            {
+                "cloud_cover": 0.05,
+                "sun_elevation": 50,
+                "shadow_percent": 25,
+                "ground_control": True,
+                "quality_category": "standard",
+            },
+        ),
+    ]
+    response_map = {"2024-01-01/2024-01-31": fake_items}
+    fake_client = _FakeClient(response_map)
+
+    monkeypatch.setenv("PL_API_KEY", "test-key")
+    monkeypatch.setattr(planner, "load_aoi_geometry", lambda path: (geom, "EPSG:4326"))
+    monkeypatch.setattr(planner, "_open_planet_stac_client", lambda key: fake_client)
+
+    plan = planner.plan_monthly_composites(
+        aoi_path="aoi.geojson",
+        start_date="2024-01-01",
+        end_date="2024-01-31",
+        cloud_max=0.8,
+        coverage_target=0.5,
+        min_clear_obs=1.0,
+        min_clear_fraction=0.5,
+        max_shadow_fraction=0.05,
+        require_ground_control=True,
+        quality_category="standard",
+        tile_size_m=500,
+    )
+
+    month_plan = plan["2024-01"]
+    assert month_plan["filtered_count"] == 1
+    assert month_plan["items"][0]["id"] == "scene-good"
+
+
+def test_score_candidate_prefers_higher_quality():
+    tile_states = [planner._TileState()]
+    high_quality = planner._Candidate(
+        item_id="high",
+        collection_id="PSScene",
+        properties={},
+        clear_fraction=0.9,
+        tile_indexes=[0],
+        quality_score=1.0,
+    )
+    low_quality = planner._Candidate(
+        item_id="low",
+        collection_id="PSScene",
+        properties={},
+        clear_fraction=0.9,
+        tile_indexes=[0],
+        quality_score=0.1,
+    )
+
+    high_score = planner._score_candidate(
+        high_quality,
+        tile_states,
+        min_clear_obs=1.0,
+        azimuth_sigma=20.0,
+        elevation_sigma=10.0,
+        quality_weight=0.5,
+    )
+    low_score = planner._score_candidate(
+        low_quality,
+        tile_states,
+        min_clear_obs=1.0,
+        azimuth_sigma=20.0,
+        elevation_sigma=10.0,
+        quality_weight=0.5,
+    )
+
+    assert high_score > low_score
