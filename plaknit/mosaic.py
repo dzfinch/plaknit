@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 import logging
 import math
@@ -873,6 +873,60 @@ class MosaicWorkflow:
 
         return chain
 
+    def _chain_levels(
+        self, reference: int, chain: Sequence[Tuple[int, int, float]]
+    ) -> List[List[Tuple[int, int, float]]]:
+        children_by_parent: Dict[int, List[Tuple[int, float]]] = defaultdict(list)
+        for parent, child, weight in chain:
+            children_by_parent[parent].append((child, weight))
+        for children in children_by_parent.values():
+            children.sort(key=lambda item: item[0])
+
+        levels: List[List[Tuple[int, int, float]]] = []
+        frontier = [reference]
+        while frontier:
+            level: List[Tuple[int, int, float]] = []
+            next_frontier: List[int] = []
+            for parent in frontier:
+                for child, weight in children_by_parent.get(parent, []):
+                    level.append((parent, child, weight))
+                    next_frontier.append(child)
+            if level:
+                levels.append(level)
+            frontier = next_frontier
+        return levels
+
+    def _harmonize_chain_edge(
+        self,
+        parent: int,
+        child: int,
+        weight: float,
+        output_paths: Sequence[Optional[str]],
+        scenes: Sequence[HarmoniScene],
+        harmonized_dir: Path,
+    ) -> Tuple[int, str]:
+        source_path = Path(output_paths[child] or scenes[child].raster_path)
+        parent_path = Path(output_paths[parent] or scenes[parent].raster_path)
+        factors = self._estimate_adjustment_factors(source_path, parent_path)
+        if factors is None:
+            self.log.warning(
+                "Skipping radiometric adjustment for '%s' -> '%s' (insufficient overlap).",
+                source_path.name,
+                parent_path.name,
+            )
+            return (child, str(source_path))
+
+        out_path = harmonized_dir / f"{child:04d}_{source_path.stem}_harmoni.tif"
+        self.log.debug(
+            "Radiometric adjust %s -> %s (edge weight=%.3f, output=%s).",
+            source_path.name,
+            parent_path.name,
+            weight,
+            out_path.name,
+        )
+        self._apply_adjustment_factors(source_path, out_path, factors)
+        return (child, str(out_path))
+
     def _harmonize_radiometry(
         self,
         rasters: Sequence[str],
@@ -899,6 +953,10 @@ class MosaicWorkflow:
         output_paths: List[Optional[str]] = [None] * len(scenes)
         harmonized_dir = tmpdir / "radiometry_harmonized"
         harmonized_dir.mkdir(parents=True, exist_ok=True)
+        jobs = max(1, self.job.jobs)
+        self.log.debug(
+            "Radiometric harmonization using up to %s parallel workers.", jobs
+        )
 
         for component in components:
             nodes = sorted(component)
@@ -909,34 +967,42 @@ class MosaicWorkflow:
                     progress.advance(task_id)
 
             chain = self._select_harmonization_chain(nodes, graph, reference)
-            for parent, child, weight in chain:
-                source_path = Path(output_paths[child] or scenes[child].raster_path)
-                parent_path = Path(output_paths[parent] or scenes[parent].raster_path)
-                factors = self._estimate_adjustment_factors(source_path, parent_path)
-                if factors is None:
-                    self.log.warning(
-                        "Skipping radiometric adjustment for '%s' -> '%s' (insufficient overlap).",
-                        source_path.name,
-                        parent_path.name,
-                    )
-                    output_paths[child] = str(source_path)
+            levels = self._chain_levels(reference, chain)
+            for level in levels:
+                if jobs == 1 or len(level) == 1:
+                    results = [
+                        self._harmonize_chain_edge(
+                            parent=parent,
+                            child=child,
+                            weight=weight,
+                            output_paths=output_paths,
+                            scenes=scenes,
+                            harmonized_dir=harmonized_dir,
+                        )
+                        for parent, child, weight in level
+                    ]
                 else:
-                    out_path = harmonized_dir / (
-                        f"{child:04d}_{source_path.stem}_harmoni.tif"
-                    )
-                    self.log.debug(
-                        "Radiometric adjust %s -> %s (edge weight=%.3f, output=%s).",
-                        source_path.name,
-                        parent_path.name,
-                        weight,
-                        out_path.name,
-                    )
-                    self._apply_adjustment_factors(source_path, out_path, factors)
-                    output_paths[child] = str(out_path)
+                    max_workers = min(jobs, len(level))
+                    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                        futures = [
+                            pool.submit(
+                                self._harmonize_chain_edge,
+                                parent,
+                                child,
+                                weight,
+                                output_paths,
+                                scenes,
+                                harmonized_dir,
+                            )
+                            for parent, child, weight in level
+                        ]
+                        results = [future.result() for future in as_completed(futures)]
 
-                if progress and task_id is not None:
-                    with self._progress_lock:
-                        progress.advance(task_id)
+                for child, path in sorted(results, key=lambda item: item[0]):
+                    output_paths[child] = path
+                    if progress and task_id is not None:
+                        with self._progress_lock:
+                            progress.advance(task_id)
 
         return [
             output_paths[index] if output_paths[index] else str(scene.raster_path)

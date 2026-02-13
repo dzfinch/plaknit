@@ -203,6 +203,136 @@ def test_construct_harmoni_graph_applies_overlap_and_time_filters():
     assert graph[2] == {}
 
 
+def test_chain_levels_respect_parent_child_dependencies():
+    workflow = mosaic.MosaicWorkflow(mosaic.MosaicJob(inputs=["in.tif"], output="out.tif"))
+    chain = [
+        (0, 1, 0.9),
+        (0, 2, 0.8),
+        (1, 3, 0.7),
+        (2, 4, 0.6),
+        (2, 5, 0.5),
+    ]
+
+    levels = workflow._chain_levels(0, chain)
+
+    assert levels == [
+        [(0, 1, 0.9), (0, 2, 0.8)],
+        [(1, 3, 0.7), (2, 4, 0.6), (2, 5, 0.5)],
+    ]
+
+
+def test_harmonize_radiometry_parallelizes_edges_with_ready_parents(monkeypatch):
+    job = mosaic.MosaicJob(
+        inputs=["a.tif", "b.tif", "c.tif", "d.tif"],
+        output="out.tif",
+        harmonize_radiometry=True,
+        metadata_jsons=["meta"],
+        jobs=4,
+    )
+    workflow = mosaic.MosaicWorkflow(job)
+    scenes = [
+        mosaic.HarmoniScene(
+            raster_path=Path("a.tif"),
+            metadata_path=Path("a.json"),
+            scene_key="a",
+            acquired=datetime(2024, 1, 1),
+            bbox_wgs84=(0.0, 0.0, 1.0, 1.0),
+            area_wgs84=1.0,
+        ),
+        mosaic.HarmoniScene(
+            raster_path=Path("b.tif"),
+            metadata_path=Path("b.json"),
+            scene_key="b",
+            acquired=datetime(2024, 1, 2),
+            bbox_wgs84=(0.0, 0.0, 1.0, 1.0),
+            area_wgs84=1.0,
+        ),
+        mosaic.HarmoniScene(
+            raster_path=Path("c.tif"),
+            metadata_path=Path("c.json"),
+            scene_key="c",
+            acquired=datetime(2024, 1, 3),
+            bbox_wgs84=(0.0, 0.0, 1.0, 1.0),
+            area_wgs84=1.0,
+        ),
+        mosaic.HarmoniScene(
+            raster_path=Path("d.tif"),
+            metadata_path=Path("d.json"),
+            scene_key="d",
+            acquired=datetime(2024, 1, 4),
+            bbox_wgs84=(0.0, 0.0, 1.0, 1.0),
+            area_wgs84=1.0,
+        ),
+    ]
+
+    monkeypatch.setattr(workflow, "_expand_jsons", lambda entries, label: ["meta.json"])
+    monkeypatch.setattr(workflow, "_load_harmoni_scenes", lambda rasters, metadata: scenes)
+    monkeypatch.setattr(workflow, "_construct_harmoni_graph", lambda _scenes: {0: {}, 1: {}, 2: {}, 3: {}})
+    monkeypatch.setattr(workflow, "_graph_components", lambda graph: [{0, 1, 2, 3}])
+    monkeypatch.setattr(
+        workflow,
+        "_select_harmoni_reference",
+        lambda component, graph, scenes_arg: 0,
+    )
+    monkeypatch.setattr(
+        workflow,
+        "_select_harmonization_chain",
+        lambda component, graph, reference: [(0, 1, 1.0), (0, 2, 0.9), (1, 3, 0.8)],
+    )
+    monkeypatch.setattr(
+        workflow,
+        "_harmonize_chain_edge",
+        lambda parent, child, weight, output_paths, scenes, harmonized_dir: (
+            child,
+            f"/tmp/harm_{child}.tif",
+        ),
+    )
+
+    max_workers_seen = []
+
+    class _FakeFuture:
+        def __init__(self, value):
+            self._value = value
+
+        def result(self):
+            return self._value
+
+    class _FakeExecutor:
+        def __init__(self, max_workers):
+            max_workers_seen.append(max_workers)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def submit(self, fn, *args, **kwargs):
+            return _FakeFuture(fn(*args, **kwargs))
+
+    monkeypatch.setattr(mosaic, "ThreadPoolExecutor", _FakeExecutor)
+    monkeypatch.setattr(mosaic, "as_completed", lambda futures: futures)
+
+    tmpdir = Path.cwd() / f"tmp_harmoni_{uuid4().hex}"
+    try:
+        output = workflow._harmonize_radiometry(
+            ["a.tif", "b.tif", "c.tif", "d.tif"], tmpdir, None, None
+        )
+    finally:
+        try:
+            import shutil
+
+            shutil.rmtree(tmpdir)
+        except FileNotFoundError:
+            pass
+
+    assert max_workers_seen == [2]
+    assert output[0] == "a.tif"
+    assert output[1] == "/tmp/harm_1.tif"
+    assert output[2] == "/tmp/harm_2.tif"
+    assert output[3] == "/tmp/harm_3.tif"
+
+
 def test_collect_projection_info_falls_back_to_native_center(monkeypatch, caplog):
     class _FakeDataset:
         def __init__(self):
