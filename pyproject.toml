@@ -1,6 +1,6 @@
 [project]
 name = "plaknit"
-version = "0.2.1"
+version = "0.2.2"
 description = "Processing Large-Scale PlanetScope Data"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -42,7 +42,7 @@ exclude = ["docs*"]
 dependencies = { file = ["requirements.txt"] }
 
 [tool.bumpversion]
-current_version = "0.2.1"
+current_version = "0.2.2"
 commit = true
 tag = true
 tag_name = "v{new_version}"
