@@ -128,7 +128,9 @@ def test_extract_bbox_from_metadata_supports_feature_collection_geometry():
 
 
 def test_extract_scene_acquired_supports_feature_collection_properties():
-    workflow = mosaic.MosaicWorkflow(mosaic.MosaicJob(inputs=["in.tif"], output="out.tif"))
+    workflow = mosaic.MosaicWorkflow(
+        mosaic.MosaicJob(inputs=["in.tif"], output="out.tif")
+    )
     metadata = {
         "type": "FeatureCollection",
         "features": [

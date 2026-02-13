@@ -88,7 +88,9 @@ def test_submit_orders_for_plan_builds_correct_request(monkeypatch):
         orders, "load_aoi_geometry", lambda path: (fake_geom, "EPSG:4326")
     )
     monkeypatch.setattr(orders, "reproject_geometry", lambda geom, src, dst: geom)
-    monkeypatch.setattr(orders, "_open_planet_stac_client", lambda key: _FakeStacClient([]))
+    monkeypatch.setattr(
+        orders, "_open_planet_stac_client", lambda key: _FakeStacClient([])
+    )
 
     fake_client = _FakeOrdersClient()
 
@@ -139,7 +141,9 @@ def test_submit_orders_drops_inaccessible_scenes(monkeypatch):
         orders, "load_aoi_geometry", lambda path: (fake_geom, "EPSG:4326")
     )
     monkeypatch.setattr(orders, "reproject_geometry", lambda geom, src, dst: geom)
-    monkeypatch.setattr(orders, "_open_planet_stac_client", lambda key: _FakeStacClient([]))
+    monkeypatch.setattr(
+        orders, "_open_planet_stac_client", lambda key: _FakeStacClient([])
+    )
 
     fake_client = _AccessErrorOrdersClient()
 

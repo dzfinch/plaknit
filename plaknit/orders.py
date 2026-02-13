@@ -251,7 +251,9 @@ def _normalized_fraction(value: Any) -> Optional[float]:
     return max(0.0, min(1.0, parsed))
 
 
-def _property_fraction(properties: Dict[str, Any], keys: Sequence[str]) -> Optional[float]:
+def _property_fraction(
+    properties: Dict[str, Any], keys: Sequence[str]
+) -> Optional[float]:
     return _normalized_fraction(_get_property(properties, keys))
 
 
@@ -291,12 +293,18 @@ def _passes_quality_filters(
 
     if quality_category:
         value = properties.get("quality_category")
-        if not isinstance(value, str) or value.strip().lower() != quality_category.lower():
+        if (
+            not isinstance(value, str)
+            or value.strip().lower() != quality_category.lower()
+        ):
             return False
 
     if publishing_stage:
         value = properties.get("publishing_stage")
-        if not isinstance(value, str) or value.strip().lower() != publishing_stage.lower():
+        if (
+            not isinstance(value, str)
+            or value.strip().lower() != publishing_stage.lower()
+        ):
             return False
 
     if max_anomalous_pixels is not None:
@@ -335,7 +343,9 @@ def _passes_quality_filters(
     ):
         return False
 
-    clear_confidence = _property_percent_fraction(properties, ["clear_confidence_percent"])
+    clear_confidence = _property_percent_fraction(
+        properties, ["clear_confidence_percent"]
+    )
     if min_clear_confidence is not None and (
         clear_confidence is None or clear_confidence < min_clear_confidence
     ):
@@ -353,7 +363,9 @@ def _quality_score(properties: Dict[str, Any]) -> float:
     if visible_confidence is not None:
         metrics.append((0.2, visible_confidence))
 
-    clear_confidence = _property_percent_fraction(properties, ["clear_confidence_percent"])
+    clear_confidence = _property_percent_fraction(
+        properties, ["clear_confidence_percent"]
+    )
     if clear_confidence is not None:
         metrics.append((0.2, clear_confidence))
 
@@ -411,7 +423,9 @@ def _find_replacement_items(
     max_anomalous_pixels = filters.get("max_anomalous_pixels")
     max_shadow_fraction = _normalized_fraction(filters.get("max_shadow_fraction"))
     max_snow_ice_fraction = _normalized_fraction(filters.get("max_snow_ice_fraction"))
-    max_heavy_haze_fraction = _normalized_fraction(filters.get("max_heavy_haze_fraction"))
+    max_heavy_haze_fraction = _normalized_fraction(
+        filters.get("max_heavy_haze_fraction")
+    )
     min_visible_confidence = _normalized_fraction(filters.get("min_visible_confidence"))
     min_clear_confidence = _normalized_fraction(filters.get("min_clear_confidence"))
     max_view_angle = _float_or_none(filters.get("max_view_angle"))
@@ -477,7 +491,9 @@ def _find_replacement_items(
         ):
             continue
         quality_score = _quality_score(properties)
-        quality_multiplier = max(0.0, 1.0 + quality_weight * (quality_score - 0.5) * 2.0)
+        quality_multiplier = max(
+            0.0, 1.0 + quality_weight * (quality_score - 0.5) * 2.0
+        )
         combined_score = clear_fraction * quality_multiplier
         candidates.append((combined_score, clear_fraction, item))
 
