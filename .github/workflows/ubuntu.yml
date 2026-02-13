@@ -29,10 +29,22 @@ jobs:
               with:
                   python-version: ${{ matrix.config.py }}
             - name: Install GDAL
+              env:
+                  PIP_DEFAULT_TIMEOUT: "120"
               run: |
                   python -m pip install --upgrade pip
                   pip install --no-cache-dir Cython
-                  pip install --find-links=https://girder.github.io/large_image_wheels --no-cache GDAL
+                  for attempt in 1 2 3; do
+                      if pip install --find-links=https://girder.github.io/large_image_wheels --no-cache-dir --retries 10 GDAL; then
+                          break
+                      fi
+                      if [ "$attempt" -eq 3 ]; then
+                          echo "GDAL install failed after 3 attempts."
+                          exit 1
+                      fi
+                      echo "Retrying GDAL install after attempt $attempt..."
+                      sleep $((attempt * 15))
+                  done
             - name: Test GDAL installation
               run: |
                   python -c "from osgeo import gdal"
