@@ -1132,9 +1132,7 @@ class MosaicWorkflow:
         self.log.debug("Reprojecting raster with command: %s", " ".join(cmd))
         subprocess.run(cmd, check=True)
 
-    def _read_valid_georeferencing(
-        self, path: Path
-    ) -> Optional[Tuple[CRS, Any]]:
+    def _read_valid_georeferencing(self, path: Path) -> Optional[Tuple[CRS, Any]]:
         with rasterio.open(path) as source:
             source_crs = source.crs
             source_transform = source.transform
