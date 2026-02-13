@@ -457,7 +457,9 @@ class MosaicWorkflow:
             raise ValueError(f"No metadata JSONs detected for {label}.")
         return resolved
 
-    def _extract_scene_acquired(self, metadata: Dict[str, Any], metadata_path: Path) -> datetime:
+    def _extract_scene_acquired(
+        self, metadata: Dict[str, Any], metadata_path: Path
+    ) -> datetime:
         properties = metadata.get("properties")
         if not isinstance(properties, dict):
             properties = {}
@@ -504,7 +506,9 @@ class MosaicWorkflow:
                 chosen = candidates[0]
                 assignment[raster_path] = chosen
                 metadata_by_key[_scene_key(chosen)] = [
-                    item for item in metadata_by_key[_scene_key(chosen)] if item != chosen
+                    item
+                    for item in metadata_by_key[_scene_key(chosen)]
+                    if item != chosen
                 ]
                 continue
 
@@ -524,13 +528,10 @@ class MosaicWorkflow:
                 )
                 return {
                     raster: Path(metadata)
-                    for raster, metadata in zip(
-                        sorted(rasters), sorted(metadata_paths)
-                    )
+                    for raster, metadata in zip(sorted(rasters), sorted(metadata_paths))
                 }
             raise ValueError(
-                "Could not match metadata JSONs to rasters for: "
-                + ", ".join(unmatched)
+                "Could not match metadata JSONs to rasters for: " + ", ".join(unmatched)
             )
 
         return assignment
@@ -759,13 +760,17 @@ class MosaicWorkflow:
             if overlap_left >= overlap_right or overlap_bottom >= overlap_top:
                 return None
 
-            ref_window = from_bounds(
-                overlap_left,
-                overlap_bottom,
-                overlap_right,
-                overlap_top,
-                transform=ref.transform,
-            ).round_offsets().round_lengths()
+            ref_window = (
+                from_bounds(
+                    overlap_left,
+                    overlap_bottom,
+                    overlap_right,
+                    overlap_top,
+                    transform=ref.transform,
+                )
+                .round_offsets()
+                .round_lengths()
+            )
             if ref_window.width < 1 or ref_window.height < 1:
                 return None
 
@@ -802,7 +807,9 @@ class MosaicWorkflow:
 
                 if source_samples.size > self._HARMONI_MAX_SAMPLES:
                     chosen = random_state.choice(
-                        source_samples.size, size=self._HARMONI_MAX_SAMPLES, replace=False
+                        source_samples.size,
+                        size=self._HARMONI_MAX_SAMPLES,
+                        replace=False,
                     )
                     source_samples = source_samples[chosen]
                     reference_samples = reference_samples[chosen]
@@ -819,9 +826,7 @@ class MosaicWorkflow:
                     source_samples = source_samples[pif_mask]
                     reference_samples = reference_samples[pif_mask]
 
-                factors.append(
-                    self._fit_adjustment(source_samples, reference_samples)
-                )
+                factors.append(self._fit_adjustment(source_samples, reference_samples))
 
             while len(factors) < src.count:
                 factors.append((1.0, 0.0))

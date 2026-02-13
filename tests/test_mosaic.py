@@ -50,9 +50,7 @@ def test_choose_target_projection_respects_explicit_override():
         _projection("b.tif", 32631, 1.2, 0.8),
     ]
 
-    target = mosaic._choose_target_projection(
-        projections, requested_crs="EPSG:32731"
-    )
+    target = mosaic._choose_target_projection(projections, requested_crs="EPSG:32731")
 
     assert target.to_epsg() == 32731
 
