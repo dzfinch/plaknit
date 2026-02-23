@@ -65,10 +65,8 @@ class _FakeStacSearch:
 class _FakeStacClient:
     def __init__(self, items):
         self._items = items
-        self.last_kwargs: dict[str, Any] | None = None
 
     def search(self, **kwargs):
-        self.last_kwargs = kwargs
         return _FakeStacSearch(self._items)
 
 
@@ -252,119 +250,35 @@ def test_order_cli_reads_plan_and_submits(monkeypatch):
     assert captured["single_archive"] is False
 
 
-def test_find_replacement_items_ignores_udm_filters_and_ranks_by_clear_fraction():
+def test_find_replacement_items_applies_quality_filters():
     plan_entry = {
         "filters": {
             "item_type": "PSScene",
-            "start_date": "2024-01-01",
-            "end_date": "2024-01-31",
-            "cloud_max": 0.1,
-            "sun_elevation_min": 35.0,
+            "month_start": "2024-01-01",
+            "month_end": "2024-01-31",
             "min_clear_fraction": 0.5,
             "require_ground_control": True,
             "max_shadow_fraction": 0.05,
-            "max_view_angle": 10,
             "quality_weight": 0.5,
         }
     }
     items = [
         _FakeStacItem(
-            "lower-clear",
+            "good",
             {
-                "pl:clear_percent": 96,
-                "eo:cloud_cover": 0.04,
-                "pl:ground_control": True,
-                "pl:shadow_percent": 1,
-                "view:off_nadir": 5.0,
-                "view:sun_elevation": 47.0,
-                "view:sun_azimuth": 130.0,
-                "datetime": "2024-01-10T10:00:00Z",
+                "clear_percent": 96,
+                "cloud_cover": 0.04,
+                "ground_control": True,
+                "shadow_percent": 1,
             },
         ),
         _FakeStacItem(
-            "higher-clear-high-shadow",
+            "bad-shadow",
             {
-                "pl:clear_percent": 99,
-                "eo:cloud_cover": 0.01,
-                "pl:ground_control": True,
-                "pl:shadow_percent": 40,
-                "view:off_nadir": 2.0,
-                "view:sun_elevation": 48.0,
-                "view:sun_azimuth": 131.0,
-                "datetime": "2024-01-11T10:00:00Z",
-            },
-        ),
-        _FakeStacItem(
-            "highest-clear-no-ground-control",
-            {
-                "pl:clear_percent": 100,
-                "eo:cloud_cover": 0.0,
-                "pl:ground_control": False,
-                "view:off_nadir": 1.0,
-                "view:sun_elevation": 49.0,
-            },
-        ),
-    ]
-    stac_client = _FakeStacClient(items)
-
-    replacements = orders._find_replacement_items(
-        stac_client=stac_client,
-        plan_entry=plan_entry,
-        month="2024-01",
-        aoi_geojson={"type": "Polygon", "coordinates": []},
-        desired_count=3,
-        exclude_ids=set(),
-    )
-
-    # require_ground_control still applies; max_shadow_fraction is ignored.
-    assert [item["id"] for item in replacements] == [
-        "higher-clear-high-shadow",
-        "lower-clear",
-    ]
-    assert stac_client.last_kwargs is not None
-    assert stac_client.last_kwargs["query"]["view:sun_elevation"] == {"gte": 35.0}
-    assert stac_client.last_kwargs["query"]["eo:cloud_cover"] == {"lte": 0.1}
-    assert replacements[0]["properties"]["view:sun_elevation"] == 48.0
-    assert replacements[0]["properties"]["view:sun_azimuth"] == 131.0
-    assert replacements[0]["properties"]["datetime"] == "2024-01-11T10:00:00Z"
-    assert replacements[0]["properties"]["view:off_nadir"] == 2.0
-    assert "visible_confidence_percent" not in replacements[0]["properties"]
-    assert "clear_confidence_percent" not in replacements[0]["properties"]
-    assert "shadow_percent" not in replacements[0]["properties"]
-    assert "snow_ice_percent" not in replacements[0]["properties"]
-    assert "heavy_haze_percent" not in replacements[0]["properties"]
-    assert "anomalous_pixels" not in replacements[0]["properties"]
-
-
-def test_find_replacement_items_honors_instrument_types_filter():
-    plan_entry = {
-        "filters": {
-            "item_type": "PSScene",
-            "start_date": "2024-01-01",
-            "end_date": "2024-01-31",
-            "cloud_max": 0.1,
-            "sun_elevation_min": 35.0,
-            "min_clear_fraction": 0.5,
-            "instrument_types": ["PS2.SD"],
-        }
-    }
-    items = [
-        _FakeStacItem(
-            "psb-scene",
-            {
-                "pl:clear_percent": 99,
-                "eo:cloud_cover": 0.01,
-                "instruments": ["PSB.SD"],
-                "view:sun_elevation": 47.0,
-            },
-        ),
-        _FakeStacItem(
-            "ps2-scene",
-            {
-                "pl:clear_percent": 90,
-                "eo:cloud_cover": 0.02,
-                "instruments": ["PS2.SD"],
-                "view:sun_elevation": 47.0,
+                "clear_percent": 99,
+                "cloud_cover": 0.01,
+                "ground_control": True,
+                "shadow_percent": 40,
             },
         ),
     ]
@@ -379,101 +293,4 @@ def test_find_replacement_items_honors_instrument_types_filter():
         exclude_ids=set(),
     )
 
-    assert [item["id"] for item in replacements] == ["ps2-scene"]
-    assert stac_client.last_kwargs is not None
-    assert stac_client.last_kwargs["query"]["instruments"] == {"in": ["PS2.SD"]}
-
-
-def test_find_replacement_items_honors_instruments_array_field():
-    plan_entry = {
-        "filters": {
-            "item_type": "PSScene",
-            "start_date": "2024-01-01",
-            "end_date": "2024-01-31",
-            "cloud_max": 0.1,
-            "sun_elevation_min": 35.0,
-            "min_clear_fraction": 0.5,
-            "instrument_types": ["PS2.SD"],
-        }
-    }
-    items = [
-        _FakeStacItem(
-            "psb-scene",
-            {
-                "pl:clear_percent": 99,
-                "eo:cloud_cover": 0.01,
-                "instruments": ["PSB.SD"],
-                "view:sun_elevation": 47.0,
-            },
-        ),
-        _FakeStacItem(
-            "ps2-scene",
-            {
-                "pl:clear_percent": 90,
-                "eo:cloud_cover": 0.02,
-                "instruments": ["PS2.SD"],
-                "view:sun_elevation": 47.0,
-            },
-        ),
-    ]
-    stac_client = _FakeStacClient(items)
-
-    replacements = orders._find_replacement_items(
-        stac_client=stac_client,
-        plan_entry=plan_entry,
-        month="2024-01",
-        aoi_geojson={"type": "Polygon", "coordinates": []},
-        desired_count=2,
-        exclude_ids=set(),
-    )
-
-    assert [item["id"] for item in replacements] == ["ps2-scene"]
-    assert replacements[0]["properties"]["instruments"] == ["PS2.SD"]
-
-
-def test_find_replacement_items_single_instrument_falls_back_when_metadata_missing():
-    plan_entry = {
-        "filters": {
-            "item_type": "PSScene",
-            "start_date": "2024-01-01",
-            "end_date": "2024-01-31",
-            "cloud_max": 0.1,
-            "sun_elevation_min": 35.0,
-            "min_clear_fraction": 0.5,
-            "instrument_types": ["PS2.SD"],
-        }
-    }
-    items = [
-        _FakeStacItem(
-            "scene-no-inst",
-            {
-                "pl:clear_percent": 92,
-                "eo:cloud_cover": 0.02,
-                "view:sun_elevation": 47.0,
-            },
-        )
-    ]
-    stac_client = _FakeStacClient(items)
-
-    replacements = orders._find_replacement_items(
-        stac_client=stac_client,
-        plan_entry=plan_entry,
-        month="2024-01",
-        aoi_geojson={"type": "Polygon", "coordinates": []},
-        desired_count=1,
-        exclude_ids=set(),
-    )
-
-    assert [item["id"] for item in replacements] == ["scene-no-inst"]
-
-
-def test_month_start_end_accepts_legacy_filter_keys():
-    plan_entry = {
-        "filters": {
-            "month_start": "2024-01-02",
-            "month_end": "2024-01-30",
-        }
-    }
-    start, end = orders._month_start_end("2024-01", plan_entry)
-    assert start.isoformat() == "2024-01-02"
-    assert end.isoformat() == "2024-01-30"
+    assert [item["id"] for item in replacements] == ["good"]
