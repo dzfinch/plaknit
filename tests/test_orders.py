@@ -177,6 +177,11 @@ def test_extract_inaccessible_item_ids_handles_null_field():
     assert result == []
 
 
+def test_orders_clear_fraction_treats_clear_percent_one_as_one_percent():
+    clear_fraction = orders._clear_fraction({"clear_percent": 1})
+    assert clear_fraction == 0.01
+
+
 def test_clip_geojson_simplifies_when_vertex_count_exceeds_limit(monkeypatch):
     detailed_geom = box(0, 0, 1, 1)
     simplified_geom = box(0, 0, 0.5, 0.5)

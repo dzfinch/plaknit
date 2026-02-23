@@ -1,8 +1,8 @@
 # Usage
 
-## Planning & Ordering Monthly Planet Composites
+## Planning Monthly Planet Composites
 
-`plaknit plan` can run on local devices to query Planet's Data/STAC API, filter PSScene candidates, tile the AOI, and pick the smallest monthly set that meets both coverage and clear-observation targets. You can optionally submit Planet orders with clipped surface reflectance scenes (4- or 8-band SR + UDM2) and Sentinel-2 harmonization, chunked into batches of up to 100 scenes with predictable order/ZIP names.
+`plaknit plan` queries Planet's Data/STAC API, filters PSScene candidates, tiles the AOI, and picks the smallest monthly set that meets both coverage and clear-observation targets. Planning now only writes/prints a plan; ordering is handled separately by `plaknit order`.
 
 ```bash
 plaknit plan \
@@ -15,17 +15,12 @@ plaknit plan \
   --min-clear-fraction 0.9 \
   --min-clear-obs 4 \
   --tile-size-m 1000 \
-  --sr-bands 4 \
   --instrument-type PS2.SD \
-  --harmonize-to sentinel2 \
   --out aug_2019_plan.json
 ```
 
-The summary table shows candidate/selected scenes, achieved coverage, clear
-observation depth, and any resulting order IDs. Orders deliver single-archive
-ZIPs per order (no pre-mosaicking on Planet's side) so you can hand the outputs
-to `plaknit mosaic` or future composite builders on HPC; orders are chunked into
-up to 100 scenes each, with names suffixed `_1`, `_2`, etc. when needed.
+The summary table shows candidate/selected scenes, achieved coverage, and clear
+observation depth.
 
 Planet limits STAC/Data AOI intersections to 1,500 vertices, so the planner
 automatically simplifies uploaded AOIs (while preserving topology) until they
@@ -33,8 +28,8 @@ fit under that threshold and logs how many vertices were removed. Scenes that
 lack clear/cloud metadata are ignored during scoring so plans only rely on
 scenes with reliable quality fields.
 
-If you already saved a plan JSON/GeoJSON, submit the matching orders later
-without recomputing coverage:
+If you already saved a plan JSON/GeoJSON, submit matching orders later without
+recomputing coverage:
 
 ```bash
 plaknit order \

@@ -30,7 +30,7 @@ spend time answering big questions, not making a big mess of your data.
 ## Features
 
 - CLI + Python API that scale from local experimentation to HPC batch runs.
-- Planning workflow that searches Planet's STAC/Data API, scores scenes, and (optionally) submits Orders API requests for clipped SR bundles.
+- Planning workflow that searches Planet's STAC/Data API and scores scenes, with ordering handled by a separate `plaknit order` workflow.
 - GDAL-powered parallel masking of Planet strips with their UDM rasters.
 - Tuned Orfeo Toolbox mosaicking pipeline with RAM hints for large jobs.
 - Random Forest training + inference utilities for classifying Planet stacks.

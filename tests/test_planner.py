@@ -92,15 +92,9 @@ def test_plan_reads_stac_extension_aliases(monkeypatch):
                 "view:sun_azimuth": 141.5,
                 "datetime": "2024-01-10T18:20:00Z",
                 "view:off_nadir": 4.2,
-                "pl:visible_confidence_percent": 90,
-                "pl:clear_confidence_percent": 92,
-                "pl:shadow_percent": 1,
-                "pl:snow_ice_percent": 0,
-                "pl:heavy_haze_percent": 1,
                 "pl:ground_control": True,
                 "pl:quality_category": "standard",
                 "pl:publishing_stage": "finalized",
-                "pl:anomalous_pixels": 0,
             },
         )
     ]
@@ -122,9 +116,6 @@ def test_plan_reads_stac_extension_aliases(monkeypatch):
         require_ground_control=True,
         quality_category="standard",
         publishing_stage="finalized",
-        max_shadow_fraction=0.05,
-        min_visible_confidence=0.8,
-        min_clear_confidence=0.8,
         max_view_angle=10.0,
         tile_size_m=500,
     )
@@ -137,9 +128,11 @@ def test_plan_reads_stac_extension_aliases(monkeypatch):
     assert props["sun_azimuth"] == pytest.approx(141.5)
     assert props["view_angle"] == pytest.approx(4.2)
     assert props["acquired"] == "2024-01-10T18:20:00Z"
+    assert "shadow_percent" not in props
+    assert "anomalous_pixels" not in props
 
 
-def test_plan_legacy_sun_cloud_filters_do_not_reject_alias_only_fields(monkeypatch):
+def test_plan_alias_sun_cloud_filters_are_applied(monkeypatch):
     geom = box(0.0, 0.0, 0.01, 0.01)
     fake_items = [
         _FakeItem(
@@ -172,8 +165,13 @@ def test_plan_legacy_sun_cloud_filters_do_not_reject_alias_only_fields(monkeypat
     )
 
     month_plan = plan["2024-01"]
-    assert month_plan["filtered_count"] == 1
-    assert month_plan["items"][0]["id"] == "scene-alias-only"
+    assert month_plan["filtered_count"] == 0
+    assert month_plan["items"] == []
+
+
+def test_clear_fraction_treats_clear_percent_one_as_one_percent():
+    clear_fraction = planner._clear_fraction({"clear_percent": 1})
+    assert clear_fraction == pytest.approx(0.01)
 
 
 def test_plan_skips_scenes_missing_clear_metadata(monkeypatch):
@@ -251,18 +249,18 @@ def test_plan_filters_on_quality_metadata(monkeypatch):
             {
                 "cloud_cover": 0.05,
                 "sun_elevation": 50,
-                "shadow_percent": 1,
+                "view_angle": 2.0,
                 "ground_control": True,
                 "quality_category": "standard",
             },
         ),
         _FakeItem(
-            "scene-bad-shadow",
+            "scene-bad-angle",
             mapping(geom),
             {
                 "cloud_cover": 0.05,
                 "sun_elevation": 50,
-                "shadow_percent": 25,
+                "view_angle": 35.0,
                 "ground_control": True,
                 "quality_category": "standard",
             },
@@ -283,7 +281,7 @@ def test_plan_filters_on_quality_metadata(monkeypatch):
         coverage_target=0.5,
         min_clear_obs=1.0,
         min_clear_fraction=0.5,
-        max_shadow_fraction=0.05,
+        max_view_angle=10.0,
         require_ground_control=True,
         quality_category="standard",
         tile_size_m=500,
@@ -331,3 +329,48 @@ def test_score_candidate_prefers_higher_quality():
     )
 
     assert high_score > low_score
+
+
+@pytest.mark.parametrize("flag,value", [("--order", None), ("--sr-bands", "4"), ("--harmonize-to", "none")])
+def test_parse_plan_args_rejects_order_related_flags(flag, value):
+    argv = [
+        "--aoi",
+        "aoi.geojson",
+        "--start",
+        "2024-01-01",
+        "--end",
+        "2024-01-31",
+    ]
+    argv.append(flag)
+    if value is not None:
+        argv.append(value)
+
+    with pytest.raises(SystemExit):
+        planner.parse_plan_args(argv)
+
+
+@pytest.mark.parametrize(
+    "flag,value",
+    [
+        ("--max-anomalous-pixels", "0"),
+        ("--max-shadow", "0.05"),
+        ("--max-snow-ice", "0.05"),
+        ("--max-heavy-haze", "0.05"),
+        ("--min-visible-confidence", "0.8"),
+        ("--min-clear-confidence", "0.8"),
+    ],
+)
+def test_parse_plan_args_rejects_removed_metadata_flags(flag, value):
+    argv = [
+        "--aoi",
+        "aoi.geojson",
+        "--start",
+        "2024-01-01",
+        "--end",
+        "2024-01-31",
+        flag,
+        value,
+    ]
+
+    with pytest.raises(SystemExit):
+        planner.parse_plan_args(argv)

@@ -37,6 +37,12 @@ CLEAR_FRACTION_KEYS = (
     "pl:clear_fraction",
     "pl_clear_fraction",
 )
+CLEAR_PERCENT_KEYS = ("clear_percent", "pl:clear_percent", "pl_clear_percent")
+CLEAR_FRACTION_VALUE_KEYS = (
+    "clear_fraction",
+    "pl:clear_fraction",
+    "pl_clear_fraction",
+)
 CLOUD_COVER_KEYS = (
     "cloud_cover",
     "eo:cloud_cover",
@@ -252,7 +258,9 @@ async def _orders_client_context(api_key: str):
 
 
 def _clear_fraction(properties: Dict[str, Any]) -> Optional[float]:
-    clear_fraction = _property_fraction(properties, CLEAR_FRACTION_KEYS)
+    clear_fraction = _property_percent_fraction(properties, CLEAR_PERCENT_KEYS)
+    if clear_fraction is None:
+        clear_fraction = _property_fraction(properties, CLEAR_FRACTION_VALUE_KEYS)
     if clear_fraction is not None:
         return clear_fraction
 
