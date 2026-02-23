@@ -139,6 +139,43 @@ def test_plan_reads_stac_extension_aliases(monkeypatch):
     assert props["acquired"] == "2024-01-10T18:20:00Z"
 
 
+def test_plan_legacy_sun_cloud_filters_do_not_reject_alias_only_fields(monkeypatch):
+    geom = box(0.0, 0.0, 0.01, 0.01)
+    fake_items = [
+        _FakeItem(
+            "scene-alias-only",
+            mapping(geom),
+            {
+                "pl:clear_percent": 100,
+                "eo:cloud_cover": 0.95,
+                "view:sun_elevation": 10.0,
+            },
+        )
+    ]
+    response_map = {"2024-01-01/2024-01-31": fake_items}
+    fake_client = _FakeClient(response_map)
+
+    monkeypatch.setenv("PL_API_KEY", "test-key")
+    monkeypatch.setattr(planner, "load_aoi_geometry", lambda path: (geom, "EPSG:4326"))
+    monkeypatch.setattr(planner, "_open_planet_stac_client", lambda key: fake_client)
+
+    plan = planner.plan_monthly_composites(
+        aoi_path="aoi.geojson",
+        start_date="2024-01-01",
+        end_date="2024-01-31",
+        cloud_max=0.1,
+        sun_elevation_min=45.0,
+        coverage_target=0.5,
+        min_clear_obs=1.0,
+        min_clear_fraction=0.5,
+        tile_size_m=500,
+    )
+
+    month_plan = plan["2024-01"]
+    assert month_plan["filtered_count"] == 1
+    assert month_plan["items"][0]["id"] == "scene-alias-only"
+
+
 def test_plan_skips_scenes_missing_clear_metadata(monkeypatch):
     geom = box(0.0, 0.0, 0.01, 0.01)
     fake_items = [

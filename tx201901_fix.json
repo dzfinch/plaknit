@@ -1,0 +1,41 @@
+{
+  "2019-01": {
+    "items": [],
+    "aoi_coverage": 0.0,
+    "candidate_count": 2901,
+    "filtered_count": 0,
+    "selected_count": 0,
+    "tile_count": 21821,
+    "clear_depth_fraction": 0.0,
+    "tile_size_m": 1000,
+    "coverage_target": 0.99,
+    "min_clear_obs": 2.0,
+    "filters": {
+      "item_type": "PSScene",
+      "collection": null,
+      "imagery_type": "planetscope",
+      "instrument_types": [
+        "PS2"
+      ],
+      "cloud_max": 0.05,
+      "sun_elevation_min": 45.0,
+      "min_clear_fraction": 0.99,
+      "require_ground_control": false,
+      "quality_category": null,
+      "publishing_stage": null,
+      "max_anomalous_pixels": null,
+      "max_shadow_fraction": null,
+      "max_snow_ice_fraction": null,
+      "max_heavy_haze_fraction": null,
+      "min_visible_confidence": null,
+      "min_clear_confidence": null,
+      "max_view_angle": null,
+      "quality_weight": 0.35,
+      "month_start": "2019-01-01",
+      "month_end": "2019-01-31",
+      "azimuth_sigma": 20.0,
+      "elevation_sigma": 10.0,
+      "limit": null
+    }
+  }
+}

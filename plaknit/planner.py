@@ -116,6 +116,15 @@ ANOMALOUS_PIXELS_KEYS = (
     "pl_anomalous_pixels",
 )
 GSD_KEYS = ("gsd", "pixel_resolution", "pl:pixel_resolution", "pl_pixel_resolution")
+LEGACY_CLOUD_FILTER_KEYS = (
+    "cloud_cover",
+    "pl:cloud_cover",
+    "pl_cloud_cover",
+    "cloud_percent",
+    "pl:cloud_percent",
+    "pl_cloud_percent",
+)
+LEGACY_SUN_ELEVATION_FILTER_KEYS = ("sun_elevation",)
 
 
 class _ProgressManager:
@@ -867,9 +876,7 @@ def _plan_single_month(
     for item in items:
         properties = dict(item.properties)
         properties["id"] = item.id
-        cloud_value = _get_property(
-            properties, CLOUD_COVER_KEYS
-        )
+        cloud_value = _get_property(properties, LEGACY_CLOUD_FILTER_KEYS)
         if cloud_value is not None and cloud_max is not None:
             try:
                 cloud_fraction = float(cloud_value)
@@ -880,7 +887,7 @@ def _plan_single_month(
             except (ValueError, TypeError):
                 pass
 
-        sun_value = _get_property(properties, SUN_ELEVATION_KEYS)
+        sun_value = _get_property(properties, LEGACY_SUN_ELEVATION_FILTER_KEYS)
         if sun_value is not None:
             try:
                 if float(sun_value) < sun_elevation_min:
