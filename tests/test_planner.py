@@ -92,8 +92,8 @@ def test_plan_monthly_composites_selects_scenes(monkeypatch):
     assert month_plan["selected_count"] >= 1
     assert month_plan["aoi_coverage"] >= 0.95
     assert month_plan["items"]
-    assert month_plan["items"][0]["properties"]["sun_elevation"] >= 50
-    assert month_plan["items"][0]["properties"]["acquired"]
+    assert month_plan["items"][0]["properties"]["view:sun_elevation"] >= 50
+    assert month_plan["items"][0]["properties"]["datetime"]
     assert "visible_confidence_percent" not in month_plan["items"][0]["properties"]
     assert "clear_confidence_percent" not in month_plan["items"][0]["properties"]
     assert "shadow_percent" not in month_plan["items"][0]["properties"]
@@ -267,7 +267,11 @@ def test_plan_supports_single_window_grouping(monkeypatch):
         _FakeItem(
             "scene-1",
             mapping(geom),
-            {"clear_percent": 95, "view:sun_elevation": 50, "eo:cloud_cover": 0.03},
+            {
+                "pl:clear_percent": 95,
+                "view:sun_elevation": 50,
+                "eo:cloud_cover": 0.03,
+            },
         )
     ]
     response_map = {"2024-01-10/2024-03-05": fake_items}
@@ -299,7 +303,11 @@ def test_plan_supports_fixed_window_days_grouping(monkeypatch):
         _FakeItem(
             "scene-1",
             mapping(geom),
-            {"clear_percent": 95, "view:sun_elevation": 50, "eo:cloud_cover": 0.03},
+            {
+                "pl:clear_percent": 95,
+                "view:sun_elevation": 50,
+                "eo:cloud_cover": 0.03,
+            },
         )
     ]
     response_map = {
@@ -329,6 +337,193 @@ def test_plan_supports_fixed_window_days_grouping(monkeypatch):
     assert list(plan.keys()) == ["2024-01-01", "2024-01-02", "2024-01-03"]
     assert len(fake_client.calls) == 3
     assert fake_client.calls[0]["datetime"] == "2024-01-01/2024-01-01"
+
+
+def test_plan_filters_returned_items_by_instrument_type(monkeypatch):
+    geom = box(0.0, 0.0, 0.01, 0.01)
+    fake_items = [
+        _FakeItem(
+                "scene-psb",
+            mapping(geom),
+            {
+                "pl:clear_percent": 99,
+                "view:sun_elevation": 50,
+                "eo:cloud_cover": 0.01,
+                "instruments": ["PSB.SD"],
+            },
+        ),
+        _FakeItem(
+            "scene-ps2",
+            mapping(geom),
+            {
+                "pl:clear_percent": 80,
+                "view:sun_elevation": 50,
+                "eo:cloud_cover": 0.01,
+                "instruments": ["PS2.SD"],
+            },
+        ),
+    ]
+    response_map = {"2024-01-01/2024-01-31": fake_items}
+    fake_client = _FakeClient(response_map)
+
+    monkeypatch.setenv("PL_API_KEY", "test-key")
+    monkeypatch.setattr(planner, "load_aoi_geometry", lambda path: (geom, "EPSG:4326"))
+    monkeypatch.setattr(planner, "_open_planet_stac_client", lambda key: fake_client)
+
+    plan = planner.plan_monthly_composites(
+        aoi_path="aoi.geojson",
+        start_date="2024-01-01",
+        end_date="2024-01-31",
+        cloud_max=0.8,
+        coverage_target=0.5,
+        min_clear_obs=1.0,
+        min_clear_fraction=0.5,
+        instrument_types=("PS2.SD",),
+        tile_size_m=500,
+    )
+
+    month_plan = plan["2024-01"]
+    assert month_plan["filtered_count"] == 1
+    assert [item["id"] for item in month_plan["items"]] == ["scene-ps2"]
+    assert fake_client.last_kwargs is not None
+    assert fake_client.last_kwargs["query"]["instruments"] == {"in": ["PS2.SD"]}
+
+
+def test_plan_filters_instruments_array_field(monkeypatch):
+    geom = box(0.0, 0.0, 0.01, 0.01)
+    fake_items = [
+        _FakeItem(
+            "scene-list-psb",
+            mapping(geom),
+            {
+                "pl:clear_percent": 99,
+                "view:sun_elevation": 50,
+                "eo:cloud_cover": 0.01,
+                "instruments": ["PSB.SD"],
+            },
+        ),
+        _FakeItem(
+            "scene-list-ps2",
+            mapping(geom),
+            {
+                "pl:clear_percent": 95,
+                "view:sun_elevation": 50,
+                "eo:cloud_cover": 0.01,
+                "instruments": ["PS2.SD"],
+            },
+        ),
+    ]
+    response_map = {"2024-01-01/2024-01-31": fake_items}
+    fake_client = _FakeClient(response_map)
+
+    monkeypatch.setenv("PL_API_KEY", "test-key")
+    monkeypatch.setattr(planner, "load_aoi_geometry", lambda path: (geom, "EPSG:4326"))
+    monkeypatch.setattr(planner, "_open_planet_stac_client", lambda key: fake_client)
+
+    plan = planner.plan_monthly_composites(
+        aoi_path="aoi.geojson",
+        start_date="2024-01-01",
+        end_date="2024-01-31",
+        cloud_max=0.8,
+        coverage_target=0.5,
+        min_clear_obs=1.0,
+        min_clear_fraction=0.5,
+        instrument_types=("PS2.SD",),
+        tile_size_m=500,
+    )
+
+    month_plan = plan["2024-01"]
+    assert [item["id"] for item in month_plan["items"]] == ["scene-list-ps2"]
+    assert month_plan["items"][0]["properties"]["instruments"] == ["PS2.SD"]
+
+
+def test_plan_single_instrument_falls_back_when_metadata_missing(monkeypatch):
+    geom = box(0.0, 0.0, 0.01, 0.01)
+    fake_items = [
+        _FakeItem(
+            "scene-1",
+            mapping(geom),
+            {
+                "pl:clear_percent": 95,
+                "view:sun_elevation": 50,
+                "eo:cloud_cover": 0.03,
+            },
+        )
+    ]
+    response_map = {"2024-01-01/2024-01-31": fake_items}
+    fake_client = _FakeClient(response_map)
+
+    monkeypatch.setenv("PL_API_KEY", "test-key")
+    monkeypatch.setattr(planner, "load_aoi_geometry", lambda path: (geom, "EPSG:4326"))
+    monkeypatch.setattr(planner, "_open_planet_stac_client", lambda key: fake_client)
+
+    plan = planner.plan_monthly_composites(
+        aoi_path="aoi.geojson",
+        start_date="2024-01-01",
+        end_date="2024-01-31",
+        cloud_max=0.8,
+        coverage_target=0.5,
+        min_clear_obs=1.0,
+        min_clear_fraction=0.5,
+        instrument_types=("PS2.SD",),
+        tile_size_m=500,
+    )
+
+    month_plan = plan["2024-01"]
+    assert month_plan["filtered_count"] == 1
+    assert month_plan["selected_count"] == 1
+
+
+def test_plan_defaults_to_legacy_selection_policy(monkeypatch):
+    geom = box(0.0, 0.0, 0.01, 0.01)
+    fake_items = [
+        _FakeItem(
+            "scene-1",
+            mapping(geom),
+            {
+                "pl:clear_percent": 95,
+                "view:sun_elevation": 50,
+                "eo:cloud_cover": 0.03,
+                "datetime": "2024-01-01T10:00:00Z",
+            },
+        )
+    ]
+    response_map = {"2024-01-01/2024-01-31": fake_items}
+    fake_client = _FakeClient(response_map)
+
+    monkeypatch.setenv("PL_API_KEY", "test-key")
+    monkeypatch.setattr(planner, "load_aoi_geometry", lambda path: (geom, "EPSG:4326"))
+    monkeypatch.setattr(planner, "_open_planet_stac_client", lambda key: fake_client)
+
+    plan = planner.plan_monthly_composites(
+        aoi_path="aoi.geojson",
+        start_date="2024-01-01",
+        end_date="2024-01-31",
+        coverage_target=0.5,
+        min_clear_obs=1.0,
+        min_clear_fraction=0.5,
+        tile_size_m=500,
+    )
+    month_plan = plan["2024-01"]
+    assert month_plan["selection_policy"] == "legacy"
+    assert month_plan["stopped_reason"] in {"coverage_target_met", "no_positive_gain"}
+
+
+def test_parse_plan_args_rejects_removed_cohesive_flags():
+    with pytest.raises(SystemExit):
+        planner.parse_plan_args(
+            [
+                "--aoi",
+                "aoi.geojson",
+                "--start",
+                "2024-01-01",
+                "--end",
+                "2024-01-31",
+                "--instrument-type",
+                "PSB.SD",
+                "--cohesive",
+            ]
+        )
 
 
 def test_parse_plan_args_requires_window_days_for_fixed_grouping():

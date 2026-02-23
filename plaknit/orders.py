@@ -30,37 +30,27 @@ PLANET_STAC_URL = "https://api.planet.com/x/data/"
 MAX_ITEMS_PER_ORDER = 100
 CLOUD_COVER_KEYS = (
     "eo:cloud_cover",
-    "cloud_cover",
-    "pl:cloud_cover",
-    "pl_cloud_cover",
-    "cloud_percent",
-    "pl:cloud_percent",
-    "pl_cloud_percent",
 )
 CLEAR_FRACTION_KEYS = (
-    "clear_percent",
     "pl:clear_percent",
-    "pl_clear_percent",
-    "clear_fraction",
-    "pl:clear_fraction",
 )
-SUN_ELEVATION_KEYS = ("view:sun_elevation", "sun_elevation")
-SUN_AZIMUTH_KEYS = ("view:sun_azimuth", "sun_azimuth")
-ACQUIRED_KEYS = ("datetime", "acquired")
+SUN_ELEVATION_KEYS = ("view:sun_elevation",)
+SUN_AZIMUTH_KEYS = ("view:sun_azimuth",)
+ACQUIRED_KEYS = ("datetime",)
 VISIBLE_CONFIDENCE_KEYS = (
     "pl:visible_confidence_percent",
-    "visible_confidence_percent",
 )
-CLEAR_CONFIDENCE_KEYS = ("pl:clear_confidence_percent", "clear_confidence_percent")
-SHADOW_PERCENT_KEYS = ("pl:shadow_percent", "shadow_percent")
-SNOW_ICE_PERCENT_KEYS = ("pl:snow_ice_percent", "snow_ice_percent")
-HEAVY_HAZE_PERCENT_KEYS = ("pl:heavy_haze_percent", "heavy_haze_percent")
-VIEW_ANGLE_KEYS = ("view:off_nadir", "view_angle")
-GROUND_CONTROL_KEYS = ("pl:ground_control", "ground_control")
-QUALITY_CATEGORY_KEYS = ("pl:quality_category", "quality_category")
-PUBLISHING_STAGE_KEYS = ("pl:publishing_stage", "publishing_stage")
-ANOMALOUS_PIXELS_KEYS = ("pl:anomalous_pixels", "anomalous_pixels")
-GSD_KEYS = ("gsd", "pixel_resolution", "pl:pixel_resolution")
+CLEAR_CONFIDENCE_KEYS = ("pl:clear_confidence_percent",)
+SHADOW_PERCENT_KEYS = ("pl:shadow_percent",)
+SNOW_ICE_PERCENT_KEYS = ("pl:snow_ice_percent",)
+HEAVY_HAZE_PERCENT_KEYS = ("pl:heavy_haze_percent",)
+VIEW_ANGLE_KEYS = ("view:off_nadir",)
+GROUND_CONTROL_KEYS = ("pl:ground_control",)
+QUALITY_CATEGORY_KEYS = ("pl:quality_category",)
+PUBLISHING_STAGE_KEYS = ("pl:publishing_stage",)
+ANOMALOUS_PIXELS_KEYS = ("pl:anomalous_pixels",)
+GSD_KEYS = ("gsd",)
+INSTRUMENT_KEYS = ("instruments",)
 
 
 def _get_logger() -> logging.Logger:
@@ -88,8 +78,8 @@ def _open_planet_stac_client(api_key: str) -> Client:
 def _month_start_end(month: str, plan_entry: Dict[str, Any]) -> tuple[date, date]:
     filters = plan_entry.get("filters", {}) or {}
     try:
-        start_str = filters.get("month_start")
-        end_str = filters.get("month_end")
+        start_str = filters.get("start_date") or filters.get("month_start")
+        end_str = filters.get("end_date") or filters.get("month_end")
         if start_str and end_str:
             start = date.fromisoformat(start_str)
             end = date.fromisoformat(end_str)
@@ -243,6 +233,40 @@ def _get_property(properties: Dict[str, Any], keys: Sequence[str]) -> Any:
     return None
 
 
+def _normalize_instrument_filters(
+    instrument_types: Sequence[str] | None,
+) -> List[str]:
+    if not instrument_types:
+        return []
+    unique: List[str] = []
+    for instrument in instrument_types:
+        if not isinstance(instrument, str):
+            continue
+        normalized = instrument.strip()
+        if not normalized or normalized.lower() == "none":
+            continue
+        if normalized not in unique:
+            unique.append(normalized)
+    return unique
+
+
+def _scene_instruments(properties: Dict[str, Any]) -> List[str]:
+    value = _get_property(properties, INSTRUMENT_KEYS)
+    if isinstance(value, str):
+        normalized = value.strip()
+        return [normalized] if normalized else []
+    if isinstance(value, (list, tuple)):
+        instruments: List[str] = []
+        for item in value:
+            if not isinstance(item, str):
+                continue
+            normalized = item.strip()
+            if normalized and normalized not in instruments:
+                instruments.append(normalized)
+        return instruments
+    return []
+
+
 def _float_or_none(value: Any) -> Optional[float]:
     if value is None:
         return None
@@ -392,7 +416,14 @@ def _find_replacement_items(
     item_type = filters.get("item_type") or "PSScene"
     collection = filters.get("collection")
     imagery_type = filters.get("imagery_type")
-    instrument_types = filters.get("instrument_types")
+    instrument_types_raw = filters.get("instrument_types")
+    instrument_types = (
+        [instrument_types_raw]
+        if isinstance(instrument_types_raw, str)
+        else instrument_types_raw
+    )
+    requested_instruments = _normalize_instrument_filters(instrument_types)
+    requested_instrument_set = {instrument.lower() for instrument in requested_instruments}
     cloud_max = filters.get("cloud_max")
     sun_elevation_min = filters.get("sun_elevation_min")
     min_clear_fraction = filters.get("min_clear_fraction", 0.0) or 0.0
@@ -422,15 +453,11 @@ def _find_replacement_items(
         query["eo:cloud_cover"] = {"lte": cloud_max}
     if imagery_type:
         query["pl:imagery_type"] = {"eq": imagery_type}
-    if instrument_types:
-        unique_instruments = []
-        for inst in instrument_types:
-            if inst not in unique_instruments:
-                unique_instruments.append(inst)
-        if len(unique_instruments) == 1:
-            query["pl:instrument"] = {"eq": unique_instruments[0]}
+    if requested_instruments:
+        if len(requested_instruments) == 1:
+            query["instruments"] = {"in": requested_instruments}
         else:
-            query["pl:instrument"] = {"in": unique_instruments}
+            query["instruments"] = {"in": requested_instruments}
 
     month_start, month_end = _month_start_end(month, plan_entry)
     datetime_range = f"{month_start.isoformat()}/{month_end.isoformat()}"
@@ -442,12 +469,39 @@ def _find_replacement_items(
         query=query,
         max_items=limit,
     )
+    items = list(search.items())
+    has_instrument_metadata = False
+    if requested_instrument_set:
+        for item in items:
+            if _scene_instruments(dict(item.properties)):
+                has_instrument_metadata = True
+                break
+        if len(requested_instrument_set) == 1 and not has_instrument_metadata:
+            _get_logger().warning(
+                "No instrument metadata found for replacement search %s; "
+                "falling back to STAC query-only instrument filtering.",
+                month,
+            )
+    require_instrument_metadata = (
+        len(requested_instrument_set) == 1 and has_instrument_metadata
+    )
+
     candidates: List[tuple[float, float, Any]] = []
-    for item in search.items():
+    for item in items:
         if item.id in exclude_ids:
             continue
         properties = dict(item.properties)
         properties["id"] = item.id
+        item_instruments = _scene_instruments(properties)
+        if requested_instrument_set:
+            if item_instruments:
+                if not any(
+                    inst.lower() in requested_instrument_set
+                    for inst in item_instruments
+                ):
+                    continue
+            elif require_instrument_metadata:
+                continue
         clear_fraction = _clear_fraction(properties)
         if clear_fraction is None or clear_fraction < min_clear_fraction:
             continue
@@ -478,21 +532,26 @@ def _find_replacement_items(
                 "collection": item.collection_id or collection or "PSScene",
                 "clear_fraction": clear_fraction,
                 "properties": {
-                    "cloud_cover": _get_property(item.properties, CLOUD_COVER_KEYS),
-                    "clear_percent": _get_property(
+                    "eo:cloud_cover": _get_property(item.properties, CLOUD_COVER_KEYS),
+                    "pl:clear_percent": _get_property(
                         item.properties, CLEAR_FRACTION_KEYS
                     ),
-                    "sun_elevation": _get_property(item.properties, SUN_ELEVATION_KEYS),
-                    "sun_azimuth": _get_property(item.properties, SUN_AZIMUTH_KEYS),
-                    "acquired": _get_property(item.properties, ACQUIRED_KEYS),
-                    "view_angle": _get_property(item.properties, VIEW_ANGLE_KEYS),
-                    "ground_control": _get_property(
+                    "view:sun_elevation": _get_property(
+                        item.properties, SUN_ELEVATION_KEYS
+                    ),
+                    "view:sun_azimuth": _get_property(
+                        item.properties, SUN_AZIMUTH_KEYS
+                    ),
+                    "datetime": _get_property(item.properties, ACQUIRED_KEYS),
+                    "view:off_nadir": _get_property(item.properties, VIEW_ANGLE_KEYS),
+                    "pl:ground_control": _get_property(
                         item.properties, GROUND_CONTROL_KEYS
                     ),
-                    "quality_category": _get_property(
+                    "instruments": _get_property(item.properties, INSTRUMENT_KEYS),
+                    "pl:quality_category": _get_property(
                         item.properties, QUALITY_CATEGORY_KEYS
                     ),
-                    "publishing_stage": _get_property(
+                    "pl:publishing_stage": _get_property(
                         item.properties, PUBLISHING_STAGE_KEYS
                     ),
                     "gsd": _get_property(item.properties, GSD_KEYS),
