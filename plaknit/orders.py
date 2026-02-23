@@ -7,6 +7,7 @@ import asyncio
 import copy
 import json
 import logging
+import math
 import os
 import warnings
 from base64 import b64encode
@@ -28,23 +29,6 @@ from .geometry import (
 ORDER_LOGGER_NAME = "plaknit.plan"
 PLANET_STAC_URL = "https://api.planet.com/x/data/"
 MAX_ITEMS_PER_ORDER = 100
-CLOUD_COVER_KEYS = ("eo:cloud_cover",)
-CLEAR_FRACTION_KEYS = ("pl:clear_percent",)
-SUN_ELEVATION_KEYS = ("view:sun_elevation",)
-SUN_AZIMUTH_KEYS = ("view:sun_azimuth",)
-ACQUIRED_KEYS = ("datetime",)
-VISIBLE_CONFIDENCE_KEYS = ("pl:visible_confidence_percent",)
-CLEAR_CONFIDENCE_KEYS = ("pl:clear_confidence_percent",)
-SHADOW_PERCENT_KEYS = ("pl:shadow_percent",)
-SNOW_ICE_PERCENT_KEYS = ("pl:snow_ice_percent",)
-HEAVY_HAZE_PERCENT_KEYS = ("pl:heavy_haze_percent",)
-VIEW_ANGLE_KEYS = ("view:off_nadir",)
-GROUND_CONTROL_KEYS = ("pl:ground_control",)
-QUALITY_CATEGORY_KEYS = ("pl:quality_category",)
-PUBLISHING_STAGE_KEYS = ("pl:publishing_stage",)
-ANOMALOUS_PIXELS_KEYS = ("pl:anomalous_pixels",)
-GSD_KEYS = ("gsd",)
-INSTRUMENT_KEYS = ("instruments",)
 
 
 def _get_logger() -> logging.Logger:
@@ -72,8 +56,8 @@ def _open_planet_stac_client(api_key: str) -> Client:
 def _month_start_end(month: str, plan_entry: Dict[str, Any]) -> tuple[date, date]:
     filters = plan_entry.get("filters", {}) or {}
     try:
-        start_str = filters.get("start_date") or filters.get("month_start")
-        end_str = filters.get("end_date") or filters.get("month_end")
+        start_str = filters.get("month_start")
+        end_str = filters.get("month_end")
         if start_str and end_str:
             start = date.fromisoformat(start_str)
             end = date.fromisoformat(end_str)
@@ -197,7 +181,11 @@ async def _orders_client_context(api_key: str):
 
 
 def _clear_fraction(properties: Dict[str, Any]) -> Optional[float]:
-    clear_value = _get_property(properties, CLEAR_FRACTION_KEYS)
+    clear_value = properties.get("clear_percent") or properties.get("pl:clear_percent")
+    if clear_value is None:
+        clear_value = properties.get("clear_fraction") or properties.get(
+            "pl:clear_fraction"
+        )
     if clear_value is not None:
         try:
             clear_float = float(clear_value)
@@ -207,7 +195,11 @@ def _clear_fraction(properties: Dict[str, Any]) -> Optional[float]:
         except (ValueError, TypeError):
             pass
 
-    cloud_value = _get_property(properties, CLOUD_COVER_KEYS)
+    cloud_value = properties.get("cloud_cover") or properties.get("pl:cloud_cover")
+    if cloud_value is None:
+        cloud_value = properties.get("cloud_percent") or properties.get(
+            "pl:cloud_percent"
+        )
     if cloud_value is not None:
         try:
             cloud_fraction = float(cloud_value)
@@ -225,40 +217,6 @@ def _get_property(properties: Dict[str, Any], keys: Sequence[str]) -> Any:
         if key in properties and properties[key] not in (None, ""):
             return properties[key]
     return None
-
-
-def _normalize_instrument_filters(
-    instrument_types: Sequence[str] | None,
-) -> List[str]:
-    if not instrument_types:
-        return []
-    unique: List[str] = []
-    for instrument in instrument_types:
-        if not isinstance(instrument, str):
-            continue
-        normalized = instrument.strip()
-        if not normalized or normalized.lower() == "none":
-            continue
-        if normalized not in unique:
-            unique.append(normalized)
-    return unique
-
-
-def _scene_instruments(properties: Dict[str, Any]) -> List[str]:
-    value = _get_property(properties, INSTRUMENT_KEYS)
-    if isinstance(value, str):
-        normalized = value.strip()
-        return [normalized] if normalized else []
-    if isinstance(value, (list, tuple)):
-        instruments: List[str] = []
-        for item in value:
-            if not isinstance(item, str):
-                continue
-            normalized = item.strip()
-            if normalized and normalized not in instruments:
-                instruments.append(normalized)
-        return instruments
-    return []
 
 
 def _float_or_none(value: Any) -> Optional[float]:
@@ -329,12 +287,12 @@ def _passes_quality_filters(
     max_view_angle: Optional[float],
 ) -> bool:
     if require_ground_control:
-        ground_control = _bool_or_none(_get_property(properties, GROUND_CONTROL_KEYS))
+        ground_control = _bool_or_none(properties.get("ground_control"))
         if ground_control is not True:
             return False
 
     if quality_category:
-        value = _get_property(properties, QUALITY_CATEGORY_KEYS)
+        value = properties.get("quality_category")
         if (
             not isinstance(value, str)
             or value.strip().lower() != quality_category.lower()
@@ -342,7 +300,7 @@ def _passes_quality_filters(
             return False
 
     if publishing_stage:
-        value = _get_property(properties, PUBLISHING_STAGE_KEYS)
+        value = properties.get("publishing_stage")
         if (
             not isinstance(value, str)
             or value.strip().lower() != publishing_stage.lower()
@@ -350,48 +308,93 @@ def _passes_quality_filters(
             return False
 
     if max_anomalous_pixels is not None:
-        anomalous = _float_or_none(_get_property(properties, ANOMALOUS_PIXELS_KEYS))
+        anomalous = _float_or_none(properties.get("anomalous_pixels"))
         if anomalous is None or anomalous > max_anomalous_pixels:
             return False
 
     if max_view_angle is not None:
-        view_angle = _float_or_none(_get_property(properties, VIEW_ANGLE_KEYS))
+        view_angle = _float_or_none(properties.get("view_angle"))
         if view_angle is None or abs(view_angle) > max_view_angle:
             return False
 
-    shadow_fraction = _property_percent_fraction(properties, SHADOW_PERCENT_KEYS)
+    shadow_fraction = _property_percent_fraction(properties, ["shadow_percent"])
     if max_shadow_fraction is not None and (
         shadow_fraction is None or shadow_fraction > max_shadow_fraction
     ):
         return False
 
-    snow_ice_fraction = _property_percent_fraction(properties, SNOW_ICE_PERCENT_KEYS)
+    snow_ice_fraction = _property_percent_fraction(properties, ["snow_ice_percent"])
     if max_snow_ice_fraction is not None and (
         snow_ice_fraction is None or snow_ice_fraction > max_snow_ice_fraction
     ):
         return False
 
-    heavy_haze_fraction = _property_percent_fraction(
-        properties, HEAVY_HAZE_PERCENT_KEYS
-    )
+    heavy_haze_fraction = _property_percent_fraction(properties, ["heavy_haze_percent"])
     if max_heavy_haze_fraction is not None and (
         heavy_haze_fraction is None or heavy_haze_fraction > max_heavy_haze_fraction
     ):
         return False
 
-    visible_confidence = _property_percent_fraction(properties, VISIBLE_CONFIDENCE_KEYS)
+    visible_confidence = _property_percent_fraction(
+        properties, ["visible_confidence_percent"]
+    )
     if min_visible_confidence is not None and (
         visible_confidence is None or visible_confidence < min_visible_confidence
     ):
         return False
 
-    clear_confidence = _property_percent_fraction(properties, CLEAR_CONFIDENCE_KEYS)
+    clear_confidence = _property_percent_fraction(
+        properties, ["clear_confidence_percent"]
+    )
     if min_clear_confidence is not None and (
         clear_confidence is None or clear_confidence < min_clear_confidence
     ):
         return False
 
     return True
+
+
+def _quality_score(properties: Dict[str, Any]) -> float:
+    metrics: List[tuple[float, float]] = []
+
+    visible_confidence = _property_percent_fraction(
+        properties, ["visible_confidence_percent"]
+    )
+    if visible_confidence is not None:
+        metrics.append((0.2, visible_confidence))
+
+    clear_confidence = _property_percent_fraction(
+        properties, ["clear_confidence_percent"]
+    )
+    if clear_confidence is not None:
+        metrics.append((0.2, clear_confidence))
+
+    shadow_fraction = _property_percent_fraction(properties, ["shadow_percent"])
+    if shadow_fraction is not None:
+        metrics.append((0.15, max(0.0, min(1.0, 1.0 - shadow_fraction))))
+
+    snow_ice_fraction = _property_percent_fraction(properties, ["snow_ice_percent"])
+    if snow_ice_fraction is not None:
+        metrics.append((0.15, max(0.0, min(1.0, 1.0 - snow_ice_fraction))))
+
+    heavy_haze_fraction = _property_percent_fraction(properties, ["heavy_haze_percent"])
+    if heavy_haze_fraction is not None:
+        metrics.append((0.1, max(0.0, min(1.0, 1.0 - heavy_haze_fraction))))
+
+    view_angle = _float_or_none(properties.get("view_angle"))
+    if view_angle is not None:
+        view_score = math.exp(-((abs(view_angle) / 15.0) ** 2))
+        metrics.append((0.1, view_score))
+
+    gsd = _float_or_none(_get_property(properties, ["gsd", "pixel_resolution"]))
+    if gsd is not None and gsd > 0:
+        gsd_score = math.exp(-((max(0.0, gsd - 3.0) / 1.5) ** 2))
+        metrics.append((0.1, gsd_score))
+
+    if not metrics:
+        return 0.5
+    total_weight = sum(weight for weight, _ in metrics)
+    return sum(weight * value for weight, value in metrics) / total_weight
 
 
 def _find_replacement_items(
@@ -410,31 +413,26 @@ def _find_replacement_items(
     item_type = filters.get("item_type") or "PSScene"
     collection = filters.get("collection")
     imagery_type = filters.get("imagery_type")
-    instrument_types_raw = filters.get("instrument_types")
-    instrument_types = (
-        [instrument_types_raw]
-        if isinstance(instrument_types_raw, str)
-        else instrument_types_raw
-    )
-    requested_instruments = _normalize_instrument_filters(instrument_types)
-    requested_instrument_set = {
-        instrument.lower() for instrument in requested_instruments
-    }
+    instrument_types = filters.get("instrument_types")
     cloud_max = filters.get("cloud_max")
     sun_elevation_min = filters.get("sun_elevation_min")
     min_clear_fraction = filters.get("min_clear_fraction", 0.0) or 0.0
     require_ground_control = bool(filters.get("require_ground_control", False))
     quality_category = filters.get("quality_category")
     publishing_stage = filters.get("publishing_stage")
-    # Planet STAC replacement search does not consistently expose UDM-derived
-    # confidence/haze/shadow/anomalous fields, so ignore those filters here.
-    max_anomalous_pixels = None
-    max_shadow_fraction = None
-    max_snow_ice_fraction = None
-    max_heavy_haze_fraction = None
-    min_visible_confidence = None
-    min_clear_confidence = None
+    max_anomalous_pixels = filters.get("max_anomalous_pixels")
+    max_shadow_fraction = _normalized_fraction(filters.get("max_shadow_fraction"))
+    max_snow_ice_fraction = _normalized_fraction(filters.get("max_snow_ice_fraction"))
+    max_heavy_haze_fraction = _normalized_fraction(
+        filters.get("max_heavy_haze_fraction")
+    )
+    min_visible_confidence = _normalized_fraction(filters.get("min_visible_confidence"))
+    min_clear_confidence = _normalized_fraction(filters.get("min_clear_confidence"))
     max_view_angle = _float_or_none(filters.get("max_view_angle"))
+    quality_weight = _float_or_none(filters.get("quality_weight"))
+    if quality_weight is None:
+        quality_weight = 0.35
+    quality_weight = max(0.0, min(1.0, quality_weight))
     limit = filters.get("limit")
     if isinstance(quality_category, str) and quality_category.lower() == "none":
         quality_category = None
@@ -444,16 +442,20 @@ def _find_replacement_items(
     item_collections = [collection] if collection else [item_type]
     query: Dict[str, Any] = {}
     if sun_elevation_min is not None:
-        query["view:sun_elevation"] = {"gte": sun_elevation_min}
+        query["sun_elevation"] = {"gte": sun_elevation_min}
     if cloud_max is not None:
-        query["eo:cloud_cover"] = {"lte": cloud_max}
+        query["cloud_cover"] = {"lte": cloud_max}
     if imagery_type:
         query["pl:imagery_type"] = {"eq": imagery_type}
-    if requested_instruments:
-        if len(requested_instruments) == 1:
-            query["instruments"] = {"in": requested_instruments}
+    if instrument_types:
+        unique_instruments = []
+        for inst in instrument_types:
+            if inst not in unique_instruments:
+                unique_instruments.append(inst)
+        if len(unique_instruments) == 1:
+            query["pl:instrument"] = {"eq": unique_instruments[0]}
         else:
-            query["instruments"] = {"in": requested_instruments}
+            query["pl:instrument"] = {"in": unique_instruments}
 
     month_start, month_end = _month_start_end(month, plan_entry)
     datetime_range = f"{month_start.isoformat()}/{month_end.isoformat()}"
@@ -465,39 +467,12 @@ def _find_replacement_items(
         query=query,
         max_items=limit,
     )
-    items = list(search.items())
-    has_instrument_metadata = False
-    if requested_instrument_set:
-        for item in items:
-            if _scene_instruments(dict(item.properties)):
-                has_instrument_metadata = True
-                break
-        if len(requested_instrument_set) == 1 and not has_instrument_metadata:
-            _get_logger().warning(
-                "No instrument metadata found for replacement search %s; "
-                "falling back to STAC query-only instrument filtering.",
-                month,
-            )
-    require_instrument_metadata = (
-        len(requested_instrument_set) == 1 and has_instrument_metadata
-    )
-
     candidates: List[tuple[float, float, Any]] = []
-    for item in items:
+    for item in search.items():
         if item.id in exclude_ids:
             continue
         properties = dict(item.properties)
         properties["id"] = item.id
-        item_instruments = _scene_instruments(properties)
-        if requested_instrument_set:
-            if item_instruments:
-                if not any(
-                    inst.lower() in requested_instrument_set
-                    for inst in item_instruments
-                ):
-                    continue
-            elif require_instrument_metadata:
-                continue
         clear_fraction = _clear_fraction(properties)
         if clear_fraction is None or clear_fraction < min_clear_fraction:
             continue
@@ -506,7 +481,7 @@ def _find_replacement_items(
             require_ground_control=require_ground_control,
             quality_category=quality_category,
             publishing_stage=publishing_stage,
-            max_anomalous_pixels=max_anomalous_pixels,
+            max_anomalous_pixels=_float_or_none(max_anomalous_pixels),
             max_shadow_fraction=max_shadow_fraction,
             max_snow_ice_fraction=max_snow_ice_fraction,
             max_heavy_haze_fraction=max_heavy_haze_fraction,
@@ -515,9 +490,12 @@ def _find_replacement_items(
             max_view_angle=max_view_angle,
         ):
             continue
-        # Rank replacements by clear fraction only. Quality metadata is often
-        # unavailable in STAC and can distort replacement selection.
-        candidates.append((clear_fraction, clear_fraction, item))
+        quality_score = _quality_score(properties)
+        quality_multiplier = max(
+            0.0, 1.0 + quality_weight * (quality_score - 0.5) * 2.0
+        )
+        combined_score = clear_fraction * quality_multiplier
+        candidates.append((combined_score, clear_fraction, item))
 
     candidates.sort(key=lambda pair: (pair[0], pair[1]), reverse=True)
     replacements: List[Dict[str, Any]] = []
@@ -528,29 +506,26 @@ def _find_replacement_items(
                 "collection": item.collection_id or collection or "PSScene",
                 "clear_fraction": clear_fraction,
                 "properties": {
-                    "eo:cloud_cover": _get_property(item.properties, CLOUD_COVER_KEYS),
-                    "pl:clear_percent": _get_property(
-                        item.properties, CLEAR_FRACTION_KEYS
+                    "cloud_cover": item.properties.get("cloud_cover"),
+                    "clear_percent": item.properties.get("clear_percent"),
+                    "sun_elevation": item.properties.get("sun_elevation"),
+                    "sun_azimuth": item.properties.get("sun_azimuth"),
+                    "acquired": item.properties.get("acquired"),
+                    "visible_confidence_percent": item.properties.get(
+                        "visible_confidence_percent"
                     ),
-                    "view:sun_elevation": _get_property(
-                        item.properties, SUN_ELEVATION_KEYS
+                    "clear_confidence_percent": item.properties.get(
+                        "clear_confidence_percent"
                     ),
-                    "view:sun_azimuth": _get_property(
-                        item.properties, SUN_AZIMUTH_KEYS
-                    ),
-                    "datetime": _get_property(item.properties, ACQUIRED_KEYS),
-                    "view:off_nadir": _get_property(item.properties, VIEW_ANGLE_KEYS),
-                    "pl:ground_control": _get_property(
-                        item.properties, GROUND_CONTROL_KEYS
-                    ),
-                    "instruments": _get_property(item.properties, INSTRUMENT_KEYS),
-                    "pl:quality_category": _get_property(
-                        item.properties, QUALITY_CATEGORY_KEYS
-                    ),
-                    "pl:publishing_stage": _get_property(
-                        item.properties, PUBLISHING_STAGE_KEYS
-                    ),
-                    "gsd": _get_property(item.properties, GSD_KEYS),
+                    "shadow_percent": item.properties.get("shadow_percent"),
+                    "snow_ice_percent": item.properties.get("snow_ice_percent"),
+                    "heavy_haze_percent": item.properties.get("heavy_haze_percent"),
+                    "view_angle": item.properties.get("view_angle"),
+                    "ground_control": item.properties.get("ground_control"),
+                    "quality_category": item.properties.get("quality_category"),
+                    "publishing_stage": item.properties.get("publishing_stage"),
+                    "anomalous_pixels": item.properties.get("anomalous_pixels"),
+                    "gsd": item.properties.get("gsd"),
                 },
             }
         )
