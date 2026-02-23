@@ -331,7 +331,9 @@ def test_score_candidate_prefers_higher_quality():
     assert high_score > low_score
 
 
-@pytest.mark.parametrize("flag,value", [("--order", None), ("--sr-bands", "4"), ("--harmonize-to", "none")])
+@pytest.mark.parametrize(
+    "flag,value", [("--order", None), ("--sr-bands", "4"), ("--harmonize-to", "none")]
+)
 def test_parse_plan_args_rejects_order_related_flags(flag, value):
     argv = [
         "--aoi",
