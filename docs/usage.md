@@ -2,7 +2,7 @@
 
 ## Planning & Ordering Planet Composites
 
-`plaknit plan` can run on local devices to query Planet's Data/STAC API, filter PSScene candidates, tile the AOI, and pick the smallest set that meets both coverage and clear-observation targets for each planning window. You can optionally submit Planet orders with clipped surface reflectance scenes (4- or 8-band SR + UDM2) and Sentinel-2 harmonization, chunked into batches of up to 100 scenes with predictable order/ZIP names.
+`plaknit plan` can run on local devices to query Planet's Data/STAC API, filter PSScene candidates, tile the AOI, and pick scenes for each planning window using the legacy greedy selector. You can optionally submit Planet orders with clipped surface reflectance scenes (4- or 8-band SR + UDM2) and Sentinel-2 harmonization, chunked into batches of up to 100 scenes with predictable order/ZIP names.
 
 ```bash
 plaknit plan \
