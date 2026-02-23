@@ -177,6 +177,11 @@ def test_extract_inaccessible_item_ids_handles_null_field():
     assert result == []
 
 
+def test_orders_clear_fraction_treats_clear_percent_one_as_one_percent():
+    clear_fraction = orders._clear_fraction({"clear_percent": 1})
+    assert clear_fraction == 0.01
+
+
 def test_clip_geojson_simplifies_when_vertex_count_exceeds_limit(monkeypatch):
     detailed_geom = box(0, 0, 1, 1)
     simplified_geom = box(0, 0, 0.5, 0.5)
@@ -294,3 +299,61 @@ def test_find_replacement_items_applies_quality_filters():
     )
 
     assert [item["id"] for item in replacements] == ["good"]
+
+
+def test_find_replacement_items_reads_stac_extension_aliases():
+    plan_entry = {
+        "filters": {
+            "item_type": "PSScene",
+            "month_start": "2024-01-01",
+            "month_end": "2024-01-31",
+            "min_clear_fraction": 0.5,
+            "require_ground_control": True,
+            "quality_category": "standard",
+            "publishing_stage": "finalized",
+            "max_shadow_fraction": 0.05,
+            "max_view_angle": 10.0,
+            "min_visible_confidence": 0.8,
+            "min_clear_confidence": 0.8,
+        }
+    }
+    items = [
+        _FakeStacItem(
+            "alias-good",
+            {
+                "pl:clear_percent": 97,
+                "eo:cloud_cover": 0.03,
+                "view:sun_elevation": 52,
+                "view:sun_azimuth": 140,
+                "datetime": "2024-01-11T00:00:00Z",
+                "view:off_nadir": 3.8,
+                "pl:visible_confidence_percent": 92,
+                "pl:clear_confidence_percent": 93,
+                "pl:ground_control": True,
+                "pl:quality_category": "standard",
+                "pl:publishing_stage": "finalized",
+                "pl:shadow_percent": 1,
+                "pl:snow_ice_percent": 0,
+                "pl:heavy_haze_percent": 1,
+                "pl:anomalous_pixels": 0,
+            },
+        )
+    ]
+    stac_client = _FakeStacClient(items)
+
+    replacements = orders._find_replacement_items(
+        stac_client=stac_client,
+        plan_entry=plan_entry,
+        month="2024-01",
+        aoi_geojson={"type": "Polygon", "coordinates": []},
+        desired_count=1,
+        exclude_ids=set(),
+    )
+
+    assert [item["id"] for item in replacements] == ["alias-good"]
+    props = replacements[0]["properties"]
+    assert props["cloud_cover"] == 0.03
+    assert props["sun_elevation"] == 52
+    assert props["sun_azimuth"] == 140
+    assert props["view_angle"] == 3.8
+    assert props["acquired"] == "2024-01-11T00:00:00Z"

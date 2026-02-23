@@ -29,6 +29,83 @@ from .geometry import (
 ORDER_LOGGER_NAME = "plaknit.plan"
 PLANET_STAC_URL = "https://api.planet.com/x/data/"
 MAX_ITEMS_PER_ORDER = 100
+CLEAR_FRACTION_KEYS = (
+    "clear_percent",
+    "pl:clear_percent",
+    "pl_clear_percent",
+    "clear_fraction",
+    "pl:clear_fraction",
+    "pl_clear_fraction",
+)
+CLEAR_PERCENT_KEYS = ("clear_percent", "pl:clear_percent", "pl_clear_percent")
+CLEAR_FRACTION_VALUE_KEYS = (
+    "clear_fraction",
+    "pl:clear_fraction",
+    "pl_clear_fraction",
+)
+CLOUD_COVER_KEYS = (
+    "cloud_cover",
+    "eo:cloud_cover",
+    "eo_cloud_cover",
+    "pl:cloud_cover",
+    "pl_cloud_cover",
+    "cloud_percent",
+    "pl:cloud_percent",
+    "pl_cloud_percent",
+)
+SUN_ELEVATION_KEYS = (
+    "sun_elevation",
+    "view:sun_elevation",
+    "view_sun_elevation",
+)
+SUN_AZIMUTH_KEYS = ("sun_azimuth", "view:sun_azimuth", "view_sun_azimuth")
+ACQUIRED_KEYS = (
+    "acquired",
+    "datetime",
+    "pl:acquired",
+    "pl_acquired",
+    "pl:acquired_datetime",
+    "pl_acquired_datetime",
+)
+VISIBLE_CONFIDENCE_KEYS = (
+    "visible_confidence_percent",
+    "pl:visible_confidence_percent",
+    "pl_visible_confidence_percent",
+)
+CLEAR_CONFIDENCE_KEYS = (
+    "clear_confidence_percent",
+    "pl:clear_confidence_percent",
+    "pl_clear_confidence_percent",
+)
+SHADOW_PERCENT_KEYS = ("shadow_percent", "pl:shadow_percent", "pl_shadow_percent")
+SNOW_ICE_PERCENT_KEYS = (
+    "snow_ice_percent",
+    "pl:snow_ice_percent",
+    "pl_snow_ice_percent",
+)
+HEAVY_HAZE_PERCENT_KEYS = (
+    "heavy_haze_percent",
+    "pl:heavy_haze_percent",
+    "pl_heavy_haze_percent",
+)
+VIEW_ANGLE_KEYS = ("view_angle", "view:off_nadir", "view_off_nadir")
+GROUND_CONTROL_KEYS = ("ground_control", "pl:ground_control", "pl_ground_control")
+QUALITY_CATEGORY_KEYS = (
+    "quality_category",
+    "pl:quality_category",
+    "pl_quality_category",
+)
+PUBLISHING_STAGE_KEYS = (
+    "publishing_stage",
+    "pl:publishing_stage",
+    "pl_publishing_stage",
+)
+ANOMALOUS_PIXELS_KEYS = (
+    "anomalous_pixels",
+    "pl:anomalous_pixels",
+    "pl_anomalous_pixels",
+)
+GSD_KEYS = ("gsd", "pixel_resolution", "pl:pixel_resolution", "pl_pixel_resolution")
 
 
 def _get_logger() -> logging.Logger:
@@ -181,33 +258,15 @@ async def _orders_client_context(api_key: str):
 
 
 def _clear_fraction(properties: Dict[str, Any]) -> Optional[float]:
-    clear_value = properties.get("clear_percent") or properties.get("pl:clear_percent")
-    if clear_value is None:
-        clear_value = properties.get("clear_fraction") or properties.get(
-            "pl:clear_fraction"
-        )
-    if clear_value is not None:
-        try:
-            clear_float = float(clear_value)
-            if clear_float > 1:
-                clear_float /= 100.0
-            return max(0.0, min(1.0, clear_float))
-        except (ValueError, TypeError):
-            pass
+    clear_fraction = _property_percent_fraction(properties, CLEAR_PERCENT_KEYS)
+    if clear_fraction is None:
+        clear_fraction = _property_fraction(properties, CLEAR_FRACTION_VALUE_KEYS)
+    if clear_fraction is not None:
+        return clear_fraction
 
-    cloud_value = properties.get("cloud_cover") or properties.get("pl:cloud_cover")
-    if cloud_value is None:
-        cloud_value = properties.get("cloud_percent") or properties.get(
-            "pl:cloud_percent"
-        )
-    if cloud_value is not None:
-        try:
-            cloud_fraction = float(cloud_value)
-            if cloud_fraction > 1:
-                cloud_fraction /= 100.0
-            return max(0.0, min(1.0, 1.0 - cloud_fraction))
-        except (ValueError, TypeError):
-            pass
+    cloud_fraction = _property_fraction(properties, CLOUD_COVER_KEYS)
+    if cloud_fraction is not None:
+        return max(0.0, min(1.0, 1.0 - cloud_fraction))
 
     return None
 
@@ -287,12 +346,12 @@ def _passes_quality_filters(
     max_view_angle: Optional[float],
 ) -> bool:
     if require_ground_control:
-        ground_control = _bool_or_none(properties.get("ground_control"))
+        ground_control = _bool_or_none(_get_property(properties, GROUND_CONTROL_KEYS))
         if ground_control is not True:
             return False
 
     if quality_category:
-        value = properties.get("quality_category")
+        value = _get_property(properties, QUALITY_CATEGORY_KEYS)
         if (
             not isinstance(value, str)
             or value.strip().lower() != quality_category.lower()
@@ -300,7 +359,7 @@ def _passes_quality_filters(
             return False
 
     if publishing_stage:
-        value = properties.get("publishing_stage")
+        value = _get_property(properties, PUBLISHING_STAGE_KEYS)
         if (
             not isinstance(value, str)
             or value.strip().lower() != publishing_stage.lower()
@@ -308,44 +367,42 @@ def _passes_quality_filters(
             return False
 
     if max_anomalous_pixels is not None:
-        anomalous = _float_or_none(properties.get("anomalous_pixels"))
+        anomalous = _float_or_none(_get_property(properties, ANOMALOUS_PIXELS_KEYS))
         if anomalous is None or anomalous > max_anomalous_pixels:
             return False
 
     if max_view_angle is not None:
-        view_angle = _float_or_none(properties.get("view_angle"))
+        view_angle = _float_or_none(_get_property(properties, VIEW_ANGLE_KEYS))
         if view_angle is None or abs(view_angle) > max_view_angle:
             return False
 
-    shadow_fraction = _property_percent_fraction(properties, ["shadow_percent"])
+    shadow_fraction = _property_percent_fraction(properties, SHADOW_PERCENT_KEYS)
     if max_shadow_fraction is not None and (
         shadow_fraction is None or shadow_fraction > max_shadow_fraction
     ):
         return False
 
-    snow_ice_fraction = _property_percent_fraction(properties, ["snow_ice_percent"])
+    snow_ice_fraction = _property_percent_fraction(properties, SNOW_ICE_PERCENT_KEYS)
     if max_snow_ice_fraction is not None and (
         snow_ice_fraction is None or snow_ice_fraction > max_snow_ice_fraction
     ):
         return False
 
-    heavy_haze_fraction = _property_percent_fraction(properties, ["heavy_haze_percent"])
+    heavy_haze_fraction = _property_percent_fraction(
+        properties, HEAVY_HAZE_PERCENT_KEYS
+    )
     if max_heavy_haze_fraction is not None and (
         heavy_haze_fraction is None or heavy_haze_fraction > max_heavy_haze_fraction
     ):
         return False
 
-    visible_confidence = _property_percent_fraction(
-        properties, ["visible_confidence_percent"]
-    )
+    visible_confidence = _property_percent_fraction(properties, VISIBLE_CONFIDENCE_KEYS)
     if min_visible_confidence is not None and (
         visible_confidence is None or visible_confidence < min_visible_confidence
     ):
         return False
 
-    clear_confidence = _property_percent_fraction(
-        properties, ["clear_confidence_percent"]
-    )
+    clear_confidence = _property_percent_fraction(properties, CLEAR_CONFIDENCE_KEYS)
     if min_clear_confidence is not None and (
         clear_confidence is None or clear_confidence < min_clear_confidence
     ):
@@ -357,36 +414,34 @@ def _passes_quality_filters(
 def _quality_score(properties: Dict[str, Any]) -> float:
     metrics: List[tuple[float, float]] = []
 
-    visible_confidence = _property_percent_fraction(
-        properties, ["visible_confidence_percent"]
-    )
+    visible_confidence = _property_percent_fraction(properties, VISIBLE_CONFIDENCE_KEYS)
     if visible_confidence is not None:
         metrics.append((0.2, visible_confidence))
 
-    clear_confidence = _property_percent_fraction(
-        properties, ["clear_confidence_percent"]
-    )
+    clear_confidence = _property_percent_fraction(properties, CLEAR_CONFIDENCE_KEYS)
     if clear_confidence is not None:
         metrics.append((0.2, clear_confidence))
 
-    shadow_fraction = _property_percent_fraction(properties, ["shadow_percent"])
+    shadow_fraction = _property_percent_fraction(properties, SHADOW_PERCENT_KEYS)
     if shadow_fraction is not None:
         metrics.append((0.15, max(0.0, min(1.0, 1.0 - shadow_fraction))))
 
-    snow_ice_fraction = _property_percent_fraction(properties, ["snow_ice_percent"])
+    snow_ice_fraction = _property_percent_fraction(properties, SNOW_ICE_PERCENT_KEYS)
     if snow_ice_fraction is not None:
         metrics.append((0.15, max(0.0, min(1.0, 1.0 - snow_ice_fraction))))
 
-    heavy_haze_fraction = _property_percent_fraction(properties, ["heavy_haze_percent"])
+    heavy_haze_fraction = _property_percent_fraction(
+        properties, HEAVY_HAZE_PERCENT_KEYS
+    )
     if heavy_haze_fraction is not None:
         metrics.append((0.1, max(0.0, min(1.0, 1.0 - heavy_haze_fraction))))
 
-    view_angle = _float_or_none(properties.get("view_angle"))
+    view_angle = _float_or_none(_get_property(properties, VIEW_ANGLE_KEYS))
     if view_angle is not None:
         view_score = math.exp(-((abs(view_angle) / 15.0) ** 2))
         metrics.append((0.1, view_score))
 
-    gsd = _float_or_none(_get_property(properties, ["gsd", "pixel_resolution"]))
+    gsd = _float_or_none(_get_property(properties, GSD_KEYS))
     if gsd is not None and gsd > 0:
         gsd_score = math.exp(-((max(0.0, gsd - 3.0) / 1.5) ** 2))
         metrics.append((0.1, gsd_score))
@@ -395,6 +450,29 @@ def _quality_score(properties: Dict[str, Any]) -> float:
         return 0.5
     total_weight = sum(weight for weight, _ in metrics)
     return sum(weight * value for weight, value in metrics) / total_weight
+
+
+def _scene_property_snapshot(properties: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "cloud_cover": _get_property(properties, CLOUD_COVER_KEYS),
+        "clear_percent": _get_property(properties, CLEAR_FRACTION_KEYS),
+        "sun_elevation": _get_property(properties, SUN_ELEVATION_KEYS),
+        "sun_azimuth": _get_property(properties, SUN_AZIMUTH_KEYS),
+        "acquired": _get_property(properties, ACQUIRED_KEYS),
+        "visible_confidence_percent": _get_property(
+            properties, VISIBLE_CONFIDENCE_KEYS
+        ),
+        "clear_confidence_percent": _get_property(properties, CLEAR_CONFIDENCE_KEYS),
+        "shadow_percent": _get_property(properties, SHADOW_PERCENT_KEYS),
+        "snow_ice_percent": _get_property(properties, SNOW_ICE_PERCENT_KEYS),
+        "heavy_haze_percent": _get_property(properties, HEAVY_HAZE_PERCENT_KEYS),
+        "view_angle": _get_property(properties, VIEW_ANGLE_KEYS),
+        "ground_control": _get_property(properties, GROUND_CONTROL_KEYS),
+        "quality_category": _get_property(properties, QUALITY_CATEGORY_KEYS),
+        "publishing_stage": _get_property(properties, PUBLISHING_STAGE_KEYS),
+        "anomalous_pixels": _get_property(properties, ANOMALOUS_PIXELS_KEYS),
+        "gsd": _get_property(properties, GSD_KEYS),
+    }
 
 
 def _find_replacement_items(
@@ -505,28 +583,7 @@ def _find_replacement_items(
                 "id": item.id,
                 "collection": item.collection_id or collection or "PSScene",
                 "clear_fraction": clear_fraction,
-                "properties": {
-                    "cloud_cover": item.properties.get("cloud_cover"),
-                    "clear_percent": item.properties.get("clear_percent"),
-                    "sun_elevation": item.properties.get("sun_elevation"),
-                    "sun_azimuth": item.properties.get("sun_azimuth"),
-                    "acquired": item.properties.get("acquired"),
-                    "visible_confidence_percent": item.properties.get(
-                        "visible_confidence_percent"
-                    ),
-                    "clear_confidence_percent": item.properties.get(
-                        "clear_confidence_percent"
-                    ),
-                    "shadow_percent": item.properties.get("shadow_percent"),
-                    "snow_ice_percent": item.properties.get("snow_ice_percent"),
-                    "heavy_haze_percent": item.properties.get("heavy_haze_percent"),
-                    "view_angle": item.properties.get("view_angle"),
-                    "ground_control": item.properties.get("ground_control"),
-                    "quality_category": item.properties.get("quality_category"),
-                    "publishing_stage": item.properties.get("publishing_stage"),
-                    "anomalous_pixels": item.properties.get("anomalous_pixels"),
-                    "gsd": item.properties.get("gsd"),
-                },
+                "properties": _scene_property_snapshot(dict(item.properties)),
             }
         )
 
