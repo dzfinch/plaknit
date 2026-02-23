@@ -343,7 +343,7 @@ def test_plan_filters_returned_items_by_instrument_type(monkeypatch):
     geom = box(0.0, 0.0, 0.01, 0.01)
     fake_items = [
         _FakeItem(
-                "scene-psb",
+            "scene-psb",
             mapping(geom),
             {
                 "pl:clear_percent": 99,

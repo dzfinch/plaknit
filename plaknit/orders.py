@@ -28,18 +28,12 @@ from .geometry import (
 ORDER_LOGGER_NAME = "plaknit.plan"
 PLANET_STAC_URL = "https://api.planet.com/x/data/"
 MAX_ITEMS_PER_ORDER = 100
-CLOUD_COVER_KEYS = (
-    "eo:cloud_cover",
-)
-CLEAR_FRACTION_KEYS = (
-    "pl:clear_percent",
-)
+CLOUD_COVER_KEYS = ("eo:cloud_cover",)
+CLEAR_FRACTION_KEYS = ("pl:clear_percent",)
 SUN_ELEVATION_KEYS = ("view:sun_elevation",)
 SUN_AZIMUTH_KEYS = ("view:sun_azimuth",)
 ACQUIRED_KEYS = ("datetime",)
-VISIBLE_CONFIDENCE_KEYS = (
-    "pl:visible_confidence_percent",
-)
+VISIBLE_CONFIDENCE_KEYS = ("pl:visible_confidence_percent",)
 CLEAR_CONFIDENCE_KEYS = ("pl:clear_confidence_percent",)
 SHADOW_PERCENT_KEYS = ("pl:shadow_percent",)
 SNOW_ICE_PERCENT_KEYS = ("pl:snow_ice_percent",)
@@ -423,7 +417,9 @@ def _find_replacement_items(
         else instrument_types_raw
     )
     requested_instruments = _normalize_instrument_filters(instrument_types)
-    requested_instrument_set = {instrument.lower() for instrument in requested_instruments}
+    requested_instrument_set = {
+        instrument.lower() for instrument in requested_instruments
+    }
     cloud_max = filters.get("cloud_max")
     sun_elevation_min = filters.get("sun_elevation_min")
     min_clear_fraction = filters.get("min_clear_fraction", 0.0) or 0.0

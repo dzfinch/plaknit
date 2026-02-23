@@ -45,12 +45,8 @@ DEPTH_TARGET_FRACTION = 0.95
 PLANET_MAX_ROI_VERTICES = 1500
 PLANETSCOPE_IMAGERY_TYPE = "planetscope"
 PLANETSCOPE_INSTRUMENT_IDS = ("PS2", "PS2.SD", "PSB.SD")
-CLOUD_COVER_KEYS = (
-    "eo:cloud_cover",
-)
-CLEAR_FRACTION_KEYS = (
-    "pl:clear_percent",
-)
+CLOUD_COVER_KEYS = ("eo:cloud_cover",)
+CLEAR_FRACTION_KEYS = ("pl:clear_percent",)
 SUN_ELEVATION_KEYS = ("view:sun_elevation",)
 SUN_AZIMUTH_KEYS = ("view:sun_azimuth",)
 ACQUIRED_KEYS = ("datetime",)
@@ -61,6 +57,7 @@ PUBLISHING_STAGE_KEYS = ("pl:publishing_stage",)
 GSD_KEYS = ("gsd",)
 INSTRUMENT_KEYS = ("instruments",)
 STRIP_ID_KEYS = ("pl:strip_id",)
+
 
 class _ProgressManager:
     """Thin wrapper around rich Progress that degrades gracefully when unavailable."""
@@ -844,7 +841,9 @@ def _plan_single_month(
     logger = _get_logger()
     datetime_range = f"{month_start.isoformat()}/{month_end.isoformat()}"
     requested_instruments = _normalize_instrument_filters(instrument_types)
-    requested_instrument_set = {instrument.lower() for instrument in requested_instruments}
+    requested_instrument_set = {
+        instrument.lower() for instrument in requested_instruments
+    }
     query: Dict[str, Any] = {
         "view:sun_elevation": {"gte": sun_elevation_min},
     }
