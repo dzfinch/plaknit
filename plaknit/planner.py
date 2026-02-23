@@ -297,6 +297,7 @@ def _property_percent_fraction(
 ) -> Optional[float]:
     return _normalized_percent(_get_property(properties, keys))
 
+
 def _clear_fraction(properties: Dict[str, Any]) -> Optional[float]:
     clear_fraction = _property_percent_fraction(properties, CLEAR_PERCENT_KEYS)
     if clear_fraction is None:

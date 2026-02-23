@@ -459,7 +459,9 @@ def _scene_property_snapshot(properties: Dict[str, Any]) -> Dict[str, Any]:
         "sun_elevation": _get_property(properties, SUN_ELEVATION_KEYS),
         "sun_azimuth": _get_property(properties, SUN_AZIMUTH_KEYS),
         "acquired": _get_property(properties, ACQUIRED_KEYS),
-        "visible_confidence_percent": _get_property(properties, VISIBLE_CONFIDENCE_KEYS),
+        "visible_confidence_percent": _get_property(
+            properties, VISIBLE_CONFIDENCE_KEYS
+        ),
         "clear_confidence_percent": _get_property(properties, CLEAR_CONFIDENCE_KEYS),
         "shadow_percent": _get_property(properties, SHADOW_PERCENT_KEYS),
         "snow_ice_percent": _get_property(properties, SNOW_ICE_PERCENT_KEYS),
