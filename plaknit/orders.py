@@ -392,7 +392,9 @@ def _lookup_item_metadata(
     try:
         search = stac_client.search(**search_kwargs)
     except Exception as exc:
-        _get_logger().warning("Unable to query STAC metadata for preflight checks: %s", exc)
+        _get_logger().warning(
+            "Unable to query STAC metadata for preflight checks: %s", exc
+        )
         return {}
 
     metadata: Dict[str, Dict[str, Any]] = {}
