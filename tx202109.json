@@ -1,0 +1,2010 @@
+{
+  "2021-09": {
+    "items": [
+      {
+        "id": "20210925_172029_52_2416",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 54.4,
+          "sun_azimuth": 147.1,
+          "acquired": "2021-09-25T17:20:29.524652Z",
+          "view_angle": 0,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210925_172024_91_2416",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 54.2,
+          "sun_azimuth": 147.4,
+          "acquired": "2021-09-25T17:20:24.911215Z",
+          "view_angle": 0.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210926_162916_79_2449",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 47.5,
+          "sun_azimuth": 131.3,
+          "acquired": "2021-09-26T16:29:16.796867Z",
+          "view_angle": 1.9,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210914_172047_57_2254",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 57.9,
+          "sun_azimuth": 141.8,
+          "acquired": "2021-09-14T17:20:47.571823Z",
+          "view_angle": 4.9,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210924_163056_72_2450",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 47.9,
+          "sun_azimuth": 130.4,
+          "acquired": "2021-09-24T16:30:56.724332Z",
+          "view_angle": 1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210924_163101_33_2450",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 48,
+          "sun_azimuth": 130.1,
+          "acquired": "2021-09-24T16:31:01.330489Z",
+          "view_angle": 0.9,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210924_163047_51_2450",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 47.6,
+          "sun_azimuth": 131,
+          "acquired": "2021-09-24T16:30:47.512017Z",
+          "view_angle": 1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210905_163226_60_2430",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 52.1,
+          "sun_azimuth": 121.4,
+          "acquired": "2021-09-05T16:32:26.605314Z",
+          "view_angle": 1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210914_163502_32_2451",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 49.8,
+          "sun_azimuth": 126.1,
+          "acquired": "2021-09-14T16:35:02.325174Z",
+          "view_angle": 0.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210914_163506_92_2451",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 50,
+          "sun_azimuth": 125.8,
+          "acquired": "2021-09-14T16:35:06.928215Z",
+          "view_angle": 0.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210925_162756_74_2447",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 47.9,
+          "sun_azimuth": 130.5,
+          "acquired": "2021-09-25T16:27:56.749124Z",
+          "view_angle": 3.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210925_172038_44_227a",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 54.2,
+          "sun_azimuth": 147.3,
+          "acquired": "2021-09-25T17:20:38.448168Z",
+          "view_angle": 3,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210926_163144_71_2420",
+        "collection": "PSScene",
+        "clear_fraction": 0.99,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 99,
+          "sun_elevation": 47.5,
+          "sun_azimuth": 131.3,
+          "acquired": "2021-09-26T16:31:44.710783Z",
+          "view_angle": 1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210924_171944_12_240c",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 55.1,
+          "sun_azimuth": 147.1,
+          "acquired": "2021-09-24T17:19:44.127236Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210914_163540_72_2445",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 49.9,
+          "sun_azimuth": 126,
+          "acquired": "2021-09-14T16:35:40.723699Z",
+          "view_angle": 0.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210926_163138_68_2436",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 47.5,
+          "sun_azimuth": 131.7,
+          "acquired": "2021-09-26T16:31:38.68109Z",
+          "view_angle": 4,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210925_162849_99_2206",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 47.9,
+          "sun_azimuth": 130.9,
+          "acquired": "2021-09-25T16:28:49.991159Z",
+          "view_angle": 2.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 3.8
+        }
+      },
+      {
+        "id": "20210916_163322_69_245d",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 49.9,
+          "sun_azimuth": 126.9,
+          "acquired": "2021-09-16T16:33:22.69478Z",
+          "view_angle": 0.2,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210914_172045_08_2254",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 57.8,
+          "sun_azimuth": 142,
+          "acquired": "2021-09-14T17:20:45.088223Z",
+          "view_angle": 4.9,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210905_163224_30_2430",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 52,
+          "sun_azimuth": 121.6,
+          "acquired": "2021-09-05T16:32:24.305876Z",
+          "view_angle": 1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210919_162858_73_2428",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 49.3,
+          "sun_azimuth": 128,
+          "acquired": "2021-09-19T16:28:58.734975Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210920_163128_90_2421",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 49.4,
+          "sun_azimuth": 128.6,
+          "acquired": "2021-09-20T16:31:28.907844Z",
+          "view_angle": 3,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210925_162852_20_2206",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 48,
+          "sun_azimuth": 130.8,
+          "acquired": "2021-09-25T16:28:52.202071Z",
+          "view_angle": 2.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 3.8
+        }
+      },
+      {
+        "id": "20210925_172036_14_227a",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 54.1,
+          "sun_azimuth": 147.4,
+          "acquired": "2021-09-25T17:20:36.141449Z",
+          "view_angle": 3,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210908_163308_88_2212",
+        "collection": "PSScene",
+        "clear_fraction": 0.96,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 3,
+          "clear_percent": 96,
+          "sun_elevation": 51.4,
+          "sun_azimuth": 123.7,
+          "acquired": "2021-09-08T16:33:08.88852Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 3.8
+        }
+      },
+      {
+        "id": "20210922_172237_31_2406",
+        "collection": "PSScene",
+        "clear_fraction": 0.94,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 94,
+          "sun_elevation": 55.4,
+          "sun_azimuth": 146.7,
+          "acquired": "2021-09-22T17:22:37.311957Z",
+          "view_angle": 1.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210920_163809_82_2432",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 49,
+          "sun_azimuth": 129.4,
+          "acquired": "2021-09-20T16:38:09.824339Z",
+          "view_angle": 1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210926_162919_09_2449",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 47.6,
+          "sun_azimuth": 131.1,
+          "acquired": "2021-09-26T16:29:19.099946Z",
+          "view_angle": 1.9,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210924_163054_42_2450",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 47.8,
+          "sun_azimuth": 130.6,
+          "acquired": "2021-09-24T16:30:54.421253Z",
+          "view_angle": 1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210925_163155_55_245a",
+        "collection": "PSScene",
+        "clear_fraction": 0.96,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 2,
+          "clear_percent": 96,
+          "sun_elevation": 47.7,
+          "sun_azimuth": 130.8,
+          "acquired": "2021-09-25T16:31:55.554184Z",
+          "view_angle": 1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210925_172040_75_227a",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 54.3,
+          "sun_azimuth": 147.1,
+          "acquired": "2021-09-25T17:20:40.754886Z",
+          "view_angle": 3,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210920_163112_79_2421",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 48.8,
+          "sun_azimuth": 129.7,
+          "acquired": "2021-09-20T16:31:12.793573Z",
+          "view_angle": 3,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210920_171741_29_2402",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 56.5,
+          "sun_azimuth": 145.6,
+          "acquired": "2021-09-20T17:17:41.29717Z",
+          "view_angle": 4,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210914_163538_42_2445",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 49.8,
+          "sun_azimuth": 126.1,
+          "acquired": "2021-09-14T16:35:38.42062Z",
+          "view_angle": 0.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210925_172045_36_227a",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 54.6,
+          "sun_azimuth": 146.8,
+          "acquired": "2021-09-25T17:20:45.368324Z",
+          "view_angle": 3,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210917_163330_78_2449",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 49.6,
+          "sun_azimuth": 126.7,
+          "acquired": "2021-09-17T16:33:30.785121Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210922_172235_01_2406",
+        "collection": "PSScene",
+        "clear_fraction": 0.99,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 99,
+          "sun_elevation": 55.3,
+          "sun_azimuth": 146.9,
+          "acquired": "2021-09-22T17:22:35.017717Z",
+          "view_angle": 1.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210925_162752_14_2447",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 47.7,
+          "sun_azimuth": 130.8,
+          "acquired": "2021-09-25T16:27:52.144004Z",
+          "view_angle": 3.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210923_163442_52_241d",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 48.4,
+          "sun_azimuth": 130.1,
+          "acquired": "2021-09-23T16:34:42.529696Z",
+          "view_angle": 3,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210907_162905_67_242a",
+        "collection": "PSScene",
+        "clear_fraction": 0.99,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 99,
+          "sun_elevation": 51.5,
+          "sun_azimuth": 122.5,
+          "acquired": "2021-09-07T16:29:05.675898Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210924_164702_88_2251",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 49.7,
+          "sun_azimuth": 134.7,
+          "acquired": "2021-09-24T16:47:02.885861Z",
+          "view_angle": 2.2,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 3.9
+        }
+      },
+      {
+        "id": "20210920_163124_30_2421",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 49.2,
+          "sun_azimuth": 128.9,
+          "acquired": "2021-09-20T16:31:24.303766Z",
+          "view_angle": 3,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210901_163011_08_220b",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 52.9,
+          "sun_azimuth": 120,
+          "acquired": "2021-09-01T16:30:11.084364Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 3.8
+        }
+      },
+      {
+        "id": "20210925_172027_21_2416",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 54.3,
+          "sun_azimuth": 147.2,
+          "acquired": "2021-09-25T17:20:27.217934Z",
+          "view_angle": 0,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210915_163439_83_2435",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 50,
+          "sun_azimuth": 126.3,
+          "acquired": "2021-09-15T16:34:39.831932Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210909_162846_74_2420",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 51.1,
+          "sun_azimuth": 123.1,
+          "acquired": "2021-09-09T16:28:46.748668Z",
+          "view_angle": 4.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210919_172338_35_240a",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 55.9,
+          "sun_azimuth": 144.9,
+          "acquired": "2021-09-19T17:23:38.355243Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210926_164017_80_2233",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 50,
+          "sun_azimuth": 135.2,
+          "acquired": "2021-09-26T16:40:17.80792Z",
+          "view_angle": 4.8,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 3.9
+        }
+      },
+      {
+        "id": "20210922_172239_60_2406",
+        "collection": "PSScene",
+        "clear_fraction": 0.91,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 91,
+          "sun_elevation": 55.5,
+          "sun_azimuth": 146.6,
+          "acquired": "2021-09-22T17:22:39.606197Z",
+          "view_angle": 1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210924_163035_51_2223",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 48.5,
+          "sun_azimuth": 131.1,
+          "acquired": "2021-09-24T16:30:35.514822Z",
+          "view_angle": 1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 3.8
+        }
+      },
+      {
+        "id": "20210922_172232_72_2406",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 55.2,
+          "sun_azimuth": 147,
+          "acquired": "2021-09-22T17:22:32.723477Z",
+          "view_angle": 1.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210910_172634_46_2414",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 59,
+          "sun_azimuth": 140.4,
+          "acquired": "2021-09-10T17:26:34.460999Z",
+          "view_angle": 5.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210915_163145_88_2453",
+        "collection": "PSScene",
+        "clear_fraction": 0.98,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 2,
+          "clear_percent": 98,
+          "sun_elevation": 50.2,
+          "sun_azimuth": 125.9,
+          "acquired": "2021-09-15T16:31:45.886816Z",
+          "view_angle": 2.9,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210922_163310_68_2442",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 48.1,
+          "sun_azimuth": 130.2,
+          "acquired": "2021-09-22T16:33:10.683763Z",
+          "view_angle": 5.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210914_163546_18_241f",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 50.3,
+          "sun_azimuth": 125.7,
+          "acquired": "2021-09-14T16:35:46.180181Z",
+          "view_angle": 4,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210916_163708_38_241e",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 49.8,
+          "sun_azimuth": 127.5,
+          "acquired": "2021-09-16T16:37:08.38254Z",
+          "view_angle": 2.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210918_163201_11_2448",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 49.6,
+          "sun_azimuth": 127.3,
+          "acquired": "2021-09-18T16:32:01.113855Z",
+          "view_angle": 1.9,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210917_172123_75_2274",
+        "collection": "PSScene",
+        "clear_fraction": 0.95,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 3,
+          "clear_percent": 95,
+          "sun_elevation": 57,
+          "sun_azimuth": 144.1,
+          "acquired": "2021-09-17T17:21:23.756338Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210910_162849_34_2448",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 50.9,
+          "sun_azimuth": 124.2,
+          "acquired": "2021-09-10T16:28:49.34222Z",
+          "view_angle": 4.9,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210916_163945_86_245c",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 49.7,
+          "sun_azimuth": 127.8,
+          "acquired": "2021-09-16T16:39:45.865382Z",
+          "view_angle": 4,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210927_163137_40_222b",
+        "collection": "PSScene",
+        "clear_fraction": 0.97,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 2,
+          "clear_percent": 97,
+          "sun_elevation": 47.6,
+          "sun_azimuth": 132.8,
+          "acquired": "2021-09-27T16:31:37.406764Z",
+          "view_angle": 1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 3.8
+        }
+      },
+      {
+        "id": "20210909_162844_27_2420",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 51.1,
+          "sun_azimuth": 123.2,
+          "acquired": "2021-09-09T16:28:44.270108Z",
+          "view_angle": 4.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210924_162946_54_2435",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 48.1,
+          "sun_azimuth": 130.5,
+          "acquired": "2021-09-24T16:29:46.541628Z",
+          "view_angle": 5.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210916_163710_68_241e",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 49.9,
+          "sun_azimuth": 127.3,
+          "acquired": "2021-09-16T16:37:10.68354Z",
+          "view_angle": 2.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210923_163731_38_2453",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 48,
+          "sun_azimuth": 130.8,
+          "acquired": "2021-09-23T16:37:31.389036Z",
+          "view_angle": 4.9,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210924_164127_36_225a",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 49.8,
+          "sun_azimuth": 133.2,
+          "acquired": "2021-09-24T16:41:27.360921Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210917_172050_35_2307",
+        "collection": "PSScene",
+        "clear_fraction": 0.97,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 2,
+          "clear_percent": 97,
+          "sun_elevation": 56.6,
+          "sun_azimuth": 143.6,
+          "acquired": "2021-09-17T17:20:50.352011Z",
+          "view_angle": 2,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210927_163025_26_2440",
+        "collection": "PSScene",
+        "clear_fraction": 0.95,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 3,
+          "clear_percent": 95,
+          "sun_elevation": 47.6,
+          "sun_azimuth": 132.1,
+          "acquired": "2021-09-27T16:30:25.261358Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210919_162903_33_2428",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 49.4,
+          "sun_azimuth": 127.6,
+          "acquired": "2021-09-19T16:29:03.339052Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210925_163032_88_245c",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 48,
+          "sun_azimuth": 131.5,
+          "acquired": "2021-09-25T16:30:32.886449Z",
+          "view_angle": 4.9,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210925_172022_60_2416",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 54.1,
+          "sun_azimuth": 147.5,
+          "acquired": "2021-09-25T17:20:22.604496Z",
+          "view_angle": 0.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210910_172636_75_2414",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 59.1,
+          "sun_azimuth": 140.2,
+          "acquired": "2021-09-10T17:26:36.755757Z",
+          "view_angle": 5.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210904_163055_94_2212",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 52.2,
+          "sun_azimuth": 121.5,
+          "acquired": "2021-09-04T16:30:55.941783Z",
+          "view_angle": 1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 3.8
+        }
+      },
+      {
+        "id": "20210914_172040_12_2254",
+        "collection": "PSScene",
+        "clear_fraction": 0.94,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 3,
+          "clear_percent": 94,
+          "sun_elevation": 57.6,
+          "sun_azimuth": 142.4,
+          "acquired": "2021-09-14T17:20:40.121023Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210914_171527_84_240f",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 57.8,
+          "sun_azimuth": 141.5,
+          "acquired": "2021-09-14T17:15:27.844905Z",
+          "view_angle": 0.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210924_164120_48_225a",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 49.5,
+          "sun_azimuth": 133.6,
+          "acquired": "2021-09-24T16:41:20.486001Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210917_172126_23_2274",
+        "collection": "PSScene",
+        "clear_fraction": 0.96,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 2,
+          "clear_percent": 96,
+          "sun_elevation": 57.1,
+          "sun_azimuth": 143.9,
+          "acquired": "2021-09-17T17:21:26.238818Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210918_163151_90_2448",
+        "collection": "PSScene",
+        "clear_fraction": 0.97,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 2,
+          "clear_percent": 97,
+          "sun_elevation": 49.3,
+          "sun_azimuth": 128,
+          "acquired": "2021-09-18T16:31:51.907775Z",
+          "view_angle": 1.9,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210923_162954_66_222b",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 48.8,
+          "sun_azimuth": 130.5,
+          "acquired": "2021-09-23T16:29:54.661936Z",
+          "view_angle": 1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 3.8
+        }
+      },
+      {
+        "id": "20210915_163143_58_2453",
+        "collection": "PSScene",
+        "clear_fraction": 0.96,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 3,
+          "clear_percent": 96,
+          "sun_elevation": 50.2,
+          "sun_azimuth": 126,
+          "acquired": "2021-09-15T16:31:43.585296Z",
+          "view_angle": 2.9,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210919_163716_58_245f",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 48.8,
+          "sun_azimuth": 129.1,
+          "acquired": "2021-09-19T16:37:16.586523Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210914_163012_57_2465",
+        "collection": "PSScene",
+        "clear_fraction": 0.99,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 99,
+          "sun_elevation": 50.2,
+          "sun_azimuth": 126.6,
+          "acquired": "2021-09-14T16:30:12.571206Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210915_172125_23_2416",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 57.2,
+          "sun_azimuth": 142.6,
+          "acquired": "2021-09-15T17:21:25.236625Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210908_163311_09_2212",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 51.5,
+          "sun_azimuth": 123.5,
+          "acquired": "2021-09-08T16:33:11.099432Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 3.8
+        }
+      },
+      {
+        "id": "20210925_162847_78_2206",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 47.9,
+          "sun_azimuth": 131.1,
+          "acquired": "2021-09-25T16:28:47.780247Z",
+          "view_angle": 2.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 3.8
+        }
+      },
+      {
+        "id": "20210924_163045_20_2450",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 47.5,
+          "sun_azimuth": 131.2,
+          "acquired": "2021-09-24T16:30:45.208938Z",
+          "view_angle": 1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210925_172043_06_227a",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 54.4,
+          "sun_azimuth": 147,
+          "acquired": "2021-09-25T17:20:43.061605Z",
+          "view_angle": 3.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4.1
+        }
+      },
+      {
+        "id": "20210910_172629_87_2414",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 58.8,
+          "sun_azimuth": 140.8,
+          "acquired": "2021-09-10T17:26:29.871481Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210923_162956_87_222b",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 48.8,
+          "sun_azimuth": 130.3,
+          "acquired": "2021-09-23T16:29:56.872848Z",
+          "view_angle": 1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 3.8
+        }
+      },
+      {
+        "id": "20210926_162921_40_2449",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 47.6,
+          "sun_azimuth": 131,
+          "acquired": "2021-09-26T16:29:21.403024Z",
+          "view_angle": 1.9,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210926_163147_01_2420",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 47.6,
+          "sun_azimuth": 131.1,
+          "acquired": "2021-09-26T16:31:47.013862Z",
+          "view_angle": 1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210924_164707_46_2251",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 49.9,
+          "sun_azimuth": 134.4,
+          "acquired": "2021-09-24T16:47:07.463938Z",
+          "view_angle": 2.2,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 3.9
+        }
+      },
+      {
+        "id": "20210910_162901_72_2448",
+        "collection": "PSScene",
+        "clear_fraction": 1.0,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 100,
+          "sun_elevation": 51.2,
+          "sun_azimuth": 123.3,
+          "acquired": "2021-09-10T16:29:01.729413Z",
+          "view_angle": 5,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      },
+      {
+        "id": "20210926_163142_40_2420",
+        "collection": "PSScene",
+        "clear_fraction": 0.98,
+        "properties": {
+          "instrument": [
+            "PSB.SD"
+          ],
+          "constellation": "planetscope",
+          "cloud_cover": 0,
+          "clear_percent": 98,
+          "sun_elevation": 47.4,
+          "sun_azimuth": 131.4,
+          "acquired": "2021-09-26T16:31:42.407705Z",
+          "view_angle": 1.1,
+          "ground_control": true,
+          "quality_category": "standard",
+          "publishing_stage": "finalized",
+          "gsd": 4
+        }
+      }
+    ],
+    "aoi_coverage": 0.9994958984464507,
+    "candidate_count": 3858,
+    "filtered_count": 687,
+    "selected_count": 94,
+    "tile_count": 21821,
+    "clear_depth_fraction": 0.9520186975848953,
+    "tile_size_m": 1000,
+    "coverage_target": 0.99,
+    "min_clear_obs": 2.0,
+    "filters": {
+      "item_type": "PSScene",
+      "collection": null,
+      "imagery_type": "planetscope",
+      "instrument_types": [
+        "PSB.SD"
+      ],
+      "cloud_max": 0.05,
+      "sun_elevation_min": 30.0,
+      "min_clear_fraction": 0.9,
+      "require_ground_control": false,
+      "quality_category": null,
+      "publishing_stage": null,
+      "max_view_angle": null,
+      "quality_weight": 0.35,
+      "month_start": "2021-09-01",
+      "month_end": "2021-09-30",
+      "azimuth_sigma": 20.0,
+      "elevation_sigma": 10.0,
+      "limit": null
+    }
+  }
+}

@@ -95,6 +95,8 @@ PUBLISHING_STAGE_KEYS = (
     "pl_publishing_stage",
 )
 GSD_KEYS = ("gsd", "pixel_resolution", "pl:pixel_resolution", "pl_pixel_resolution")
+INSTRUMENT_KEYS = ("instruments", "pl:instrument", "pl_instrument")
+CONSTELLATION_KEYS = ("constellation", "eo:constellation", "pl:constellation")
 
 
 class _ProgressManager:
@@ -266,6 +268,60 @@ def _bool_or_none(value: Any) -> Optional[bool]:
         if normalized in {"false", "0", "no", "n"}:
             return False
     return None
+
+
+def _matches_instrument_filter(
+    properties: Dict[str, Any], instrument_types: Sequence[str]
+) -> bool:
+    normalized_filters = {
+        instrument.strip().lower()
+        for instrument in instrument_types
+        if isinstance(instrument, str) and instrument.strip()
+    }
+    if not normalized_filters:
+        return True
+
+    instrument_value = _get_property(properties, INSTRUMENT_KEYS)
+    if instrument_value is None:
+        return True
+
+    if isinstance(instrument_value, str):
+        candidates = [instrument_value]
+    elif isinstance(instrument_value, Sequence) and not isinstance(
+        instrument_value, (str, bytes)
+    ):
+        candidates = [str(value) for value in instrument_value]
+    else:
+        candidates = [str(instrument_value)]
+
+    for candidate in candidates:
+        if candidate.strip().lower() in normalized_filters:
+            return True
+    return False
+
+
+def _normalized_instrument_filter_values(
+    instrument_types: Sequence[str] | None,
+) -> set[str]:
+    if not instrument_types:
+        return set()
+    return {
+        instrument.strip().lower()
+        for instrument in instrument_types
+        if isinstance(instrument, str) and instrument.strip()
+    }
+
+
+def _normalized_property_values(value: Any) -> set[str]:
+    if value is None:
+        return set()
+    if isinstance(value, str):
+        values = [value]
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        values = [str(v) for v in value]
+    else:
+        values = [str(value)]
+    return {candidate.strip().lower() for candidate in values if candidate.strip()}
 
 
 def _normalized_fraction(value: Any) -> Optional[float]:
@@ -509,6 +565,8 @@ def _depth_fraction(tile_states: List[_TileState], min_clear_obs: float) -> floa
 
 def _scene_property_snapshot(properties: Dict[str, Any]) -> Dict[str, Any]:
     return {
+        "instrument": _get_property(properties, INSTRUMENT_KEYS),
+        "constellation": _get_property(properties, CONSTELLATION_KEYS),
         "cloud_cover": _get_property(properties, CLOUD_COVER_KEYS),
         "clear_percent": _get_property(properties, CLEAR_FRACTION_KEYS),
         "sun_elevation": _get_property(properties, SUN_ELEVATION_KEYS),
@@ -738,6 +796,22 @@ def _plan_single_month(
 
     tile_states = [_TileState() for _ in tiles_projected]
     candidates: List[_Candidate] = []
+    normalized_instruments = _normalized_instrument_filter_values(instrument_types)
+    strict_instrument_check = len(normalized_instruments) == 1
+    expected_constellations: set[str] = set()
+    if instrument_types:
+        for item in items:
+            properties = dict(item.properties)
+            instrument_value = _get_property(properties, INSTRUMENT_KEYS)
+            if instrument_value is None:
+                continue
+            if not _matches_instrument_filter(properties, instrument_types):
+                continue
+            expected_constellations.update(
+                _normalized_property_values(
+                    _get_property(properties, CONSTELLATION_KEYS)
+                )
+            )
 
     for item in items:
         properties = dict(item.properties)
@@ -760,6 +834,22 @@ def _plan_single_month(
                     continue
             except (ValueError, TypeError):
                 pass
+        if instrument_types:
+            instrument_value = _get_property(properties, INSTRUMENT_KEYS)
+            if instrument_value is None and strict_instrument_check:
+                constellation_values = _normalized_property_values(
+                    _get_property(properties, CONSTELLATION_KEYS)
+                )
+                if (
+                    not expected_constellations
+                    or not constellation_values
+                    or not expected_constellations.intersection(constellation_values)
+                ):
+                    continue
+            if instrument_value is not None and not _matches_instrument_filter(
+                properties, instrument_types
+            ):
+                continue
 
         scene_geom = shape(item.geometry)
         if scene_geom.is_empty:

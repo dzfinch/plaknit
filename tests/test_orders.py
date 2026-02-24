@@ -48,9 +48,10 @@ class _AccessErrorOrdersClient:
 
 
 class _FakeStacItem:
-    def __init__(self, item_id: str, properties: dict):
+    def __init__(self, item_id: str, properties: dict, assets: dict | None = None):
         self.id = item_id
         self.properties = properties
+        self.assets = assets or {}
         self.collection_id = "PSScene"
 
 
@@ -169,12 +170,87 @@ def test_submit_orders_drops_inaccessible_scenes(monkeypatch):
     assert result["2024-01"]["item_ids"] == ["item-1"]
 
 
+def test_submit_orders_preflights_instrument_for_8_band(monkeypatch):
+    plan = {
+        "2024-01": {
+            "items": [{"id": "item-ps2"}, {"id": "item-psb"}],
+            "filters": {"item_type": "PSScene", "instrument_types": ["PSB.SD"]},
+            "selected_count": 2,
+        }
+    }
+
+    fake_geom = box(0, 0, 1, 1)
+    monkeypatch.setenv("PL_API_KEY", "test-key")
+    monkeypatch.setattr(
+        orders, "load_aoi_geometry", lambda path: (fake_geom, "EPSG:4326")
+    )
+    monkeypatch.setattr(orders, "reproject_geometry", lambda geom, src, dst: geom)
+    monkeypatch.setattr(
+        orders,
+        "_open_planet_stac_client",
+        lambda key: _FakeStacClient(
+            [
+                _FakeStacItem(
+                    "item-ps2",
+                    {"pl:instrument": "PS2.SD"},
+                    assets={"ortho_analytic_4b_sr": {}},
+                ),
+                _FakeStacItem(
+                    "item-psb",
+                    {"pl:instrument": "PSB.SD"},
+                    assets={"ortho_analytic_8b_sr": {}},
+                ),
+            ]
+        ),
+    )
+
+    fake_client = _FakeOrdersClient()
+
+    @asynccontextmanager
+    async def fake_context(api_key: str):
+        yield fake_client
+
+    monkeypatch.setattr(orders, "_orders_client_context", fake_context)
+
+    result = orders.submit_orders_for_plan(
+        plan=plan,
+        aoi_path="aoi.geojson",
+        sr_bands=8,
+        harmonize_to=None,
+        order_prefix="demo",
+        archive_type="zip",
+        single_archive=True,
+    )
+
+    assert fake_client.requests
+    request = fake_client.requests[0]
+    assert request["products"][0]["item_ids"] == ["item-psb"]
+    assert result["2024-01"]["item_ids"] == ["item-psb"]
+
+
 def test_extract_inaccessible_item_ids_handles_null_field():
     payload = {"field": None, "general": [{"message": "AOI too complex"}]}
 
     result = orders._extract_inaccessible_item_ids(RuntimeError(json.dumps(payload)))
 
     assert result == []
+
+
+def test_extract_inaccessible_item_ids_parses_prefixed_payload():
+    payload = {
+        "field": {
+            "Details": [
+                {
+                    "message": "no access to assets: PSScene/item-prefixed/[ortho_analytic_8b_sr]"
+                }
+            ]
+        }
+    }
+    error = RuntimeError(f"planet.exceptions.BadQuery: {json.dumps(payload)}")
+
+    result = orders._extract_inaccessible_item_ids(error)
+
+    assert result == ["item-prefixed"]
 
 
 def test_orders_clear_fraction_treats_clear_percent_one_as_one_percent():
@@ -357,3 +433,45 @@ def test_find_replacement_items_reads_stac_extension_aliases():
     assert props["sun_azimuth"] == 140
     assert props["view_angle"] == 3.8
     assert props["acquired"] == "2024-01-11T00:00:00Z"
+
+
+def test_find_replacement_items_filters_requested_instrument_locally():
+    plan_entry = {
+        "filters": {
+            "item_type": "PSScene",
+            "month_start": "2024-01-01",
+            "month_end": "2024-01-31",
+            "min_clear_fraction": 0.5,
+            "instrument_types": ["PSB.SD"],
+        }
+    }
+    items = [
+        _FakeStacItem(
+            "ps2-item",
+            {
+                "clear_percent": 95,
+                "cloud_cover": 0.03,
+                "pl:instrument": "PS2.SD",
+            },
+        ),
+        _FakeStacItem(
+            "psb-item",
+            {
+                "clear_percent": 95,
+                "cloud_cover": 0.03,
+                "pl:instrument": "PSB.SD",
+            },
+        ),
+    ]
+    stac_client = _FakeStacClient(items)
+
+    replacements = orders._find_replacement_items(
+        stac_client=stac_client,
+        plan_entry=plan_entry,
+        month="2024-01",
+        aoi_geojson={"type": "Polygon", "coordinates": []},
+        desired_count=2,
+        exclude_ids=set(),
+    )
+
+    assert [item["id"] for item in replacements] == ["psb-item"]

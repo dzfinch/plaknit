@@ -106,6 +106,9 @@ ANOMALOUS_PIXELS_KEYS = (
     "pl_anomalous_pixels",
 )
 GSD_KEYS = ("gsd", "pixel_resolution", "pl:pixel_resolution", "pl_pixel_resolution")
+INSTRUMENT_KEYS = ("instrument", "pl:instrument", "pl_instrument")
+CONSTELLATION_KEYS = ("constellation", "eo:constellation", "pl:constellation")
+FOUR_BAND_ONLY_INSTRUMENTS = {"ps2", "ps2.sd"}
 
 
 def _get_logger() -> logging.Logger:
@@ -220,6 +223,13 @@ def _parse_error_payload(error: Exception) -> Optional[Dict[str, Any]]:
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start != -1 and end > start:
+            try:
+                return json.loads(raw[start : end + 1])
+            except json.JSONDecodeError:
+                return None
         return None
 
 
@@ -299,6 +309,210 @@ def _bool_or_none(value: Any) -> Optional[bool]:
         if normalized in {"false", "0", "no", "n"}:
             return False
     return None
+
+
+def _matches_instrument_filter(
+    properties: Dict[str, Any], instrument_types: Sequence[str]
+) -> bool:
+    normalized_filters = {
+        instrument.strip().lower()
+        for instrument in instrument_types
+        if isinstance(instrument, str) and instrument.strip()
+    }
+    if not normalized_filters:
+        return True
+
+    instrument_value = _get_property(properties, INSTRUMENT_KEYS)
+    if instrument_value is None:
+        return True
+
+    if isinstance(instrument_value, str):
+        candidates = [instrument_value]
+    elif isinstance(instrument_value, Sequence) and not isinstance(
+        instrument_value, (str, bytes)
+    ):
+        candidates = [str(value) for value in instrument_value]
+    else:
+        candidates = [str(instrument_value)]
+
+    for candidate in candidates:
+        if candidate.strip().lower() in normalized_filters:
+            return True
+    return False
+
+
+def _normalized_property_values(value: Any) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        values = [value]
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        values = [str(v) for v in value]
+    else:
+        values = [str(value)]
+    normalized: List[str] = []
+    for candidate in values:
+        cleaned = candidate.strip().lower()
+        if cleaned and cleaned not in normalized:
+            normalized.append(cleaned)
+    return normalized
+
+
+def _normalized_instrument_values(value: Any) -> List[str]:
+    return _normalized_property_values(value)
+
+
+def _required_asset_key_for_sr_bands(sr_bands: int) -> Optional[str]:
+    if sr_bands == 4:
+        return "ortho_analytic_4b_sr"
+    if sr_bands == 8:
+        return "ortho_analytic_8b_sr"
+    return None
+
+
+def _asset_keys_from_item(item: Any) -> set[str]:
+    assets = getattr(item, "assets", None)
+    if isinstance(assets, dict):
+        return {str(key) for key in assets.keys()}
+    return set()
+
+
+def _lookup_item_metadata(
+    *,
+    stac_client: Client,
+    item_ids: Sequence[str],
+    collection: Optional[str],
+) -> Dict[str, Dict[str, Any]]:
+    if not item_ids:
+        return {}
+    unique_ids = list(dict.fromkeys(item_ids))
+    search_kwargs: Dict[str, Any] = {"ids": unique_ids, "max_items": len(unique_ids)}
+    if collection:
+        search_kwargs["collections"] = [collection]
+    try:
+        search = stac_client.search(**search_kwargs)
+    except Exception as exc:
+        _get_logger().warning("Unable to query STAC metadata for preflight checks: %s", exc)
+        return {}
+
+    metadata: Dict[str, Dict[str, Any]] = {}
+    for item in search.items():
+        metadata[item.id] = {
+            "properties": dict(getattr(item, "properties", {}) or {}),
+            "asset_keys": _asset_keys_from_item(item),
+        }
+    return metadata
+
+
+def _normalized_instrument_filter(filters: Dict[str, Any]) -> tuple[str, ...]:
+    instrument_types = filters.get("instrument_types")
+    if not instrument_types:
+        return ()
+    if isinstance(instrument_types, str):
+        instrument_types = [instrument_types]
+    normalized: List[str] = []
+    for value in instrument_types:
+        if not isinstance(value, str):
+            continue
+        cleaned = value.strip()
+        if cleaned and cleaned.lower() != "none" and cleaned not in normalized:
+            normalized.append(cleaned)
+    return tuple(normalized)
+
+
+def _preflight_order_items(
+    *,
+    stac_client: Client,
+    plan_entry: Dict[str, Any],
+    items: List[Dict[str, Any]],
+    sr_bands: int,
+    metadata_cache: Dict[str, Dict[str, Any]],
+) -> tuple[List[Dict[str, Any]], Dict[str, str]]:
+    filters = plan_entry.get("filters", {}) or {}
+    instrument_types = _normalized_instrument_filter(filters)
+    if not instrument_types:
+        return items, {}
+
+    required_asset_key = _required_asset_key_for_sr_bands(sr_bands)
+    collection = filters.get("collection") or filters.get("item_type") or "PSScene"
+    ids_to_lookup = [item["id"] for item in items if item["id"] not in metadata_cache]
+    fetched_metadata = _lookup_item_metadata(
+        stac_client=stac_client,
+        item_ids=ids_to_lookup,
+        collection=collection,
+    )
+    metadata_cache.update(fetched_metadata)
+
+    resolved: Dict[str, tuple[Dict[str, Any], set[str]]] = {}
+    expected_constellations: set[str] = set()
+    for item in items:
+        item_id = item["id"]
+        properties = dict(item.get("properties", {}) or {})
+        asset_keys: set[str] = set()
+        direct_assets = item.get("assets")
+        if isinstance(direct_assets, dict):
+            asset_keys.update(str(key) for key in direct_assets.keys())
+
+        cached = metadata_cache.get(item_id, {})
+        cached_properties = cached.get("properties")
+        if isinstance(cached_properties, dict):
+            for key, value in cached_properties.items():
+                if key not in properties or properties[key] in (None, ""):
+                    properties[key] = value
+        cached_assets = cached.get("asset_keys")
+        if isinstance(cached_assets, set):
+            asset_keys.update(str(key) for key in cached_assets)
+
+        resolved[item_id] = (properties, asset_keys)
+
+        instrument_value = _get_property(properties, INSTRUMENT_KEYS)
+        if instrument_value is None:
+            continue
+        if not _matches_instrument_filter(properties, instrument_types):
+            continue
+        expected_constellations.update(
+            _normalized_property_values(_get_property(properties, CONSTELLATION_KEYS))
+        )
+
+    kept: List[Dict[str, Any]] = []
+    dropped: Dict[str, str] = {}
+    for item in items:
+        item_id = item["id"]
+        properties, asset_keys = resolved.get(item_id, ({}, set()))
+
+        instrument_value = _get_property(properties, INSTRUMENT_KEYS)
+        if instrument_value is None:
+            constellation_values = _normalized_property_values(
+                _get_property(properties, CONSTELLATION_KEYS)
+            )
+            if (
+                expected_constellations
+                and constellation_values
+                and expected_constellations.intersection(constellation_values)
+            ):
+                pass
+            else:
+                dropped[item_id] = "missing instrument metadata"
+                continue
+        if not _matches_instrument_filter(properties, instrument_types):
+            dropped[item_id] = f"instrument not in requested filter: {instrument_types}"
+            continue
+
+        normalized_instruments = _normalized_instrument_values(instrument_value)
+        if sr_bands == 8 and any(
+            instrument in FOUR_BAND_ONLY_INSTRUMENTS
+            for instrument in normalized_instruments
+        ):
+            dropped[item_id] = "4-band-only instrument cannot satisfy 8-band order"
+            continue
+
+        if required_asset_key and asset_keys and required_asset_key not in asset_keys:
+            dropped[item_id] = f"missing required asset: {required_asset_key}"
+            continue
+
+        kept.append(item)
+
+    return kept, dropped
 
 
 def _normalized_fraction(value: Any) -> Optional[float]:
@@ -454,6 +668,8 @@ def _quality_score(properties: Dict[str, Any]) -> float:
 
 def _scene_property_snapshot(properties: Dict[str, Any]) -> Dict[str, Any]:
     return {
+        "instrument": _get_property(properties, INSTRUMENT_KEYS),
+        "constellation": _get_property(properties, CONSTELLATION_KEYS),
         "cloud_cover": _get_property(properties, CLOUD_COVER_KEYS),
         "clear_percent": _get_property(properties, CLEAR_FRACTION_KEYS),
         "sun_elevation": _get_property(properties, SUN_ELEVATION_KEYS),
@@ -551,6 +767,11 @@ def _find_replacement_items(
             continue
         properties = dict(item.properties)
         properties["id"] = item.id
+        if instrument_types:
+            if _get_property(properties, INSTRUMENT_KEYS) is None:
+                continue
+            if not _matches_instrument_filter(properties, instrument_types):
+                continue
         clear_fraction = _clear_fraction(properties)
         if clear_fraction is None or clear_fraction < min_clear_fraction:
             continue
@@ -611,6 +832,7 @@ async def _submit_orders_async(
 
     results: dict[str, dict[str, Any]] = {}
     stac_client = _open_planet_stac_client(api_key)
+    metadata_cache: Dict[str, Dict[str, Any]] = {}
     async with _orders_client_context(api_key) as client:
         for month in sorted(plan.keys()):
             entry = plan[month]
@@ -668,6 +890,59 @@ async def _submit_orders_async(
                     working_batch = deduped_batch
                     if not working_batch:
                         break
+                    preflight_batch, preflight_dropped = _preflight_order_items(
+                        stac_client=stac_client,
+                        plan_entry=entry,
+                        items=working_batch,
+                        sr_bands=sr_bands,
+                        metadata_cache=metadata_cache,
+                    )
+                    if preflight_dropped:
+                        dropped_ids.update(preflight_dropped.keys())
+                        working_batch = preflight_batch
+                        preview = ", ".join(
+                            f"{item_id} ({reason})"
+                            for item_id, reason in list(preflight_dropped.items())[:6]
+                        )
+                        if len(preflight_dropped) > 6:
+                            preview += ", ..."
+                        logger.warning(
+                            "Skipping %d scene(s) for %s due preflight checks: %s",
+                            len(preflight_dropped),
+                            month,
+                            preview,
+                        )
+                        desired_replacements = len(preflight_dropped)
+                        remaining_ids = {item["id"] for item in remaining_items}
+                        replacements = _find_replacement_items(
+                            stac_client=stac_client,
+                            plan_entry=entry,
+                            month=month,
+                            aoi_geojson=clip_geojson,
+                            desired_count=desired_replacements,
+                            exclude_ids={item["id"] for item in working_batch}
+                            | dropped_ids
+                            | ordered_ids
+                            | remaining_ids,
+                        )
+                        if replacements:
+                            logger.info(
+                                "Adding %d replacement scene(s) for %s.",
+                                len(replacements),
+                                month,
+                            )
+                            working_batch.extend(replacements)
+                            if len(working_batch) > MAX_ITEMS_PER_ORDER:
+                                overflow = working_batch[MAX_ITEMS_PER_ORDER:]
+                                working_batch = working_batch[:MAX_ITEMS_PER_ORDER]
+                                remaining_items = overflow + remaining_items
+                            continue
+                        if not working_batch:
+                            logger.error(
+                                "Skipping order for %s: no valid scenes remain after preflight checks.",
+                                month,
+                            )
+                            break
                     submit_item_ids = [item["id"] for item in working_batch]
                     order_tools = copy.deepcopy(tools)
                     archive_type_normalized = (
