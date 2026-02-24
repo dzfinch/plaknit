@@ -6,7 +6,7 @@ from .planner import plan_monthly_composites, write_plan
 
 __author__ = """Dryver Finch"""
 __email__ = "dryver2206@gmail.com"
-__version__ = "0.2.9"
+__version__ = "0.3.0"
 
 __all__ = [
     "train_rf",
