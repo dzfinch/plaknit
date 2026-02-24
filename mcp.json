@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "planet": {
+      "type": "http",
+      "url": "https://planet.mcp.kapa.ai"
+    }
+  }
+}

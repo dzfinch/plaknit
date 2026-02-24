@@ -114,6 +114,7 @@ def test_submit_orders_for_plan_builds_correct_request(monkeypatch):
     assert len(fake_client.requests) == 1
     request = fake_client.requests[0]
     assert request["name"] == "plaknit_plan_2024-01"
+    assert request["source_type"] == "scenes"
     assert request["products"][0]["product_bundle"] == "analytic_8b_sr_udm2"
     assert request["delivery"]["archive_type"] == "zip"
     assert request["delivery"]["single_archive"] is True
@@ -170,7 +171,7 @@ def test_submit_orders_drops_inaccessible_scenes(monkeypatch):
     assert result["2024-01"]["item_ids"] == ["item-1"]
 
 
-def test_submit_orders_preflights_instrument_for_8_band(monkeypatch):
+def test_submit_orders_does_not_preflight_drop_8_band_items(monkeypatch):
     plan = {
         "2024-01": {
             "items": [{"id": "item-ps2"}, {"id": "item-psb"}],
@@ -200,6 +201,165 @@ def test_submit_orders_preflights_instrument_for_8_band(monkeypatch):
                     {"pl:instrument": "PSB.SD"},
                     assets={"ortho_analytic_8b_sr": {}},
                 ),
+            ]
+        ),
+    )
+
+    fake_client = _FakeOrdersClient()
+
+    @asynccontextmanager
+    async def fake_context(api_key: str):
+        yield fake_client
+
+    monkeypatch.setattr(orders, "_orders_client_context", fake_context)
+
+    result = orders.submit_orders_for_plan(
+        plan=plan,
+        aoi_path="aoi.geojson",
+        sr_bands=8,
+        harmonize_to=None,
+        order_prefix="demo",
+        archive_type="zip",
+        single_archive=True,
+    )
+
+    assert fake_client.requests
+    request = fake_client.requests[0]
+    assert request["products"][0]["item_ids"] == ["item-ps2", "item-psb"]
+    assert result["2024-01"]["item_ids"] == ["item-ps2", "item-psb"]
+
+
+def test_submit_orders_preflight_accepts_8_band_asset_alias(monkeypatch):
+    plan = {
+        "2024-01": {
+            "items": [{"id": "item-psb"}],
+            "filters": {"item_type": "PSScene", "instrument_types": ["PSB.SD"]},
+            "selected_count": 1,
+        }
+    }
+
+    fake_geom = box(0, 0, 1, 1)
+    monkeypatch.setenv("PL_API_KEY", "test-key")
+    monkeypatch.setattr(
+        orders, "load_aoi_geometry", lambda path: (fake_geom, "EPSG:4326")
+    )
+    monkeypatch.setattr(orders, "reproject_geometry", lambda geom, src, dst: geom)
+    monkeypatch.setattr(
+        orders,
+        "_open_planet_stac_client",
+        lambda key: _FakeStacClient(
+            [
+                _FakeStacItem(
+                    "item-psb",
+                    {"pl:instrument": "PSB.SD"},
+                    assets={"analytic_8b_sr": {}},
+                )
+            ]
+        ),
+    )
+
+    fake_client = _FakeOrdersClient()
+
+    @asynccontextmanager
+    async def fake_context(api_key: str):
+        yield fake_client
+
+    monkeypatch.setattr(orders, "_orders_client_context", fake_context)
+
+    result = orders.submit_orders_for_plan(
+        plan=plan,
+        aoi_path="aoi.geojson",
+        sr_bands=8,
+        harmonize_to=None,
+        order_prefix="demo",
+        archive_type="zip",
+        single_archive=True,
+    )
+
+    assert fake_client.requests
+    request = fake_client.requests[0]
+    assert request["products"][0]["item_ids"] == ["item-psb"]
+    assert result["2024-01"]["item_ids"] == ["item-psb"]
+
+
+def test_submit_orders_does_not_drop_on_asset_key_mismatch(monkeypatch):
+    plan = {
+        "2024-01": {
+            "items": [{"id": "item-psb"}],
+            "filters": {"item_type": "PSScene", "instrument_types": ["PSB.SD"]},
+            "selected_count": 1,
+        }
+    }
+
+    fake_geom = box(0, 0, 1, 1)
+    monkeypatch.setenv("PL_API_KEY", "test-key")
+    monkeypatch.setattr(
+        orders, "load_aoi_geometry", lambda path: (fake_geom, "EPSG:4326")
+    )
+    monkeypatch.setattr(orders, "reproject_geometry", lambda geom, src, dst: geom)
+    monkeypatch.setattr(
+        orders,
+        "_open_planet_stac_client",
+        lambda key: _FakeStacClient(
+            [
+                _FakeStacItem(
+                    "item-psb",
+                    {"pl:instrument": "PSB.SD"},
+                    assets={"analytic_8b": {}},
+                )
+            ]
+        ),
+    )
+
+    fake_client = _FakeOrdersClient()
+
+    @asynccontextmanager
+    async def fake_context(api_key: str):
+        yield fake_client
+
+    monkeypatch.setattr(orders, "_orders_client_context", fake_context)
+
+    result = orders.submit_orders_for_plan(
+        plan=plan,
+        aoi_path="aoi.geojson",
+        sr_bands=8,
+        harmonize_to=None,
+        order_prefix="demo",
+        archive_type="zip",
+        single_archive=True,
+    )
+
+    assert fake_client.requests
+    request = fake_client.requests[0]
+    assert request["products"][0]["item_ids"] == ["item-psb"]
+    assert result["2024-01"]["item_ids"] == ["item-psb"]
+
+
+def test_submit_orders_preflight_accepts_singular_instrument_key(monkeypatch):
+    plan = {
+        "2024-01": {
+            "items": [{"id": "item-psb"}],
+            "filters": {"item_type": "PSScene", "instrument_types": ["PSB.SD"]},
+            "selected_count": 1,
+        }
+    }
+
+    fake_geom = box(0, 0, 1, 1)
+    monkeypatch.setenv("PL_API_KEY", "test-key")
+    monkeypatch.setattr(
+        orders, "load_aoi_geometry", lambda path: (fake_geom, "EPSG:4326")
+    )
+    monkeypatch.setattr(orders, "reproject_geometry", lambda geom, src, dst: geom)
+    monkeypatch.setattr(
+        orders,
+        "_open_planet_stac_client",
+        lambda key: _FakeStacClient(
+            [
+                _FakeStacItem(
+                    "item-psb",
+                    {"instrument": "PSB.SD"},
+                    assets={"analytic_8b_sr": {}},
+                )
             ]
         ),
     )
