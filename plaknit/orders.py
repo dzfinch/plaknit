@@ -509,8 +509,10 @@ def _preflight_order_items(
             dropped[item_id] = "4-band-only instrument cannot satisfy 8-band order"
             continue
 
-        if required_asset_keys and asset_keys and asset_keys.isdisjoint(
+        if (
             required_asset_keys
+            and asset_keys
+            and asset_keys.isdisjoint(required_asset_keys)
         ):
             expected = ", ".join(required_asset_keys)
             observed = ", ".join(sorted(asset_keys)[:6])
