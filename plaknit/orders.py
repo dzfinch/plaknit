@@ -28,7 +28,7 @@ from .geometry import (
 
 ORDER_LOGGER_NAME = "plaknit.plan"
 PLANET_STAC_URL = "https://api.planet.com/x/data/"
-MAX_ITEMS_PER_ORDER = 100
+MAX_ITEMS_PER_ORDER = 500
 CLEAR_FRACTION_KEYS = (
     "clear_percent",
     "pl:clear_percent",
@@ -106,7 +106,7 @@ ANOMALOUS_PIXELS_KEYS = (
     "pl_anomalous_pixels",
 )
 GSD_KEYS = ("gsd", "pixel_resolution", "pl:pixel_resolution", "pl_pixel_resolution")
-INSTRUMENT_KEYS = ("instrument", "pl:instrument", "pl_instrument")
+INSTRUMENT_KEYS = ("instruments", "instrument", "pl:instrument", "pl_instrument")
 CONSTELLATION_KEYS = ("constellation", "eo:constellation", "pl:constellation")
 FOUR_BAND_ONLY_INSTRUMENTS = {"ps2", "ps2.sd"}
 
@@ -362,12 +362,13 @@ def _normalized_instrument_values(value: Any) -> List[str]:
     return _normalized_property_values(value)
 
 
-def _required_asset_key_for_sr_bands(sr_bands: int) -> Optional[str]:
+def _required_asset_keys_for_sr_bands(sr_bands: int) -> tuple[str, ...]:
+    # Planet STAC sometimes exposes SR assets with/without the `ortho_` prefix.
     if sr_bands == 4:
-        return "ortho_analytic_4b_sr"
+        return ("ortho_analytic_4b_sr", "analytic_4b_sr", "analytic_sr")
     if sr_bands == 8:
-        return "ortho_analytic_8b_sr"
-    return None
+        return ("ortho_analytic_8b_sr", "analytic_8b_sr")
+    return ()
 
 
 def _asset_keys_from_item(item: Any) -> set[str]:
@@ -435,7 +436,7 @@ def _preflight_order_items(
     if not instrument_types:
         return items, {}
 
-    required_asset_key = _required_asset_key_for_sr_bands(sr_bands)
+    required_asset_keys = _required_asset_keys_for_sr_bands(sr_bands)
     collection = filters.get("collection") or filters.get("item_type") or "PSScene"
     ids_to_lookup = [item["id"] for item in items if item["id"] not in metadata_cache]
     fetched_metadata = _lookup_item_metadata(
@@ -508,9 +509,21 @@ def _preflight_order_items(
             dropped[item_id] = "4-band-only instrument cannot satisfy 8-band order"
             continue
 
-        if required_asset_key and asset_keys and required_asset_key not in asset_keys:
-            dropped[item_id] = f"missing required asset: {required_asset_key}"
-            continue
+        if (
+            required_asset_keys
+            and asset_keys
+            and asset_keys.isdisjoint(required_asset_keys)
+        ):
+            expected = ", ".join(required_asset_keys)
+            observed = ", ".join(sorted(asset_keys)[:6])
+            if len(asset_keys) > 6:
+                observed += ", ..."
+            _get_logger().debug(
+                "Asset preflight mismatch for %s (expected one of [%s], observed [%s]); allowing submit.",
+                item_id,
+                expected,
+                observed,
+            )
 
         kept.append(item)
 
@@ -834,7 +847,6 @@ async def _submit_orders_async(
 
     results: dict[str, dict[str, Any]] = {}
     stac_client = _open_planet_stac_client(api_key)
-    metadata_cache: Dict[str, Dict[str, Any]] = {}
     async with _orders_client_context(api_key) as client:
         for month in sorted(plan.keys()):
             entry = plan[month]
@@ -892,59 +904,6 @@ async def _submit_orders_async(
                     working_batch = deduped_batch
                     if not working_batch:
                         break
-                    preflight_batch, preflight_dropped = _preflight_order_items(
-                        stac_client=stac_client,
-                        plan_entry=entry,
-                        items=working_batch,
-                        sr_bands=sr_bands,
-                        metadata_cache=metadata_cache,
-                    )
-                    if preflight_dropped:
-                        dropped_ids.update(preflight_dropped.keys())
-                        working_batch = preflight_batch
-                        preview = ", ".join(
-                            f"{item_id} ({reason})"
-                            for item_id, reason in list(preflight_dropped.items())[:6]
-                        )
-                        if len(preflight_dropped) > 6:
-                            preview += ", ..."
-                        logger.warning(
-                            "Skipping %d scene(s) for %s due preflight checks: %s",
-                            len(preflight_dropped),
-                            month,
-                            preview,
-                        )
-                        desired_replacements = len(preflight_dropped)
-                        remaining_ids = {item["id"] for item in remaining_items}
-                        replacements = _find_replacement_items(
-                            stac_client=stac_client,
-                            plan_entry=entry,
-                            month=month,
-                            aoi_geojson=clip_geojson,
-                            desired_count=desired_replacements,
-                            exclude_ids={item["id"] for item in working_batch}
-                            | dropped_ids
-                            | ordered_ids
-                            | remaining_ids,
-                        )
-                        if replacements:
-                            logger.info(
-                                "Adding %d replacement scene(s) for %s.",
-                                len(replacements),
-                                month,
-                            )
-                            working_batch.extend(replacements)
-                            if len(working_batch) > MAX_ITEMS_PER_ORDER:
-                                overflow = working_batch[MAX_ITEMS_PER_ORDER:]
-                                working_batch = working_batch[:MAX_ITEMS_PER_ORDER]
-                                remaining_items = overflow + remaining_items
-                            continue
-                        if not working_batch:
-                            logger.error(
-                                "Skipping order for %s: no valid scenes remain after preflight checks.",
-                                month,
-                            )
-                            break
                     submit_item_ids = [item["id"] for item in working_batch]
                     order_tools = copy.deepcopy(tools)
                     archive_type_normalized = (
@@ -962,6 +921,7 @@ async def _submit_orders_async(
 
                     order_request = {
                         "name": order_name,
+                        "source_type": "scenes",
                         "products": [
                             {
                                 "item_ids": submit_item_ids,
