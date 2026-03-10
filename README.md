@@ -7,7 +7,7 @@
 
 **Processing Large-Scale PlanetScope Data**
 
-> Note: plaknit is in active early-stage development. Expect frequent updates, and please share feedback or ideas through the GitHub Issues tab.
+> Note: plaknit is fully operational as of v0.3.0. Continue to look for updates, and please share feedback or ideas through the GitHub Issues tab.
 
 PlanetScope Scene (PSS) data are reveared for its quality and distinct ability to
 balance spatial and temporal resolution in Earth Observation data. While PSS has
