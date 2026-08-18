@@ -15,7 +15,9 @@ import joblib
 import numpy as np
 import rasterio
 from rasterio import features, windows
+from rasterio.enums import Resampling
 from rasterio.features import geometry_window
+from rasterio.vrt import WarpedVRT
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.model_selection import train_test_split
@@ -30,6 +32,42 @@ else:  # pragma: no cover
 PathLike = Union[str, Path]
 NeighborOffsets = Tuple[Tuple[int, int], ...]
 WindowTuple = Tuple[int, int, int, int]
+
+
+def _align_raster_to_grid(
+    dataset: rasterio.io.DatasetReader,
+    template: rasterio.io.DatasetReader,
+) -> rasterio.io.DatasetReader:
+    """Return *dataset* on *template*'s grid, warping only when necessary.
+
+    The template grid is defined by its CRS, transform, width, and height.
+    Alignment is performed lazily with a :class:`rasterio.vrt.WarpedVRT`, so no
+    intermediate raster is written.  Nearest-neighbor resampling keeps the
+    values of categorical raster bands intact.
+    """
+
+    same_grid = (
+        dataset.width == template.width
+        and dataset.height == template.height
+        and dataset.crs == template.crs
+        and np.allclose(dataset.transform, template.transform)
+    )
+    if same_grid:
+        return dataset
+
+    if dataset.crs is None or template.crs is None:
+        raise ValueError(
+            "Rasters on different grids must all have a CRS so they can be aligned."
+        )
+
+    return WarpedVRT(
+        dataset,
+        crs=template.crs,
+        transform=template.transform,
+        width=template.width,
+        height=template.height,
+        resampling=Resampling.nearest,
+    )
 
 
 def _log(message: str) -> None:
@@ -248,6 +286,7 @@ class _RasterStack:
     def __init__(self, paths: List[Path], band_indices: Optional[Sequence[int]] = None):
         self.paths = paths
         self.datasets: List[rasterio.io.DatasetReader] = []
+        self._source_datasets: List[rasterio.io.DatasetReader] = []
         self.count = 0
         self.nodata_values: List[Optional[float]] = []
         self.template: Optional[rasterio.io.DatasetReader] = None
@@ -258,26 +297,14 @@ class _RasterStack:
         self._all_band_map: List[Tuple[int, int]] = []
 
     def __enter__(self) -> "_RasterStack":
-        self.datasets = [rasterio.open(p) for p in self.paths]
+        self._source_datasets = [rasterio.open(p) for p in self.paths]
+        self.datasets = list(self._source_datasets)
         if not self.datasets:
             raise ValueError("No raster paths were provided.")
 
         self.template = self.datasets[0]
-        template_shape = (self.template.width, self.template.height)
-        template_transform = self.template.transform
-        template_crs = self.template.crs
-
-        for ds in self.datasets[1:]:
-            if (ds.width, ds.height) != template_shape:
-                raise ValueError("All rasters must have the same dimensions.")
-            if not np.allclose(ds.transform, template_transform):
-                raise ValueError("All rasters must share the same transform/grid.")
-            if (
-                template_crs is not None
-                and ds.crs is not None
-                and ds.crs != template_crs
-            ):
-                raise ValueError("All rasters must share the same CRS.")
+        for index, ds in enumerate(self.datasets[1:], start=1):
+            self.datasets[index] = _align_raster_to_grid(ds, self.template)
 
         for ds_idx, ds in enumerate(self.datasets):
             self.count += ds.count
@@ -307,8 +334,12 @@ class _RasterStack:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        for ds in self.datasets:
+        # Close VRTs before their source datasets.
+        for ds in reversed(self.datasets):
             ds.close()
+        for ds in self._source_datasets:
+            if not any(ds is stack_ds for stack_ds in self.datasets):
+                ds.close()
 
     @property
     def width(self) -> int:
