@@ -24,3 +24,12 @@ Use these functions to build reusable models for PlanetScope stacks.
 ::: plaknit.classify.train_rf
 
 ::: plaknit.classify.predict_rf
+
+## Raster/vector distance
+
+`distance_to_vector` rasterizes any GeoPandas-supported vector source onto a
+projected Rasterio template grid, then writes Euclidean distances in map units.
+Use `backend="gpu"` with a CUDA-compatible CuPy installation for GPU execution;
+the default `backend="cpu"` uses SciPy.
+
+::: plaknit.geometry.distance_to_vector

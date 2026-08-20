@@ -24,6 +24,7 @@ plaknit = "plaknit.cli:main"
 
 [project.optional-dependencies]
 extra = ["pandas"]
+gpu = ["cupy"]
 # If you want "all" to include every extra, list them explicitly (no self-deps):
 all = [
   "pandas",
