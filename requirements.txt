@@ -8,3 +8,4 @@ rasterio
 requests
 rich
 scikit-learn
+scipy

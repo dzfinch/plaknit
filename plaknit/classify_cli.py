@@ -175,6 +175,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         help="Optional output path for class probability GeoTIFF.",
     )
     predict_parser.add_argument(
+        "--binary-out",
+        help="Optional directory for one binary GeoTIFF per class.",
+    )
+    predict_parser.add_argument(
         "--block-shape",
         nargs=2,
         type=int,
@@ -278,6 +282,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         bayes_neigh_fraction=args.bayes_neigh_fraction,
         bayes_smoothness=args.bayes_smoothness,
         probs_out=args.probs_out,
+        binary_out=args.binary_out,
         block_overlap=args.block_overlap,
         jobs=args.jobs,
     )

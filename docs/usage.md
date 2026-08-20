@@ -106,6 +106,19 @@ By default, `plaknit mosaic` now checks every input CRS and reprojects
 non-matching rasters to a single target CRS before running OTB. The target is
 chosen from the majority CRS across inputs; ties are resolved by choosing the
 CRS from the tile nearest the geographic center of the stack.
+## Raster/vector distance
+
+Calculate a distance surface from any supported vector source on a projected
+raster grid:
+
+```python
+from plaknit import distance_to_vector
+
+distance_to_vector("template.tif", "features.gpkg", "distance.tif")
+```
+
+The output uses the template grid and stores distances in its CRS map units.
+Install `plaknit[gpu]` and pass `backend="gpu"` to use CuPy.
 
 
 ## Random Forest classification
@@ -113,8 +126,7 @@ CRS from the tile nearest the geographic center of the stack.
 `plaknit classify` trains and applies a Random Forest to multi-band stacks. The CLI
 accepts one or more `--image` paths; you can pass multiple aligned GeoTIFFs
 directly (or repeat `--image`) or build a VRT first (`gdalbuildvrt stack.vrt band1.tif band2.tif ...`).
-Use `--band-indices` (1-based) to select a subset of stacked bands when you want
-the same model to run on 4-band and 8-band inputs. Train + predict from the CLI:
+Use `--binary-out` during prediction to output individual binary masks for each class.
 
 ```bash
 # Train (writes a .joblib model)

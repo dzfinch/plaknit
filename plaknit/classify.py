@@ -1193,6 +1193,34 @@ def _prepare_prob_profile(profile: dict, *, count: int) -> dict:
     return profile
 
 
+def _write_binary_class_outputs(
+    classified_path: Path,
+    output_dir: PathLike,
+    class_values: Sequence[Union[int, float]],
+) -> List[Path]:
+    output_directory = Path(output_dir)
+    output_directory.mkdir(parents=True, exist_ok=True)
+    outputs = [
+        output_directory / f"class_{class_value}.tif" for class_value in class_values
+    ]
+
+    with rasterio.open(classified_path) as src:
+        profile = src.profile.copy()
+        profile.update(driver="GTiff", count=1, dtype="uint8", nodata=0)
+        with contextlib.ExitStack() as stack_ctx:
+            destinations = [
+                stack_ctx.enter_context(rasterio.open(path, "w", **profile))
+                for path in outputs
+            ]
+            for _, window in src.block_windows(1):
+                classified = src.read(1, window=window)
+                for class_value, destination in zip(class_values, destinations):
+                    binary = (classified == class_value).astype("uint8")
+                    destination.write(binary, 1, window=window)
+
+    return outputs
+
+
 def _window_to_tuple(win: windows.Window) -> WindowTuple:
     return (
         int(win.col_off),
@@ -1492,6 +1520,7 @@ def predict_rf(
     bayes_neigh_fraction: float = 0.5,
     bayes_smoothness: Union[float, Sequence[float]] = 20.0,
     probs_out: Optional[PathLike] = None,
+    binary_out: Optional[PathLike] = None,
     block_overlap: int = 0,
     jobs: int = 1,
 ) -> Path:
@@ -1505,8 +1534,9 @@ def predict_rf(
     parallelism via worker processes. Use `band_indices` (1-based) to select a
     subset of stacked bands for prediction. If `probs_out` is set, prediction
     writes a multi-band GeoTIFF of class probabilities (raw RF posteriors).
-    If the model includes holdout samples, prediction logs a confusion matrix
-    and band importance.
+    If `binary_out` is set, write one uint8 binary GeoTIFF per class into that
+    directory. If the model includes holdout samples, prediction logs a
+    confusion matrix and band importance.
     """
 
     _log("[bold cyan]Loading model...")
@@ -1723,6 +1753,14 @@ def predict_rf(
             smoothed_note=smoothed_note,
             smooth=smooth,
         )
+
+    if binary_out is not None:
+        class_values = getattr(model, "classes_", None)
+        if class_values is None:
+            raise ValueError("Model must define classes_ to write binary outputs.")
+        binary_paths = _write_binary_class_outputs(out_path, binary_out, class_values)
+        for binary_path in binary_paths:
+            _log(f"[green]Binary class mask saved to {binary_path}")
 
     _log(f"[green]Classification saved to {out_path}")
     return out_path
