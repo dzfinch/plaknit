@@ -11,7 +11,7 @@ import rasterio
 from rasterio.transform import from_origin
 from shapely.geometry import Polygon
 
-from plaknit import geometry as geometry_utils
+from plaknit.acquisition import geometry as geometry_utils
 
 
 def _polygon_with_vertices(vertex_count: int) -> Polygon:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from typing import List, Optional, Sequence
 
-from .classify import predict_rf, smooth_probs, train_rf
+from ..models.rf import predict_rf, smooth_probs, train_rf
 
 
 def _add_common_smoothing_args(parser: argparse.ArgumentParser) -> None:

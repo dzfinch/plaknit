@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import List, Optional, Sequence
 
-from . import mosaic as mosaic_cli
-from . import orders as orders_cli
-from . import planner as planner_cli
+from ..acquisition import mosaic as mosaic_cli
+from ..acquisition import orders as orders_cli
+from ..acquisition import planner as planner_cli
 from . import classify_cli
 
 

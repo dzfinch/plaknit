@@ -10,7 +10,7 @@ from uuid import uuid4
 
 from shapely.geometry import box, shape
 
-from plaknit import orders
+from plaknit.acquisition import orders
 
 
 class _FakeOrdersClient:
