@@ -1,7 +1,7 @@
 import numpy as np
 
-from plaknit.raster import _expand_raster_inputs, _normalize_nodata
-from plaknit.sampling import _split_train_test
+from plaknit.data.raster import _expand_raster_inputs, _normalize_nodata
+from plaknit.data.sampling import _split_train_test
 
 
 def test_expand_raster_inputs_accepts_file_and_dir(tmp_path):
