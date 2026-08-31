@@ -65,8 +65,8 @@ trainBRT <- function(
 	verbose = FALSE,
 	...
 ) {
-	
-	### setup 
+
+	### setup
 	#########
 
 		# # add dummy variable if using univariate model to avoid errors
@@ -84,7 +84,7 @@ trainBRT <- function(
 
 	### generate table of parameterizations
 	#######################################
-		
+
 		params <- expand.grid(
 			learningRate = learningRate,
 			treeComplexity = treeComplexity,
@@ -92,7 +92,7 @@ trainBRT <- function(
 			maxTrees = maxTrees,
 			stringsAsFactors = FALSE
 		)
-		
+
 	### MAIN
 	########
 
@@ -106,7 +106,7 @@ trainBRT <- function(
 			parallel::clusterEvalQ(cl, requireNamespace('parallel', quietly=TRUE))
 			doParallel::registerDoParallel(cl)
 			on.exit(parallel::stopCluster(cl), add=TRUE)
-			
+
 			# `%makeWork%` <- doRNG::`%dorng%`
 			# doFuture::registerDoFuture()
 			# future::plan(future::multisession(workers = cores))
@@ -144,66 +144,66 @@ trainBRT <- function(
 				paths = paths,
 				...
 			)
-				
+
 		}
-						
+
 		# if (cores > 1L) parallel::stopCluster(cl)
 
 	### collate models
 	##################
-		
+
 		models <- list()
 		tuning <- data.frame()
 
 		for (i in seq_along(work)) {
-		
+
 			models[[i]] <- work[[i]]$model
 			tuning <- rbind(tuning, work[[i]]$workerTuning)
-		
+
 		}
-		
+
 	### process models
 	##################
-	
+
 		if (anyway) {
 			origModels <- models
 			origTuning <- tuning
 		}
-	
+
 		# remove non-converged models
 		keeps <- which(tuning$converged)
 		tuning <- tuning[keeps, , drop=FALSE]
 		models <- models[keeps]
 
 		if (length(models) > 0L) {
-		
+
 			# remove models with fewer trees than required
 			keeps <- which(omnibus::naCompare('>=', tuning$nTrees, minTrees))
 			tuning <- tuning[keeps, , drop=FALSE]
 			models <- models[keeps]
-			
+
 			if (length(models) > 0) {
-			
+
 				# sort from best to worst model
 				modelOrder <- order(tuning$dev, decreasing=FALSE)
 				tuning <- tuning[modelOrder, , drop=FALSE]
 				models <- models[modelOrder]
-				
+
 				rownames(tuning) <- NULL
-				
+
 			}
-				
+
 		}
-		
+
 		if (anyway & length(models) == 0) {
 			models <- origModels
 			tuning <- origTuning
 			warning('No models converged and/or had sufficient trees.')
 		}
-		
+
 	### return
 	##########
-		
+
 		if (verbose) {
 			omnibus::say('')
 			print(tuning, digits=4)
@@ -269,12 +269,12 @@ trainBRT <- function(
 	tempTc <- params$treeComplexity[i]
 	tempBf <- params$bagFraction[i]
 	tempMaxTrees <- params$maxTrees[i]
-	
+
 	tempStepSize <- 50 # default for n.trees in gbm.step
 
 	# tuning table
 	workerTuning <- data.frame()
-	
+
 	# by TRY
 	numTries <- 0L
 	while (numTries <= tries & !converged) {
@@ -334,9 +334,9 @@ trainBRT <- function(
 			)
 
 		} else {
-		
+
 			model <- NA
-		
+
 			# tuning table
 			workerTuning <- rbind(
 				workerTuning,
@@ -351,7 +351,7 @@ trainBRT <- function(
 					deviance = NA
 				)
 			)
-			
+
 		}
 
 	} # while trying to train model
@@ -362,7 +362,7 @@ trainBRT <- function(
 			workerTuning=workerTuning
 		)
 	)
-	
+
 	workerOut
-	
+
 }
