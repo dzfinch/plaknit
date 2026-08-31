@@ -1,5 +1,6 @@
 """Top-level package for plaknit."""
 
+from .acquisition import geometry, mosaic, orders, planner
 from .acquisition.geometry import distance_to_vector
 from .acquisition.orders import submit_orders_for_plan
 from .acquisition.planner import plan_monthly_composites, write_plan
@@ -17,4 +18,8 @@ __all__ = [
     "plan_monthly_composites",
     "write_plan",
     "submit_orders_for_plan",
+    "geometry",
+    "mosaic",
+    "orders",
+    "planner",
 ]
