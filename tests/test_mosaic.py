@@ -8,7 +8,7 @@ import pytest
 from affine import Affine
 from rasterio.crs import CRS
 
-from plaknit import mosaic
+from plaknit.acquisition import mosaic
 
 
 def _projection(path: str, epsg: int, lon: float, lat: float) -> mosaic.ProjectionInfo:

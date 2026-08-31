@@ -7,7 +7,7 @@ from typing import Dict, Iterable, List
 import pytest
 from shapely.geometry import box, mapping
 
-from plaknit import planner
+from plaknit.acquisition import planner
 
 
 class _FakeItem:
