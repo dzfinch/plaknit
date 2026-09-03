@@ -102,6 +102,73 @@ def _nodata_pixel_mask(
     return mask
 
 
+class _CastingDataset:
+    """Proxy dataset that casts reads to a target dtype while delegating metadata.
+
+    This wraps a rasterio dataset and ensures `read(..., out_dtype=...)` will
+    succeed by requesting the chosen `target_dtype`. It exposes a subset of the
+    DatasetReader attributes used by `_RasterStack`.
+    """
+
+    def __init__(self, ds: rasterio.io.DatasetReader, target_dtype: str):
+        self._ds = ds
+        self.count = ds.count
+        self.width = ds.width
+        self.height = ds.height
+        self.crs = ds.crs
+        self.transform = ds.transform
+        # profile copy with coerced dtype
+        self.profile = ds.profile.copy()
+        self.profile["dtype"] = target_dtype
+        # expose nodatavals as a tuple of scalars or None
+        raw = ds.nodatavals or ()
+        if raw:
+            self.nodatavals = tuple(
+                None if v is None else np.asarray(v).astype(target_dtype).item()
+                for v in raw
+            )
+        else:
+            self.nodatavals = tuple([None] * self.count)
+
+    @property
+    def dtypes(self):
+        # return a list-like of per-band dtype strings
+        try:
+            return list(self._ds.dtypes)
+        except Exception:
+            return [self.profile.get("dtype")] * self.count
+
+    def block_windows(self, bidx: int = 1):
+        return self._ds.block_windows(bidx)
+
+    def read(
+        self,
+        *args,
+        window=None,
+        out_dtype: Optional[str] = None,
+        indexes=None,
+        **kwargs,
+    ):
+        dtype = out_dtype or self.profile.get("dtype")
+        band_ids = (
+            list(indexes) if indexes is not None else list(range(1, self.count + 1))
+        )
+        # Read one band at a time: rasterio refuses a single multi-band read
+        # when the underlying dataset's bands have differing native dtypes,
+        # so we can't just delegate a combined read here.
+        bands = [
+            self._ds.read(indexes=[band_id], window=window, **kwargs)[0]
+            for band_id in band_ids
+        ]
+        return np.stack(bands, axis=0).astype(dtype, copy=False)
+
+    def close(self):
+        try:
+            self._ds.close()
+        except Exception:
+            pass
+
+
 class _RasterStack:
     """Lightweight reader that stacks multiple rasters band-wise."""
 
@@ -127,6 +194,23 @@ class _RasterStack:
         self.template = self.datasets[0]
         for index, ds in enumerate(self.datasets[1:], start=1):
             self.datasets[index] = _align_raster_to_grid(ds, self.template)
+
+        # Detect mixed source dtypes and coerce to a common safe dtype when
+        # necessary. Coercion is done via a thin proxy that requests reads in
+        # the chosen dtype so downstream code receives a consistent array dtype.
+        all_dtypes: List[str] = []
+        for ds in self.datasets:
+            try:
+                all_dtypes.extend(list(ds.dtypes))
+            except Exception:
+                # fallback to profile dtype if dtypes not available
+                all_dtypes.extend([ds.profile.get("dtype")] * getattr(ds, "count", 1))
+
+        unique_dtypes = set(dt for dt in all_dtypes if dt is not None)
+        if len(unique_dtypes) > 1:
+            target_dtype = "float32"
+            _log(f"[yellow]Input rasters have mixed dtypes; casting to {target_dtype}.")
+            self.datasets = [_CastingDataset(ds, target_dtype) for ds in self.datasets]
 
         for ds_idx, ds in enumerate(self.datasets):
             self.count += ds.count

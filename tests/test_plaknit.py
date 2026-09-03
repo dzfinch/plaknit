@@ -15,3 +15,5 @@ class TestPlaknit(unittest.TestCase):
         self.assertTrue(hasattr(plaknit, "__version__"))
         self.assertTrue(hasattr(plaknit, "train_rf"))
         self.assertTrue(hasattr(plaknit, "predict_rf"))
+        self.assertTrue(hasattr(plaknit, "train_brt"))
+        self.assertTrue(hasattr(plaknit, "predict_brt"))

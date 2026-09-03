@@ -33,4 +33,30 @@ spend time answering big questions, not making a big mess of your data.
 - Planning workflow that searches Planet's STAC/Data API and scores scenes, with ordering handled by a separate `plaknit order` workflow.
 - GDAL-powered parallel masking of Planet strips with their UDM rasters.
 - Tuned Orfeo Toolbox mosaicking pipeline with RAM hints for large jobs.
-- Random Forest training + inference utilities for classifying Planet stacks.
+- Random Forest and Boosted Regression Tree ensemble training + inference utilities for classifying Planet stacks.
+
+## Quick Start
+
+### Train a BRT Ensemble Classifier
+
+```bash
+plaknit brt train \
+  --image stack.tif \
+  --labels training.gpkg \
+  --label-column class_id \
+  --output ./brt_ensemble/ \
+  --n-models 5 \
+  --gpu
+```
+
+### Apply the Ensemble to New Imagery
+
+```bash
+plaknit brt predict \
+  --image new_stack.tif \
+  --ensemble-dir ./brt_ensemble/ \
+  --output-dir ./probability_outputs/ \
+  --feature-importance-out predictor_importance.csv
+```
+
+See [Usage](https://dzfinch.github.io/plaknit/usage.html) for complete examples and all supported options.

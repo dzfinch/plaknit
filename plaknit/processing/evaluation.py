@@ -9,7 +9,7 @@ import geopandas as gpd
 import numpy as np
 import rasterio
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.metrics import accuracy_score, confusion_matrix, roc_auc_score
 
 from ..data.raster import _log
 
@@ -48,6 +48,11 @@ def _collect_holdout_metrics(
 
     matrix = confusion_matrix(test_labels, predictions, labels=classes)
     accuracy = accuracy_score(test_labels, predictions)
+    auc: Optional[float] = None
+    if len(np.unique(test_labels)) > 1 and 1 in classes:
+        positive_class_index = int(np.flatnonzero(classes == 1)[0])
+        probabilities = model.predict_proba(test_samples)
+        auc = float(roc_auc_score(test_labels, probabilities[:, positive_class_index]))
 
     importances = getattr(model, "feature_importances_", None)
     bands: Optional[List[Tuple[int, float]]]
@@ -63,6 +68,7 @@ def _collect_holdout_metrics(
     return {
         "sample_count": len(test_labels),
         "accuracy": float(accuracy),
+        "auc": auc,
         "labels": label_names,
         "classes": classes,
         "matrix": matrix,
@@ -89,6 +95,11 @@ def _log_holdout_metrics(model: RandomForestClassifier) -> Optional[Dict[str, An
     _log(
         f"[bold cyan]Holdout evaluation: {metrics['sample_count']:,} samples, "
         f"accuracy {metrics['accuracy']:.3f}"
+        + (
+            f", ROC AUC {metrics['auc']:.3f}"
+            if metrics["auc"] is not None
+            else ", ROC AUC unavailable"
+        )
     )
     _log("[bold cyan]Confusion matrix (rows=true, cols=pred):")
     _log(_format_confusion_matrix(metrics["matrix"], metrics["labels"]))
@@ -264,6 +275,11 @@ def _write_holdout_outputs(
     lines = [
         f"Holdout samples: {metrics['sample_count']}",
         f"Raw accuracy: {metrics['accuracy']:.3f}",
+        (
+            f"Raw ROC AUC: {metrics['auc']:.3f}"
+            if metrics.get("auc") is not None
+            else "Raw ROC AUC: unavailable."
+        ),
         (
             f"Training grid sampling: {metrics['train_grid_size']} px per cell."
             if metrics.get("train_grid_size")

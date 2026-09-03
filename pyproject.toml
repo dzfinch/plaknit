@@ -20,11 +20,11 @@ classifiers = [
 dynamic = ["dependencies"]
 
 [project.entry-points."console_scripts"]
-plaknit = "plaknit.cli:main"
+plaknit = "plaknit.cli.main:main"
 
 [project.optional-dependencies]
 extra = ["pandas"]
-gpu = ["cupy"]
+gpu = ["cupy", "xgboost[gpu]"]
 # If you want "all" to include every extra, list them explicitly (no self-deps):
 all = [
   "pandas",

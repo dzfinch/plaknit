@@ -146,6 +146,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             "sample per class per grid cell."
         ),
     )
+    train_parser.add_argument(
+        "--training-buffer-meters",
+        type=float,
+        default=0.0,
+        help="Buffer training geometries by this many meters when extracting pixels.",
+    )
 
     predict_parser = subparsers.add_parser(
         "predict", help="Apply a trained model to classify a raster stack."
@@ -243,6 +249,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             n_jobs=args.jobs,
             test_fraction=args.test_fraction,
             grid_size=args.grid_size,
+            training_buffer_meters=args.training_buffer_meters,
         )
         return 0
 
