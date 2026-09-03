@@ -51,8 +51,7 @@ def test_raster_stack_reads_single_vrt_with_mixed_band_dtypes(tmp_path):
         dst.write(np.array([[0.5, 1.5], [2.5, 3.5]], dtype="float32"), 1)
 
     vrt_path = tmp_path / "stack.vrt"
-    vrt_path.write_text(
-        f"""<VRTDataset rasterXSize="2" rasterYSize="2">
+    vrt_path.write_text(f"""<VRTDataset rasterXSize="2" rasterYSize="2">
   <SRS>EPSG:3857</SRS>
   <GeoTransform>0.0, 1.0, 0.0, 2.0, 0.0, -1.0</GeoTransform>
   <VRTRasterBand dataType="Byte" band="1">
@@ -72,8 +71,7 @@ def test_raster_stack_reads_single_vrt_with_mixed_band_dtypes(tmp_path):
     </SimpleSource>
   </VRTRasterBand>
 </VRTDataset>
-"""
-    )
+""")
 
     with _open_raster_stack(vrt_path) as stack:
         data = stack.read(
@@ -82,9 +80,7 @@ def test_raster_stack_reads_single_vrt_with_mixed_band_dtypes(tmp_path):
 
     np.testing.assert_allclose(
         data,
-        np.array(
-            [[[1.0, 2.0], [3.0, 4.0]], [[0.5, 1.5], [2.5, 3.5]]], dtype="float32"
-        ),
+        np.array([[[1.0, 2.0], [3.0, 4.0]], [[0.5, 1.5], [2.5, 3.5]]], dtype="float32"),
     )
 
 

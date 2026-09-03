@@ -106,7 +106,11 @@ def _prepare_brt_training_data(
             gdf = gdf.to_crs(stack.crs)
 
         label_values = set(gdf[label_column].dropna().tolist())
-        if not label_values or not label_values.issubset({0, 1}) or 1 not in label_values:
+        if (
+            not label_values
+            or not label_values.issubset({0, 1})
+            or 1 not in label_values
+        ):
             raise ValueError(
                 "BRT training requires presence labels coded as 1 and optional "
                 "absence labels coded as 0."
@@ -281,7 +285,12 @@ def train_brt(
         X = np.vstack((X, candidate_features[selected]))
         y = np.concatenate((y, np.zeros(requested, dtype="int32")))
         sample_ids = np.concatenate(
-            (sample_ids, np.asarray([f"pseudo_absence_{idx}" for idx in range(requested)], dtype=object))
+            (
+                sample_ids,
+                np.asarray(
+                    [f"pseudo_absence_{idx}" for idx in range(requested)], dtype=object
+                ),
+            )
         )
         sample_rows = np.concatenate((sample_rows, candidate_rows[selected]))
         sample_cols = np.concatenate((sample_cols, candidate_cols[selected]))
@@ -329,7 +338,9 @@ def train_brt(
         else:
             tree_method = "hist"
             if gpu:
-                _log("[yellow]GPU requested but not available; falling back to CPU (hist).")
+                _log(
+                    "[yellow]GPU requested but not available; falling back to CPU (hist)."
+                )
 
     _log(
         f"[bold cyan]Training BRT (XGBoost) on {X_train.shape[0]:,} samples "

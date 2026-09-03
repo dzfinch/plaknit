@@ -162,9 +162,7 @@ def _collect_pseudo_absence_samples(
         requested = 1
 
     candidate_features, candidate_rows, candidate_cols = (
-        _collect_pseudo_absence_candidate_pool(
-            stack, gdf, buffer_meters=buffer_meters
-        )
+        _collect_pseudo_absence_candidate_pool(stack, gdf, buffer_meters=buffer_meters)
     )
     candidate_indices = np.arange(candidate_features.shape[0])
     if candidate_indices.size < requested:

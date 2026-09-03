@@ -203,7 +203,11 @@ def test_ensemble_predict_writes_unweighted_probability_summaries(tmp_path):
 
     assert mean_path == output_dir / "mean_probabilities.tif"
     assert not (output_dir / "classified.tif").exists()
-    for name in ("mean_probabilities.tif", "lower_probabilities.tif", "upper_probabilities.tif"):
+    for name in (
+        "mean_probabilities.tif",
+        "lower_probabilities.tif",
+        "upper_probabilities.tif",
+    ):
         assert (output_dir / name).exists()
     with rasterio.open(mean_path) as mean:
         assert mean.dtypes == ("float32", "float32")

@@ -141,9 +141,18 @@ class _CastingDataset:
     def block_windows(self, bidx: int = 1):
         return self._ds.block_windows(bidx)
 
-    def read(self, *args, window=None, out_dtype: Optional[str] = None, indexes=None, **kwargs):
+    def read(
+        self,
+        *args,
+        window=None,
+        out_dtype: Optional[str] = None,
+        indexes=None,
+        **kwargs,
+    ):
         dtype = out_dtype or self.profile.get("dtype")
-        band_ids = list(indexes) if indexes is not None else list(range(1, self.count + 1))
+        band_ids = (
+            list(indexes) if indexes is not None else list(range(1, self.count + 1))
+        )
         # Read one band at a time: rasterio refuses a single multi-band read
         # when the underlying dataset's bands have differing native dtypes,
         # so we can't just delegate a combined read here.
@@ -158,7 +167,6 @@ class _CastingDataset:
             self._ds.close()
         except Exception:
             pass
-
 
 
 class _RasterStack:
@@ -202,7 +210,7 @@ class _RasterStack:
         if len(unique_dtypes) > 1:
             target_dtype = "float32"
             _log(f"[yellow]Input rasters have mixed dtypes; casting to {target_dtype}.")
-            self.datasets = [ _CastingDataset(ds, target_dtype) for ds in self.datasets ]
+            self.datasets = [_CastingDataset(ds, target_dtype) for ds in self.datasets]
 
         for ds_idx, ds in enumerate(self.datasets):
             self.count += ds.count

@@ -158,9 +158,9 @@ def _predict_ensemble_block(
         raster_height=stack.height,
     )
 
-    def _empty_result() -> Tuple[
-        np.ndarray, np.ndarray, Optional[np.ndarray], Optional[np.ndarray]
-    ]:
+    def _empty_result() -> (
+        Tuple[np.ndarray, np.ndarray, Optional[np.ndarray], Optional[np.ndarray]]
+    ):
         empty_probs = np.full(
             (num_classes, int(win.height), int(win.width)), np.nan, dtype="float32"
         )
@@ -197,7 +197,9 @@ def _predict_ensemble_block(
     def _scatter(values: np.ndarray) -> np.ndarray:
         full = np.full((samples.shape[0], num_classes), np.nan, dtype="float32")
         full[valid] = values
-        return full.reshape(int(read_window.height), int(read_window.width), num_classes)
+        return full.reshape(
+            int(read_window.height), int(read_window.width), num_classes
+        )
 
     mean_cube = _scatter(mean)
 
@@ -422,7 +424,9 @@ class BRTEnsemble:
             model_seed = self.random_state + idx
             model_path = ensemble_path / f"brt_{idx}.joblib"
 
-            _log(f"[bold cyan]Training model {idx + 1}/{self.n_models} (seed={model_seed})...")
+            _log(
+                f"[bold cyan]Training model {idx + 1}/{self.n_models} (seed={model_seed})..."
+            )
             model = brt.train_brt(
                 image_path,
                 shapefile_path,
@@ -450,9 +454,7 @@ class BRTEnsemble:
             member_results = [train_member(idx) for idx in range(self.n_models)]
         else:
             with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
-                member_results = list(
-                    executor.map(train_member, range(self.n_models))
-                )
+                member_results = list(executor.map(train_member, range(self.n_models)))
 
         for idx, model in member_results:
             self.models_.append(model)
@@ -622,17 +624,23 @@ class BRTEnsemble:
                         rasterio.open(mean_path, "w", **probs_profile)
                     )
                     lower_dst = (
-                        stack_ctx.enter_context(rasterio.open(lower_path, "w", **probs_profile))
+                        stack_ctx.enter_context(
+                            rasterio.open(lower_path, "w", **probs_profile)
+                        )
                         if ci_t_crit is not None
                         else None
                     )
                     upper_dst = (
-                        stack_ctx.enter_context(rasterio.open(upper_path, "w", **probs_profile))
+                        stack_ctx.enter_context(
+                            rasterio.open(upper_path, "w", **probs_profile)
+                        )
                         if ci_t_crit is not None
                         else None
                     )
                     member_dsts = [
-                        stack_ctx.enter_context(rasterio.open(path, "w", **probs_profile))
+                        stack_ctx.enter_context(
+                            rasterio.open(path, "w", **probs_profile)
+                        )
                         for path in member_paths
                     ]
 
@@ -684,7 +692,9 @@ class BRTEnsemble:
                                 ci_t_crit,
                             ),
                         ) as executor:
-                            futures: Dict[concurrent.futures.Future, windows.Window] = {}
+                            futures: Dict[concurrent.futures.Future, windows.Window] = (
+                                {}
+                            )
                             for win in window_iter:
                                 future = executor.submit(
                                     _predict_ensemble_block_worker,
@@ -694,12 +704,16 @@ class BRTEnsemble:
                                 futures[future] = win
                                 if len(futures) >= max_pending:
                                     done, _ = concurrent.futures.wait(
-                                        futures, return_when=concurrent.futures.FIRST_COMPLETED
+                                        futures,
+                                        return_when=concurrent.futures.FIRST_COMPLETED,
                                     )
                                     for finished in done:
-                                        member_probs, mean_probs, lower_probs, upper_probs = (
-                                            finished.result()
-                                        )
+                                        (
+                                            member_probs,
+                                            mean_probs,
+                                            lower_probs,
+                                            upper_probs,
+                                        ) = finished.result()
                                         _write_block_result(
                                             futures[finished],
                                             member_probs,
