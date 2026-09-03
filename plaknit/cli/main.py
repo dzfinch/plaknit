@@ -8,6 +8,7 @@ from ..acquisition import mosaic as mosaic_cli
 from ..acquisition import orders as orders_cli
 from ..acquisition import planner as planner_cli
 from . import classify_cli
+from . import ensemble_cli
 
 
 def _print_usage(error: Optional[str] = None) -> int:
@@ -16,7 +17,7 @@ def _print_usage(error: Optional[str] = None) -> int:
     if error:
         print(f"Error: {error}", file=sys.stderr)
     print("Usage: plaknit <command> [options]", file=sys.stderr)
-    print("Commands: classify, plan, order, mosaic", file=sys.stderr)
+    print("Commands: brt, classify, plan, order, mosaic", file=sys.stderr)
     print("Run `plaknit <command> --help` for subcommand options.", file=sys.stderr)
     return 2
 
@@ -35,6 +36,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     command = args[0]
     subargv: List[str] = args[1:]
+    if command == "brt":
+        return ensemble_cli.main(subargv)
     if command == "classify":
         return classify_cli.main(subargv)
     if command == "plan":

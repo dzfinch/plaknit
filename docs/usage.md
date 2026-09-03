@@ -163,6 +163,7 @@ rf = train_rf(
     n_estimators=600,
     test_fraction=0.3,
     n_jobs=32,
+    training_buffer_meters=250.0,
 )
 
 predict_rf(
@@ -173,10 +174,12 @@ predict_rf(
 ```
 
 Training samples pixels under each polygon window-by-window to keep RAM in
-check. Prediction streams over raster blocks (`--block-shape` overrides block
-size) so it works on laptops and HPC nodes alike; add `--jobs` to parallelize
-block prediction with multiple worker processes (watch for CPU oversubscription
-if the model was trained with `n_jobs` > 1). Classified rasters store numeric
+check. `training_buffer_meters` includes surrounding pixels in the training
+sample while preserving the source geometry label. Prediction streams over
+raster blocks (`--block-shape` overrides block size) so it works on laptops and
+HPC nodes alike; add `--jobs` to parallelize block prediction with multiple
+worker processes (watch for CPU oversubscription if the model was trained with
+`n_jobs` > 1). Classified rasters store numeric
 class IDs; inspect `rf.label_decoder` to map each ID back to its label. Training
 holds out a fraction of samples for evaluation; prediction logs the holdout
 confusion matrix plus band importance from the stored model and writes
@@ -184,3 +187,114 @@ confusion matrix plus band importance from the stored model and writes
 misclassified validation IDs when available). See `docs/hpcenv.md`
 for a Singularity/Apptainer job template that binds the stack,
 labels, model, and venv for training + prediction.
+
+## Boosted Regression Tree (BRT) Ensemble classification
+
+`plaknit brt` trains and applies Boosted Regression Tree (BRT) models to multi-band stacks. Training labels use Bernoulli coding: presence is `1` and absence is `0`. Ensemble prediction writes unweighted mean probability and confidence-interval rasters.
+
+### Training
+
+```bash
+# Basic ensemble training (5 models, 200 boosting rounds each)
+plaknit brt train \
+  --image /data/stack.vrt /data/mosaic.tif \
+  --labels /data/training_points.gpkg \
+  --label-column class \
+  --ensemble-dir /data/brt_ensemble/
+
+# Advanced training with hyperparameter tuning
+plaknit brt train \
+  --image /data/stack.vrt /data/mosaic.tif \
+  --labels /data/training_points.gpkg \
+  --label-column class \
+  --ensemble-dir /data/brt_ensemble/ \
+  --n-models 10 \
+  --n-estimators 300 \
+  --max-depth 8 \
+  --learning-rate 0.05 \
+  --subsample 0.8 \
+  --colsample-bytree 0.9 \
+  --test-fraction 0.3 \
+  --grid-size 500 \
+  --random-state 42 \
+  --gpu
+```
+
+### Prediction
+
+```bash
+# Prediction writes mean, lower, and upper probability rasters
+plaknit brt predict \
+  --image /data/stack.vrt /data/mosaic.tif \
+  --ensemble-dir /data/brt_ensemble/ \
+  --output-dir /data/output/ \
+  --jobs 8
+```
+
+### Python API
+
+```python
+from plaknit import BRTEnsemble
+
+# Training phase
+ensemble = BRTEnsemble(
+    n_models=5,
+    n_estimators=200,
+    max_depth=6,
+    learning_rate=0.1,
+    random_state=42,
+    gpu=True,
+)
+ensemble.fit(
+    image_path="planet_stack.tif",
+    shapefile_path="training_data.geojson",
+    label_column="class_id",
+    ensemble_dir="./brt_ensemble/",
+    grid_size=None,
+)
+
+# Prediction phase
+ensemble.predict(
+    image_path="planet_stack_2024.tif",
+    ensemble_dir="./brt_ensemble/",
+  output_dir="./probability_outputs/",
+  feature_importance_out="predictor_importance.csv",
+    jobs=8,
+)
+```
+
+### Key Features
+
+- **Ensemble Diversity**: Each model in the ensemble is trained with a different random seed, ensuring diverse predictions.
+- **Unweighted Summaries**: Class probabilities are averaged equally across all models, with t-based lower and upper confidence bounds.
+- **Model Assessment**: Holdout ROC AUC is recorded for each member in ensemble metadata and optional model-summary CSV output.
+- **Predictor Ranking**: Optional feature-importance CSVs summarize each input band's unweighted split importance across the ensemble.
+- **GPU Support**: Add `--gpu` flag to use XGBoost's GPU acceleration (requires `plaknit[gpu]` installation); gracefully falls back to CPU if unavailable.
+- **Probability Output**: `mean_probabilities.tif`, `lower_probabilities.tif`, and `upper_probabilities.tif` are written to the output directory. One-member ensembles write only the mean raster.
+- **Spatial Sampling**: Use `--grid-size` to spatially thin training samples for improved generalization.
+
+### Hyperparameter Guide
+
+- `--n-models`: Number of models in the ensemble (5-15 recommended). More models increase ensemble diversity.
+- `--n-estimators`: Boosting rounds per model (100-500). More rounds capture complex patterns but risk overfitting.
+- `--max-depth`: Tree depth (4-8). Shallower trees prevent overfitting; deeper trees capture interactions.
+- `--learning-rate`: Step size for boosting updates (0.01-0.3). Lower rates are more conservative.
+- `--subsample`: Fraction of samples per round (0.5-1.0). Lower values add stochasticity and reduce overfitting.
+- `--colsample-bytree`: Fraction of features per tree (0.5-1.0). Lower values increase diversity.
+- `--test-fraction`: Holdout fraction for evaluation (0.2-0.4). Per-model accuracy is recorded as a diagnostic.
+
+Use `--feature-importance-out predictor_importance.csv` during ensemble prediction to write unweighted per-band summary statistics. `mean_importance` is a relative split-contribution ranking, not a linear coefficient or a causal effect.
+
+### Comparing BRT Ensemble vs Random Forest
+
+| Feature | BRT Ensemble | Random Forest |
+|---------|--------------|---------------|
+| Model Type | Gradient boosting | Bagging (ensemble) |
+| Training Time | Medium | Fast |
+| Prediction Accuracy | High | High |
+| Interpretability | Low | Medium |
+| GPU Support | Yes | No |
+| Hyperparameter Tuning | More involved | Less involved |
+| Ensemble within Ensemble | Yes (multiple BRTs) | Yes (multiple trees) |
+
+Both classifiers are suitable for PlanetScope data; choose BRT for potentially higher accuracy on complex scenes, or Random Forest for faster training with good accuracy.

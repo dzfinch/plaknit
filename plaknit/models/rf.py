@@ -226,6 +226,7 @@ def train_rf(
     random_state: int = 42,
     test_fraction: float = 0.3,
     grid_size: Optional[int] = None,
+    training_buffer_meters: float = 0.0,
 ) -> RandomForestClassifier:
     """Train a Random Forest classifier on raster pixels under training polygons.
 
@@ -233,7 +234,15 @@ def train_rf(
     (expanded), or an iterable of coregistered rasters (elevation, NDVI,
     spectral bands, etc.). Use `band_indices` (1-based) to select a subset of
     stacked bands for training. A configurable fraction of samples is held out
-    for evaluation and persisted with the model.
+    for evaluation and persisted with the model. When `training_buffer_meters`
+    is greater than zero, raster values from the buffered training geometries
+    are included as additional samples.
+
+    Parameters
+    ----------
+    training_buffer_meters
+        Distance in meters around each training geometry used when extracting
+        training pixels. Default 0.
     """
 
     _log("[bold cyan]Loading training data...")
@@ -255,13 +264,16 @@ def train_rf(
 
         label_cat = gdf[label_column].astype("category")
         code_column = "__plaknit_label_code__"
-        gdf[code_column] = label_cat.cat.codes + 1
+        gdf[code_column] = label_cat.cat.codes
 
         categories = list(label_cat.cat.categories)
-        decoder = {idx + 1: value for idx, value in enumerate(categories)}
+        decoder = {idx: value for idx, value in enumerate(categories)}
 
         X, y, sample_ids, sample_rows, sample_cols = _collect_training_samples(
-            stack, gdf, code_column
+            stack,
+            gdf,
+            code_column,
+            buffer_meters=training_buffer_meters,
         )
         y = y.astype("int32", copy=False)
         train_shape = (stack.height, stack.width)
@@ -320,6 +332,7 @@ def train_rf(
     rf.train_transform_ = train_transform  # type: ignore[attr-defined]
     rf.train_crs_ = train_crs  # type: ignore[attr-defined]
     rf.train_grid_size_ = grid_size  # type: ignore[attr-defined]
+    rf.training_buffer_meters_ = training_buffer_meters  # type: ignore[attr-defined]
     if extra_test is not None:
         rf.test_ids_ = extra_test[0]  # type: ignore[attr-defined]
         rf.test_rows_ = extra_test[1]  # type: ignore[attr-defined]
