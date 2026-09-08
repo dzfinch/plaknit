@@ -48,7 +48,11 @@ def _assign_models_to_workers(n_models: int, n_workers: int) -> List[List[int]]:
         raise ValueError("n_workers must be at least 1.")
     worker_count = min(n_models, n_workers)
     return [
-        [model_idx for model_idx in range(n_models) if model_idx % worker_count == worker_id]
+        [
+            model_idx
+            for model_idx in range(n_models)
+            if model_idx % worker_count == worker_id
+        ]
         for worker_id in range(worker_count)
     ]
 
@@ -352,9 +356,7 @@ def _predict_ensemble_block(
         ],
         axis=0,
     )
-    mean, lower, upper = _aggregate_ensemble_probabilities(
-        probs_stack, ci_t_crit
-    )
+    mean, lower, upper = _aggregate_ensemble_probabilities(probs_stack, ci_t_crit)
 
     def _scatter(values: np.ndarray) -> np.ndarray:
         full = np.full((samples.shape[0], num_classes), np.nan, dtype="float32")

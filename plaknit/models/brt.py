@@ -182,9 +182,7 @@ def _configure_prediction_device(
     try:
         model.set_params(device=device, tree_method="hist", n_jobs=1)
     except (AttributeError, TypeError, ValueError):
-        model.set_params(
-            predictor="gpu_predictor", tree_method="gpu_hist", n_jobs=1
-        )
+        model.set_params(predictor="gpu_predictor", tree_method="gpu_hist", n_jobs=1)
 
 
 def train_brt(
