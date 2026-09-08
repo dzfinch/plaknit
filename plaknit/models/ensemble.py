@@ -199,9 +199,9 @@ def _aggregate_ensemble_statistics(
     """Aggregate partial GPU statistics without rebuilding member probabilities."""
     complete = valid_counts == model_count
     mean = np.full(probability_sum.shape, np.nan, dtype="float32")
-    mean[complete] = (
-        probability_sum[complete] / float(model_count)
-    ).astype("float32", copy=False)
+    mean[complete] = (probability_sum[complete] / float(model_count)).astype(
+        "float32", copy=False
+    )
     if ci_t_crit is None or model_count < 2:
         return mean, None, None
 
@@ -213,8 +213,7 @@ def _aggregate_ensemble_statistics(
     variance[complete] = np.maximum(variance[complete], 0.0)
     half_width = np.full(probability_sum.shape, np.nan, dtype="float32")
     half_width[complete] = (
-        ci_t_crit
-        * np.sqrt(variance[complete] / float(model_count))
+        ci_t_crit * np.sqrt(variance[complete] / float(model_count))
     ).astype("float32", copy=False)
     return (
         mean,
@@ -461,7 +460,9 @@ def _ensemble_gpu_worker(
     try:
         models = [joblib.load(model_paths[idx]) for idx in model_indices]
         expected_classes = set(classes)
-        if any(set(getattr(model, "classes_", [])) != expected_classes for model in models):
+        if any(
+            set(getattr(model, "classes_", [])) != expected_classes for model in models
+        ):
             raise ValueError("Ensemble models have inconsistent class definitions.")
         for model in models:
             brt._configure_prediction_device(model, True, device_id=device_id)
@@ -510,8 +511,7 @@ def _ensemble_cpu_worker(
         models = [joblib.load(model_paths[idx]) for idx in model_indices]
         expected_classes = set(classes)
         if any(
-            set(getattr(model, "classes_", [])) != expected_classes
-            for model in models
+            set(getattr(model, "classes_", [])) != expected_classes for model in models
         ):
             raise ValueError("Ensemble models have inconsistent class definitions.")
 
@@ -933,9 +933,9 @@ class BRTEnsemble:
                 with contextlib.nullcontext():
                     if block_shape:
                         block_h, block_w = block_shape
-                        total_windows = (
-                            (stack.height + block_h - 1) // block_h
-                        ) * ((stack.width + block_w - 1) // block_w)
+                        total_windows = ((stack.height + block_h - 1) // block_h) * (
+                            (stack.width + block_w - 1) // block_w
+                        )
 
                         def custom_windows() -> Iterable[windows.Window]:
                             for row_off in range(0, stack.height, block_h):
@@ -950,9 +950,9 @@ class BRTEnsemble:
                         window_iter: Iterable[windows.Window] = custom_windows()
                     else:
                         block_h, block_w = stack.template.block_shapes[0]
-                        total_windows = (
-                            (stack.height + block_h - 1) // block_h
-                        ) * ((stack.width + block_w - 1) // block_w)
+                        total_windows = ((stack.height + block_h - 1) // block_h) * (
+                            (stack.width + block_w - 1) // block_w
+                        )
                         window_iter = (win for _, win in stack.block_windows(1))
 
                     _log(
@@ -978,9 +978,7 @@ class BRTEnsemble:
 
                     if gpu and jobs > 1:
                         worker_count = min(jobs, n_models, len(cuda_devices))
-                        assignments = _assign_models_to_workers(
-                            n_models, worker_count
-                        )
+                        assignments = _assign_models_to_workers(n_models, worker_count)
                         _log(
                             f"[cyan]Starting {worker_count} GPU workers on devices "
                             f"{cuda_devices[:worker_count]}; model assignments: "
@@ -1013,7 +1011,8 @@ class BRTEnsemble:
                             pipeline_depth = 2
                             pending_windows: Dict[int, windows.Window] = {}
                             partial_results_by_window: Dict[
-                                int, Dict[int, Tuple[np.ndarray, np.ndarray, np.ndarray]]
+                                int,
+                                Dict[int, Tuple[np.ndarray, np.ndarray, np.ndarray]],
                             ] = {}
                             next_window_id = 0
                             exhausted = False
@@ -1092,18 +1091,19 @@ class BRTEnsemble:
                                     valid_counts,
                                 )
 
-                                if sum(
-                                    len(model_indices)
-                                    for model_indices in partial_results
-                                ) == n_models:
+                                if (
+                                    sum(
+                                        len(model_indices)
+                                        for model_indices in partial_results
+                                    )
+                                    == n_models
+                                ):
                                     returned_models = [
                                         model_idx
                                         for model_indices in partial_results
                                         for model_idx in model_indices
                                     ]
-                                    if sorted(returned_models) != list(
-                                        range(n_models)
-                                    ):
+                                    if sorted(returned_models) != list(range(n_models)):
                                         raise RuntimeError(
                                             "GPU prediction returned an incomplete "
                                             "or duplicate model assignment."
@@ -1181,7 +1181,11 @@ class BRTEnsemble:
                             pipeline_depth = 2
                             pending_windows: Dict[int, windows.Window] = {}
                             partial_results_by_window: Dict[
-                                int, Dict[Tuple[int, ...], Tuple[np.ndarray, np.ndarray, np.ndarray]]
+                                int,
+                                Dict[
+                                    Tuple[int, ...],
+                                    Tuple[np.ndarray, np.ndarray, np.ndarray],
+                                ],
                             ] = {}
                             next_window_id = 0
                             exhausted = False
@@ -1235,8 +1239,12 @@ class BRTEnsemble:
                                         f"CPU prediction worker failed: {message[1]}"
                                     )
                                 (
-                                    _, returned_window_id, indices,
-                                    probability_sum, probability_sum_sq, valid_counts,
+                                    _,
+                                    returned_window_id,
+                                    indices,
+                                    probability_sum,
+                                    probability_sum_sq,
+                                    valid_counts,
                                 ) = message
                                 if returned_window_id not in pending_windows:
                                     raise RuntimeError(
@@ -1251,12 +1259,17 @@ class BRTEnsemble:
                                         "Duplicate CPU prediction from a worker."
                                     )
                                 partial_results[result_key] = (
-                                    probability_sum, probability_sum_sq, valid_counts
+                                    probability_sum,
+                                    probability_sum_sq,
+                                    valid_counts,
                                 )
-                                if sum(
-                                    len(model_indices)
-                                    for model_indices in partial_results
-                                ) == n_models:
+                                if (
+                                    sum(
+                                        len(model_indices)
+                                        for model_indices in partial_results
+                                    )
+                                    == n_models
+                                ):
                                     returned_models = [
                                         model_idx
                                         for model_indices in partial_results
@@ -1272,15 +1285,24 @@ class BRTEnsemble:
                                     mean_probs, lower_probs, upper_probs = (
                                         _aggregate_ensemble_statistics(
                                             np.sum(
-                                                [result[0] for result in partial_results.values()],
+                                                [
+                                                    result[0]
+                                                    for result in partial_results.values()
+                                                ],
                                                 axis=0,
                                             ),
                                             np.sum(
-                                                [result[1] for result in partial_results.values()],
+                                                [
+                                                    result[1]
+                                                    for result in partial_results.values()
+                                                ],
                                                 axis=0,
                                             ),
                                             np.sum(
-                                                [result[2] for result in partial_results.values()],
+                                                [
+                                                    result[2]
+                                                    for result in partial_results.values()
+                                                ],
                                                 axis=0,
                                             ),
                                             n_models,

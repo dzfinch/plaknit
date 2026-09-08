@@ -262,9 +262,7 @@ def test_ensemble_parallel_prediction_reads_blocks_once_and_preserves_overlap(
         from_origin(0, 2, 1, 1),
     )
     _write_ensemble_metadata(ensemble_dir, 2)
-    for index, labels in enumerate(
-        (np.array([0, 0, 1, 1]), np.array([0, 1, 1, 1]))
-    ):
+    for index, labels in enumerate((np.array([0, 0, 1, 1]), np.array([0, 1, 1, 1]))):
         model = DecisionTreeClassifier(random_state=index).fit(
             np.array([[1], [2], [3], [4]]), labels
         )
