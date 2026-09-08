@@ -35,8 +35,12 @@ def test_aggregate_ensemble_probabilities_matches_sample_ci() -> None:
     expected_mean = member_probs.mean(axis=0)
     expected_half_width = 2.0 * member_probs.std(axis=0, ddof=1) / np.sqrt(3)
     np.testing.assert_allclose(mean, expected_mean)
-    np.testing.assert_allclose(lower, np.clip(expected_mean - expected_half_width, 0, 1))
-    np.testing.assert_allclose(upper, np.clip(expected_mean + expected_half_width, 0, 1))
+    np.testing.assert_allclose(
+        lower, np.clip(expected_mean - expected_half_width, 0, 1)
+    )
+    np.testing.assert_allclose(
+        upper, np.clip(expected_mean + expected_half_width, 0, 1)
+    )
 
 
 def test_aggregate_single_model_has_no_interval() -> None:

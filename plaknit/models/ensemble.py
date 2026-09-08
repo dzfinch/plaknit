@@ -48,7 +48,11 @@ def _assign_models_to_workers(n_models: int, n_workers: int) -> List[List[int]]:
         raise ValueError("n_workers must be at least 1.")
     worker_count = min(n_models, n_workers)
     return [
-        [model_idx for model_idx in range(n_models) if model_idx % worker_count == worker_id]
+        [
+            model_idx
+            for model_idx in range(n_models)
+            if model_idx % worker_count == worker_id
+        ]
         for worker_id in range(worker_count)
     ]
 
@@ -225,9 +229,7 @@ def _predict_ensemble_block(
         ],
         axis=0,
     )
-    mean, lower, upper = _aggregate_ensemble_probabilities(
-        probs_stack, ci_t_crit
-    )
+    mean, lower, upper = _aggregate_ensemble_probabilities(probs_stack, ci_t_crit)
 
     def _scatter(values: np.ndarray) -> np.ndarray:
         full = np.full((samples.shape[0], num_classes), np.nan, dtype="float32")
@@ -349,9 +351,7 @@ def _ensemble_gpu_worker(
                     block_overlap=block_overlap,
                     ci_t_crit=None,
                 )
-                result_queue.put(
-                    ("result", window_id, model_indices, member_probs)
-                )
+                result_queue.put(("result", window_id, model_indices, member_probs))
     except BaseException as exc:
         result_queue.put(("error", repr(exc)))
 
@@ -816,7 +816,9 @@ class BRTEnsemble:
                                         raise RuntimeError(
                                             f"GPU prediction worker failed: {message[1]}"
                                         )
-                                    _, returned_window_id, indices, member_probs = message
+                                    _, returned_window_id, indices, member_probs = (
+                                        message
+                                    )
                                     if returned_window_id != window_id:
                                         raise RuntimeError(
                                             "GPU prediction returned an unexpected window."
@@ -826,7 +828,9 @@ class BRTEnsemble:
                                             raise RuntimeError(
                                                 f"Duplicate GPU prediction for model {model_idx}."
                                             )
-                                        partial_results[model_idx] = member_probs[local_idx]
+                                        partial_results[model_idx] = member_probs[
+                                            local_idx
+                                        ]
 
                                 if len(partial_results) != len(models):
                                     raise RuntimeError(
@@ -834,7 +838,10 @@ class BRTEnsemble:
                                         f"for window {window_id}."
                                     )
                                 full_member_probs = np.stack(
-                                    [partial_results[idx] for idx in range(len(models))],
+                                    [
+                                        partial_results[idx]
+                                        for idx in range(len(models))
+                                    ],
                                     axis=0,
                                 )
                                 mean_probs, lower_probs, upper_probs = (
