@@ -7,7 +7,9 @@ import concurrent.futures
 import contextlib
 import csv
 import json
+import multiprocessing
 import os
+import queue
 import tempfile
 import warnings
 from pathlib import Path
@@ -35,6 +37,20 @@ from ..processing.evaluation import (
 
 PathLike = Union[str, Path]
 WindowTuple = Tuple[int, int, int, int]
+_WorkerResult = Tuple[int, List[int], np.ndarray]
+
+
+def _assign_models_to_workers(n_models: int, n_workers: int) -> List[List[int]]:
+    """Assign every model exactly once across workers in round-robin order."""
+    if n_models < 1:
+        raise ValueError("n_models must be at least 1.")
+    if n_workers < 1:
+        raise ValueError("n_workers must be at least 1.")
+    worker_count = min(n_models, n_workers)
+    return [
+        [model_idx for model_idx in range(n_models) if model_idx % worker_count == worker_id]
+        for worker_id in range(worker_count)
+    ]
 
 
 def _write_model_summary_csv(
@@ -131,6 +147,23 @@ def _write_feature_importance_csv(path: Path, models: Sequence[Any]) -> None:
             writer.writerow(row)
 
 
+def _aggregate_ensemble_probabilities(
+    member_probs: np.ndarray,
+    ci_t_crit: Optional[float],
+) -> Tuple[np.ndarray, Optional[np.ndarray], Optional[np.ndarray]]:
+    """Aggregate complete ensemble probabilities for one output window."""
+    mean = member_probs.mean(axis=0)
+    if ci_t_crit is None or member_probs.shape[0] < 2:
+        return mean, None, None
+    std = member_probs.std(axis=0, ddof=1)
+    half_width = ci_t_crit * std / np.sqrt(member_probs.shape[0])
+    return (
+        mean,
+        np.clip(mean - half_width, 0.0, 1.0),
+        np.clip(mean + half_width, 0.0, 1.0),
+    )
+
+
 def _predict_ensemble_block(
     stack: _RasterStack,
     models: List[Any],
@@ -192,7 +225,9 @@ def _predict_ensemble_block(
         ],
         axis=0,
     )
-    mean = probs_stack.mean(axis=0)
+    mean, lower, upper = _aggregate_ensemble_probabilities(
+        probs_stack, ci_t_crit
+    )
 
     def _scatter(values: np.ndarray) -> np.ndarray:
         full = np.full((samples.shape[0], num_classes), np.nan, dtype="float32")
@@ -203,12 +238,8 @@ def _predict_ensemble_block(
 
     mean_cube = _scatter(mean)
 
-    lower_cube = upper_cube = None
-    if n_models > 1 and ci_t_crit is not None:
-        std = probs_stack.std(axis=0, ddof=1)
-        half_width = ci_t_crit * std / np.sqrt(n_models)
-        lower_cube = _scatter(np.clip(mean - half_width, 0.0, 1.0))
-        upper_cube = _scatter(np.clip(mean + half_width, 0.0, 1.0))
+    lower_cube = _scatter(lower) if lower is not None else None
+    upper_cube = _scatter(upper) if upper is not None else None
 
     member_cube = np.full(
         (n_models, samples.shape[0], num_classes), np.nan, dtype="float32"
@@ -251,6 +282,7 @@ def _init_ensemble_predict_worker(
     model_paths: List[str],
     classes: List[Any],
     ci_t_crit: Optional[float],
+    gpu: bool,
 ) -> None:
     global _ENSEMBLE_PREDICT_STACK
     global _ENSEMBLE_PREDICT_MODELS
@@ -261,6 +293,8 @@ def _init_ensemble_predict_worker(
     stack.__enter__()
     _ENSEMBLE_PREDICT_STACK = stack
     _ENSEMBLE_PREDICT_MODELS = [joblib.load(path) for path in model_paths]
+    for model in _ENSEMBLE_PREDICT_MODELS:
+        brt._configure_prediction_device(model, gpu)
     _ENSEMBLE_PREDICT_CLASSES = np.asarray(classes)
     _ENSEMBLE_PREDICT_CI_T_CRIT = ci_t_crit
     atexit.register(_close_ensemble_predict_worker)
@@ -283,6 +317,43 @@ def _predict_ensemble_block_worker(
         block_overlap=block_overlap,
         ci_t_crit=_ENSEMBLE_PREDICT_CI_T_CRIT,
     )
+
+
+def _ensemble_gpu_worker(
+    image_paths: List[str],
+    band_indices: Optional[Sequence[int]],
+    model_paths: List[str],
+    model_indices: List[int],
+    classes: List[Any],
+    device_id: int,
+    task_queue: Any,
+    result_queue: Any,
+) -> None:
+    """Run assigned ensemble models on one persistent CUDA worker."""
+    try:
+        with _open_raster_stack(image_paths, band_indices=band_indices) as stack:
+            models = [joblib.load(model_paths[idx]) for idx in model_indices]
+            for model in models:
+                brt._configure_prediction_device(model, True, device_id=device_id)
+
+            while True:
+                task = task_queue.get()
+                if task is None:
+                    return
+                window_id, win_tuple, block_overlap = task
+                member_probs, _, _, _ = _predict_ensemble_block(
+                    stack,
+                    models,
+                    brt._tuple_to_window(win_tuple),
+                    classes=np.asarray(classes),
+                    block_overlap=block_overlap,
+                    ci_t_crit=None,
+                )
+                result_queue.put(
+                    ("result", window_id, model_indices, member_probs)
+                )
+    except BaseException as exc:
+        result_queue.put(("error", repr(exc)))
 
 
 class BRTEnsemble:
@@ -508,6 +579,7 @@ class BRTEnsemble:
         feature_importance_out: Optional[PathLike] = None,
         block_overlap: int = 0,
         jobs: int = 1,
+        gpu: bool = False,
     ) -> Path:
         """Write unweighted ensemble probability summaries for a raster stack.
 
@@ -534,7 +606,11 @@ class BRTEnsemble:
         block_overlap
             Number of pixels to overlap blocks for smoothing edge artifacts.
         jobs
-            Number of parallel worker processes.
+            Number of parallel worker processes. In GPU mode, this is capped by
+            the number of visible CUDA devices and ensemble models.
+        gpu
+            If True, configure each XGBoost model for CUDA prediction. Worker
+            processes run concurrently when ``jobs`` is greater than one.
 
         Returns
         -------
@@ -566,6 +642,14 @@ class BRTEnsemble:
             )
 
         models = [joblib.load(path) for path in model_paths]
+        cuda_devices = brt._available_cuda_devices() if gpu else []
+        if gpu and not cuda_devices:
+            raise RuntimeError(
+                "GPU prediction requested, but no visible CUDA devices were found."
+            )
+        if gpu and jobs <= 1:
+            for model in models:
+                brt._configure_prediction_device(model, True, device_id=0)
         self.models_ = models
 
         # Verify class consistency
@@ -676,7 +760,104 @@ class BRTEnsemble:
                         if upper_dst is not None and upper_probs is not None:
                             upper_dst.write(upper_probs, window=win)
 
-                    if jobs > 1:
+                    if gpu and jobs > 1:
+                        worker_count = min(jobs, len(models), len(cuda_devices))
+                        assignments = _assign_models_to_workers(
+                            len(models), worker_count
+                        )
+                        context = multiprocessing.get_context("spawn")
+                        task_queues = [context.Queue(maxsize=2) for _ in assignments]
+                        result_queue = context.Queue()
+                        workers = [
+                            context.Process(
+                                target=_ensemble_gpu_worker,
+                                args=(
+                                    [str(path) for path in stack.paths],
+                                    band_indices_to_use,
+                                    [str(path) for path in model_paths],
+                                    assignment,
+                                    classes_arr.tolist(),
+                                    cuda_devices[worker_id],
+                                    task_queue,
+                                    result_queue,
+                                ),
+                            )
+                            for worker_id, (assignment, task_queue) in enumerate(
+                                zip(assignments, task_queues)
+                            )
+                        ]
+                        for worker in workers:
+                            worker.start()
+                        try:
+                            for window_id, win in enumerate(window_iter):
+                                task = (
+                                    window_id,
+                                    brt._window_to_tuple(win),
+                                    block_overlap,
+                                )
+                                for task_queue in task_queues:
+                                    task_queue.put(task)
+
+                                partial_results: Dict[int, np.ndarray] = {}
+                                for _ in workers:
+                                    try:
+                                        message = result_queue.get(timeout=300)
+                                    except queue.Empty as exc:
+                                        dead = [
+                                            worker.pid
+                                            for worker in workers
+                                            if not worker.is_alive()
+                                        ]
+                                        raise RuntimeError(
+                                            "GPU prediction worker stopped before "
+                                            f"completing window {window_id}; pids={dead}."
+                                        ) from exc
+                                    if message[0] == "error":
+                                        raise RuntimeError(
+                                            f"GPU prediction worker failed: {message[1]}"
+                                        )
+                                    _, returned_window_id, indices, member_probs = message
+                                    if returned_window_id != window_id:
+                                        raise RuntimeError(
+                                            "GPU prediction returned an unexpected window."
+                                        )
+                                    for local_idx, model_idx in enumerate(indices):
+                                        if model_idx in partial_results:
+                                            raise RuntimeError(
+                                                f"Duplicate GPU prediction for model {model_idx}."
+                                            )
+                                        partial_results[model_idx] = member_probs[local_idx]
+
+                                if len(partial_results) != len(models):
+                                    raise RuntimeError(
+                                        "GPU prediction returned an incomplete ensemble "
+                                        f"for window {window_id}."
+                                    )
+                                full_member_probs = np.stack(
+                                    [partial_results[idx] for idx in range(len(models))],
+                                    axis=0,
+                                )
+                                mean_probs, lower_probs, upper_probs = (
+                                    _aggregate_ensemble_probabilities(
+                                        full_member_probs, ci_t_crit
+                                    )
+                                )
+                                _write_block_result(
+                                    win,
+                                    full_member_probs,
+                                    mean_probs,
+                                    lower_probs,
+                                    upper_probs,
+                                )
+                        finally:
+                            for task_queue in task_queues:
+                                task_queue.put(None)
+                            for worker in workers:
+                                worker.join(timeout=10)
+                                if worker.is_alive():
+                                    worker.terminate()
+                                    worker.join()
+                    elif jobs > 1:
                         max_workers = jobs
                         max_pending = max_workers * 2
                         image_paths = [str(path) for path in stack.paths]
@@ -690,6 +871,7 @@ class BRTEnsemble:
                                 model_path_strs,
                                 classes_arr.tolist(),
                                 ci_t_crit,
+                                gpu,
                             ),
                         ) as executor:
                             futures: Dict[concurrent.futures.Future, windows.Window] = (
