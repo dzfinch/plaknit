@@ -248,3 +248,38 @@ def test_ensemble_predict_writes_only_mean_for_one_member(tmp_path):
     assert (output_dir / "mean_probabilities.tif").exists()
     assert not (output_dir / "lower_probabilities.tif").exists()
     assert not (output_dir / "upper_probabilities.tif").exists()
+
+
+def test_ensemble_parallel_prediction_reads_blocks_once_and_preserves_overlap(
+    tmp_path,
+):
+    image_path = tmp_path / "image.tif"
+    ensemble_dir = tmp_path / "ensemble"
+    output_dir = tmp_path / "output"
+    _write_raster(
+        image_path,
+        np.array([[1, 2], [3, 4]], dtype="uint8"),
+        from_origin(0, 2, 1, 1),
+    )
+    _write_ensemble_metadata(ensemble_dir, 2)
+    for index, labels in enumerate(
+        (np.array([0, 0, 1, 1]), np.array([0, 1, 1, 1]))
+    ):
+        model = DecisionTreeClassifier(random_state=index).fit(
+            np.array([[1], [2], [3], [4]]), labels
+        )
+        joblib.dump(model, ensemble_dir / f"brt_{index}.joblib")
+
+    BRTEnsemble().predict(
+        image_path,
+        ensemble_dir,
+        output_dir,
+        block_shape=(1, 1),
+        block_overlap=1,
+        jobs=2,
+    )
+
+    with rasterio.open(output_dir / "mean_probabilities.tif") as mean:
+        assert mean.shape == (2, 2)
+        assert mean.count == 2
+        assert np.isfinite(mean.read()).all()

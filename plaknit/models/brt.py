@@ -9,6 +9,7 @@ import os
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
+from functools import lru_cache
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import geopandas as gpd
@@ -154,6 +155,7 @@ def _detect_gpu_available() -> bool:
     return bool(_available_cuda_devices())
 
 
+@lru_cache(maxsize=1)
 def _available_cuda_devices() -> List[int]:
     """Return logical CUDA device IDs visible to the current process."""
     try:

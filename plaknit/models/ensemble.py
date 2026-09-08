@@ -10,7 +10,7 @@ import json
 import multiprocessing
 import os
 import queue
-import tempfile
+import time
 import warnings
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
@@ -51,6 +51,27 @@ def _assign_models_to_workers(n_models: int, n_workers: int) -> List[List[int]]:
         [model_idx for model_idx in range(n_models) if model_idx % worker_count == worker_id]
         for worker_id in range(worker_count)
     ]
+
+
+def _prediction_checkpoint(
+    processed: int,
+    total: int,
+    started_at: float,
+    next_checkpoint: int,
+) -> int:
+    """Log throttled prediction progress and return the next checkpoint."""
+    if processed < next_checkpoint and processed < total:
+        return next_checkpoint
+    elapsed = time.perf_counter() - started_at
+    percent = 100.0 * processed / total if total else 100.0
+    rate = processed / elapsed if elapsed > 0 else 0.0
+    remaining = (total - processed) / rate if rate > 0 else 0.0
+    _log(
+        f"[cyan]Prediction progress: {processed:,}/{total:,} windows "
+        f"({percent:.0f}%), {rate:.2f} windows/s, "
+        f"ETA {remaining:.0f}s."
+    )
+    return min(total, processed + max(1, total // 10))
 
 
 def _write_model_summary_csv(
@@ -162,6 +183,112 @@ def _aggregate_ensemble_probabilities(
         np.clip(mean - half_width, 0.0, 1.0),
         np.clip(mean + half_width, 0.0, 1.0),
     )
+
+
+def _aggregate_ensemble_statistics(
+    probability_sum: np.ndarray,
+    probability_sum_sq: np.ndarray,
+    valid_counts: np.ndarray,
+    model_count: int,
+    ci_t_crit: Optional[float],
+) -> Tuple[np.ndarray, Optional[np.ndarray], Optional[np.ndarray]]:
+    """Aggregate partial GPU statistics without rebuilding member probabilities."""
+    complete = valid_counts == model_count
+    mean = np.full(probability_sum.shape, np.nan, dtype="float32")
+    mean[complete] = (
+        probability_sum[complete] / float(model_count)
+    ).astype("float32", copy=False)
+    if ci_t_crit is None or model_count < 2:
+        return mean, None, None
+
+    variance = np.full(probability_sum.shape, np.nan, dtype="float64")
+    variance[complete] = (
+        probability_sum_sq[complete]
+        - (probability_sum[complete] ** 2) / float(model_count)
+    ) / float(model_count - 1)
+    variance[complete] = np.maximum(variance[complete], 0.0)
+    half_width = np.full(probability_sum.shape, np.nan, dtype="float32")
+    half_width[complete] = (
+        ci_t_crit
+        * np.sqrt(variance[complete] / float(model_count))
+    ).astype("float32", copy=False)
+    return (
+        mean,
+        np.clip(mean - half_width, 0.0, 1.0),
+        np.clip(mean + half_width, 0.0, 1.0),
+    )
+
+
+def _predict_ensemble_block_statistics(
+    stack: _RasterStack,
+    models: List[Any],
+    win: windows.Window,
+    *,
+    classes: np.ndarray,
+    block_overlap: int,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Read a block and return partial probability statistics."""
+    read_window, write_slice = brt._window_with_overlap(
+        win,
+        block_overlap=block_overlap,
+        raster_width=stack.width,
+        raster_height=stack.height,
+    )
+    block = stack.read(window=read_window, out_dtype="float32")
+    return _predict_ensemble_array_statistics(
+        block,
+        models,
+        stack.nodata_values,
+        write_slice,
+        int(win.height),
+        int(win.width),
+        classes,
+    )
+
+
+def _predict_ensemble_array_statistics(
+    block: np.ndarray,
+    models: List[Any],
+    nodata_values: Sequence[Optional[float]],
+    write_slice: Tuple[slice, slice],
+    output_height: int,
+    output_width: int,
+    classes: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return partial statistics from a block read by the parent process."""
+    num_classes = len(classes)
+    output_shape = (num_classes, output_height, output_width)
+    if block.size == 0:
+        return (
+            np.zeros(output_shape, dtype="float64"),
+            np.zeros(output_shape, dtype="float64"),
+            np.zeros(output_shape, dtype="int16"),
+        )
+
+    samples = block.reshape(block.shape[0], -1).T
+    valid = ~_nodata_pixel_mask(samples, nodata_values)
+    probability_sum = np.zeros(output_shape, dtype="float64")
+    probability_sum_sq = np.zeros(output_shape, dtype="float64")
+    valid_counts = np.zeros(output_shape, dtype="int16")
+    if np.any(valid):
+        for model in models:
+            probabilities = model.predict_proba(samples[valid]).astype(
+                "float64", copy=False
+            )
+            probability_cube = np.full(
+                (samples.shape[0], num_classes), np.nan, dtype="float64"
+            )
+            probability_cube[valid] = probabilities
+            probability_cube = probability_cube.reshape(
+                block.shape[1], block.shape[2], num_classes
+            ).transpose(2, 0, 1)
+            probability_cube = probability_cube[:, write_slice[0], write_slice[1]]
+            finite = np.isfinite(probability_cube)
+            probability_sum[finite] += probability_cube[finite]
+            probability_sum_sq[finite] += probability_cube[finite] ** 2
+            valid_counts += finite.astype("int16")
+
+    return probability_sum, probability_sum_sq, valid_counts
 
 
 def _predict_ensemble_block(
@@ -320,38 +447,99 @@ def _predict_ensemble_block_worker(
 
 
 def _ensemble_gpu_worker(
-    image_paths: List[str],
-    band_indices: Optional[Sequence[int]],
     model_paths: List[str],
     model_indices: List[int],
     classes: List[Any],
+    nodata_values: List[Optional[float]],
     device_id: int,
     task_queue: Any,
     result_queue: Any,
 ) -> None:
     """Run assigned ensemble models on one persistent CUDA worker."""
     try:
-        with _open_raster_stack(image_paths, band_indices=band_indices) as stack:
-            models = [joblib.load(model_paths[idx]) for idx in model_indices]
-            for model in models:
-                brt._configure_prediction_device(model, True, device_id=device_id)
+        models = [joblib.load(model_paths[idx]) for idx in model_indices]
+        expected_classes = set(classes)
+        if any(set(getattr(model, "classes_", [])) != expected_classes for model in models):
+            raise ValueError("Ensemble models have inconsistent class definitions.")
+        for model in models:
+            brt._configure_prediction_device(model, True, device_id=device_id)
 
-            while True:
-                task = task_queue.get()
-                if task is None:
-                    return
-                window_id, win_tuple, block_overlap = task
-                member_probs, _, _, _ = _predict_ensemble_block(
-                    stack,
+        while True:
+            task = task_queue.get()
+            if task is None:
+                return
+            window_id, win_tuple, block, write_slice = task
+            win = brt._tuple_to_window(win_tuple)
+            probability_sum, probability_sum_sq, valid_counts = (
+                _predict_ensemble_array_statistics(
+                    block,
                     models,
-                    brt._tuple_to_window(win_tuple),
-                    classes=np.asarray(classes),
-                    block_overlap=block_overlap,
-                    ci_t_crit=None,
+                    nodata_values,
+                    write_slice,
+                    int(win.height),
+                    int(win.width),
+                    np.asarray(classes),
                 )
-                result_queue.put(
-                    ("result", window_id, model_indices, member_probs)
+            )
+            result_queue.put(
+                (
+                    "result",
+                    window_id,
+                    model_indices,
+                    probability_sum,
+                    probability_sum_sq,
+                    valid_counts,
                 )
+            )
+    except BaseException as exc:
+        result_queue.put(("error", repr(exc)))
+
+
+def _ensemble_cpu_worker(
+    model_paths: List[str],
+    model_indices: List[int],
+    classes: List[Any],
+    nodata_values: List[Optional[float]],
+    task_queue: Any,
+    result_queue: Any,
+) -> None:
+    """Run assigned ensemble models on parent-read blocks in one CPU worker."""
+    try:
+        models = [joblib.load(model_paths[idx]) for idx in model_indices]
+        expected_classes = set(classes)
+        if any(
+            set(getattr(model, "classes_", [])) != expected_classes
+            for model in models
+        ):
+            raise ValueError("Ensemble models have inconsistent class definitions.")
+
+        while True:
+            task = task_queue.get()
+            if task is None:
+                return
+            window_id, win_tuple, block, write_slice = task
+            win = brt._tuple_to_window(win_tuple)
+            probability_sum, probability_sum_sq, valid_counts = (
+                _predict_ensemble_array_statistics(
+                    block,
+                    models,
+                    nodata_values,
+                    write_slice,
+                    int(win.height),
+                    int(win.width),
+                    np.asarray(classes),
+                )
+            )
+            result_queue.put(
+                (
+                    "result",
+                    window_id,
+                    model_indices,
+                    probability_sum,
+                    probability_sum_sq,
+                    valid_counts,
+                )
+            )
     except BaseException as exc:
         result_queue.put(("error", repr(exc)))
 
@@ -623,6 +811,13 @@ class BRTEnsemble:
             jobs = 1
         if jobs <= 0:
             jobs = max(1, os.cpu_count() or 1)
+        if block_overlap < 0:
+            raise ValueError("block_overlap must be non-negative.")
+        if block_shape is not None:
+            if len(block_shape) != 2:
+                raise ValueError("block_shape must contain (height, width).")
+            if block_shape[0] <= 0 or block_shape[1] <= 0:
+                raise ValueError("block_shape dimensions must be positive.")
         ensemble_path = Path(ensemble_dir)
 
         # Load metadata
@@ -632,6 +827,7 @@ class BRTEnsemble:
         with open(metadata_path, "r") as f:
             metadata = json.load(f)
         self.metadata_ = metadata
+        _log(f"[cyan]Loaded ensemble metadata from {metadata_path}.")
 
         # Load all models
         model_paths = sorted(ensemble_path.glob("brt_*.joblib"))
@@ -640,8 +836,18 @@ class BRTEnsemble:
             raise ValueError(
                 f"Expected {expected_models} models but found {len(model_paths)}"
             )
+        n_models = len(model_paths)
 
-        models = [joblib.load(path) for path in model_paths]
+        parallel_prediction = jobs > 1
+        load_all_models = not parallel_prediction or feature_importance_out is not None
+        models = [
+            joblib.load(path)
+            for path in (model_paths if load_all_models else model_paths[:1])
+        ]
+        _log(
+            f"[cyan]Loaded {len(models)} ensemble model"
+            f"{'s' if len(models) != 1 else ''} in the parent process."
+        )
         cuda_devices = brt._available_cuda_devices() if gpu else []
         if gpu and not cuda_devices:
             raise RuntimeError(
@@ -650,6 +856,7 @@ class BRTEnsemble:
         if gpu and jobs <= 1:
             for model in models:
                 brt._configure_prediction_device(model, True, device_id=0)
+            _log("[cyan]GPU prediction enabled on CUDA device 0.")
         self.models_ = models
 
         # Verify class consistency
@@ -667,8 +874,8 @@ class BRTEnsemble:
             _log(f"[green]Feature importance summary saved to {importance_path}")
 
         ci_t_crit: Optional[float] = None
-        if len(models) > 1:
-            ci_t_crit = float(stats.t.ppf(0.5 + ci_level / 2, df=len(models) - 1))
+        if n_models > 1:
+            ci_t_crit = float(stats.t.ppf(0.5 + ci_level / 2, df=n_models - 1))
         else:
             _log(
                 "[yellow]One-member ensemble; writing mean probabilities without "
@@ -690,6 +897,10 @@ class BRTEnsemble:
 
         with _open_raster_stack(image_path, band_indices=band_indices_to_use) as stack:
             assert stack.template is not None
+            _log(
+                f"[cyan]Opened raster stack: {stack.width:,}x{stack.height:,}, "
+                f"{stack.count} bands."
+            )
 
             classes = class_sets[0]
             classes_arr = np.asarray(sorted(classes))
@@ -698,38 +909,31 @@ class BRTEnsemble:
             )
             probs_profile["driver"] = "GTiff"
 
-            with tempfile.TemporaryDirectory(prefix="plaknit_brt_") as temp_dir:
-                member_paths = [
-                    Path(temp_dir) / f"model_{idx:03d}_probabilities.tif"
-                    for idx in range(len(models))
-                ]
-                with contextlib.ExitStack() as stack_ctx:
-                    mean_dst = stack_ctx.enter_context(
-                        rasterio.open(mean_path, "w", **probs_profile)
+            with contextlib.ExitStack() as stack_ctx:
+                mean_dst = stack_ctx.enter_context(
+                    rasterio.open(mean_path, "w", **probs_profile)
+                )
+                lower_dst = (
+                    stack_ctx.enter_context(
+                        rasterio.open(lower_path, "w", **probs_profile)
                     )
-                    lower_dst = (
-                        stack_ctx.enter_context(
-                            rasterio.open(lower_path, "w", **probs_profile)
-                        )
-                        if ci_t_crit is not None
-                        else None
+                    if ci_t_crit is not None
+                    else None
+                )
+                upper_dst = (
+                    stack_ctx.enter_context(
+                        rasterio.open(upper_path, "w", **probs_profile)
                     )
-                    upper_dst = (
-                        stack_ctx.enter_context(
-                            rasterio.open(upper_path, "w", **probs_profile)
-                        )
-                        if ci_t_crit is not None
-                        else None
-                    )
-                    member_dsts = [
-                        stack_ctx.enter_context(
-                            rasterio.open(path, "w", **probs_profile)
-                        )
-                        for path in member_paths
-                    ]
+                    if ci_t_crit is not None
+                    else None
+                )
 
+                with contextlib.nullcontext():
                     if block_shape:
                         block_h, block_w = block_shape
+                        total_windows = (
+                            (stack.height + block_h - 1) // block_h
+                        ) * ((stack.width + block_w - 1) // block_w)
 
                         def custom_windows() -> Iterable[windows.Window]:
                             for row_off in range(0, stack.height, block_h):
@@ -743,17 +947,27 @@ class BRTEnsemble:
 
                         window_iter: Iterable[windows.Window] = custom_windows()
                     else:
+                        block_h, block_w = stack.template.block_shapes[0]
+                        total_windows = (
+                            (stack.height + block_h - 1) // block_h
+                        ) * ((stack.width + block_w - 1) // block_w)
                         window_iter = (win for _, win in stack.block_windows(1))
+
+                    _log(
+                        f"[cyan]Processing {total_windows:,} windows with "
+                        f"jobs={jobs}, block_overlap={block_overlap}."
+                    )
+                    prediction_started_at = time.perf_counter()
+                    processed_windows = 0
+                    next_checkpoint = 1
 
                     def _write_block_result(
                         win: windows.Window,
-                        member_probs: np.ndarray,
+                        member_probs: Optional[np.ndarray],
                         mean_probs: np.ndarray,
                         lower_probs: Optional[np.ndarray],
                         upper_probs: Optional[np.ndarray],
                     ) -> None:
-                        for member_dst, probs in zip(member_dsts, member_probs):
-                            member_dst.write(probs, window=win)
                         mean_dst.write(mean_probs, window=win)
                         if lower_dst is not None and lower_probs is not None:
                             lower_dst.write(lower_probs, window=win)
@@ -761,9 +975,14 @@ class BRTEnsemble:
                             upper_dst.write(upper_probs, window=win)
 
                     if gpu and jobs > 1:
-                        worker_count = min(jobs, len(models), len(cuda_devices))
+                        worker_count = min(jobs, n_models, len(cuda_devices))
                         assignments = _assign_models_to_workers(
-                            len(models), worker_count
+                            n_models, worker_count
+                        )
+                        _log(
+                            f"[cyan]Starting {worker_count} GPU workers on devices "
+                            f"{cuda_devices[:worker_count]}; model assignments: "
+                            f"{assignments}."
                         )
                         context = multiprocessing.get_context("spawn")
                         task_queues = [context.Queue(maxsize=2) for _ in assignments]
@@ -772,11 +991,10 @@ class BRTEnsemble:
                             context.Process(
                                 target=_ensemble_gpu_worker,
                                 args=(
-                                    [str(path) for path in stack.paths],
-                                    band_indices_to_use,
                                     [str(path) for path in model_paths],
                                     assignment,
                                     classes_arr.tolist(),
+                                    list(stack.nodata_values),
                                     cuda_devices[worker_id],
                                     task_queue,
                                     result_queue,
@@ -788,67 +1006,141 @@ class BRTEnsemble:
                         ]
                         for worker in workers:
                             worker.start()
+                        _log("[cyan]GPU workers started; prediction is underway.")
                         try:
-                            for window_id, win in enumerate(window_iter):
+                            pipeline_depth = 2
+                            pending_windows: Dict[int, windows.Window] = {}
+                            partial_results_by_window: Dict[
+                                int, Dict[int, Tuple[np.ndarray, np.ndarray, np.ndarray]]
+                            ] = {}
+                            next_window_id = 0
+                            exhausted = False
+
+                            def submit_gpu_window() -> bool:
+                                nonlocal next_window_id, exhausted
+                                if exhausted:
+                                    return False
+                                try:
+                                    win = next(window_iter)
+                                except StopIteration:
+                                    exhausted = True
+                                    return False
+                                read_window, write_slice = brt._window_with_overlap(
+                                    win,
+                                    block_overlap=block_overlap,
+                                    raster_width=stack.width,
+                                    raster_height=stack.height,
+                                )
                                 task = (
-                                    window_id,
+                                    next_window_id,
                                     brt._window_to_tuple(win),
-                                    block_overlap,
+                                    stack.read(window=read_window, out_dtype="float32"),
+                                    write_slice,
                                 )
                                 for task_queue in task_queues:
                                     task_queue.put(task)
+                                pending_windows[next_window_id] = win
+                                next_window_id += 1
+                                return True
 
-                                partial_results: Dict[int, np.ndarray] = {}
-                                for _ in workers:
-                                    try:
-                                        message = result_queue.get(timeout=300)
-                                    except queue.Empty as exc:
-                                        dead = [
-                                            worker.pid
-                                            for worker in workers
-                                            if not worker.is_alive()
-                                        ]
-                                        raise RuntimeError(
-                                            "GPU prediction worker stopped before "
-                                            f"completing window {window_id}; pids={dead}."
-                                        ) from exc
-                                    if message[0] == "error":
-                                        raise RuntimeError(
-                                            f"GPU prediction worker failed: {message[1]}"
-                                        )
-                                    _, returned_window_id, indices, member_probs = message
-                                    if returned_window_id != window_id:
-                                        raise RuntimeError(
-                                            "GPU prediction returned an unexpected window."
-                                        )
-                                    for local_idx, model_idx in enumerate(indices):
-                                        if model_idx in partial_results:
-                                            raise RuntimeError(
-                                                f"Duplicate GPU prediction for model {model_idx}."
-                                            )
-                                        partial_results[model_idx] = member_probs[local_idx]
+                            while len(pending_windows) < pipeline_depth:
+                                if not submit_gpu_window():
+                                    break
 
-                                if len(partial_results) != len(models):
+                            while pending_windows:
+                                try:
+                                    message = result_queue.get(timeout=300)
+                                except queue.Empty as exc:
+                                    dead = [
+                                        worker.pid
+                                        for worker in workers
+                                        if not worker.is_alive()
+                                    ]
                                     raise RuntimeError(
-                                        "GPU prediction returned an incomplete ensemble "
-                                        f"for window {window_id}."
+                                        "GPU prediction worker stopped before "
+                                        f"completing a window; pids={dead}."
+                                    ) from exc
+                                if message[0] == "error":
+                                    raise RuntimeError(
+                                        f"GPU prediction worker failed: {message[1]}"
                                     )
-                                full_member_probs = np.stack(
-                                    [partial_results[idx] for idx in range(len(models))],
-                                    axis=0,
-                                )
-                                mean_probs, lower_probs, upper_probs = (
-                                    _aggregate_ensemble_probabilities(
-                                        full_member_probs, ci_t_crit
+                                (
+                                    _,
+                                    returned_window_id,
+                                    indices,
+                                    probability_sum,
+                                    probability_sum_sq,
+                                    valid_counts,
+                                ) = message
+                                if returned_window_id not in pending_windows:
+                                    raise RuntimeError(
+                                        "GPU prediction returned an unexpected window."
                                     )
+                                partial_results = partial_results_by_window.setdefault(
+                                    returned_window_id, {}
                                 )
-                                _write_block_result(
-                                    win,
-                                    full_member_probs,
-                                    mean_probs,
-                                    lower_probs,
-                                    upper_probs,
+                                result_key = tuple(indices)
+                                if result_key in partial_results:
+                                    raise RuntimeError(
+                                        "Duplicate GPU prediction from a worker."
+                                    )
+                                partial_results[result_key] = (
+                                    probability_sum,
+                                    probability_sum_sq,
+                                    valid_counts,
                                 )
+
+                                if sum(
+                                    len(model_indices)
+                                    for model_indices in partial_results
+                                ) == n_models:
+                                    returned_models = [
+                                        model_idx
+                                        for model_indices in partial_results
+                                        for model_idx in model_indices
+                                    ]
+                                    if sorted(returned_models) != list(
+                                        range(n_models)
+                                    ):
+                                        raise RuntimeError(
+                                            "GPU prediction returned an incomplete "
+                                            "or duplicate model assignment."
+                                        )
+                                    win = pending_windows.pop(returned_window_id)
+                                    partial_results_by_window.pop(returned_window_id)
+                                    sums = [
+                                        result[0] for result in partial_results.values()
+                                    ]
+                                    sum_squares = [
+                                        result[1] for result in partial_results.values()
+                                    ]
+                                    counts = [
+                                        result[2] for result in partial_results.values()
+                                    ]
+                                    mean_probs, lower_probs, upper_probs = (
+                                        _aggregate_ensemble_statistics(
+                                            np.sum(sums, axis=0),
+                                            np.sum(sum_squares, axis=0),
+                                            np.sum(counts, axis=0),
+                                            n_models,
+                                            ci_t_crit,
+                                        )
+                                    )
+                                    _write_block_result(
+                                        win,
+                                        None,
+                                        mean_probs,
+                                        lower_probs,
+                                        upper_probs,
+                                    )
+                                    processed_windows += 1
+                                    next_checkpoint = _prediction_checkpoint(
+                                        processed_windows,
+                                        total_windows,
+                                        prediction_started_at,
+                                        next_checkpoint,
+                                    )
+                                    submit_gpu_window()
                         finally:
                             for task_queue in task_queues:
                                 task_queue.put(None)
@@ -858,65 +1150,162 @@ class BRTEnsemble:
                                     worker.terminate()
                                     worker.join()
                     elif jobs > 1:
-                        max_workers = jobs
-                        max_pending = max_workers * 2
-                        image_paths = [str(path) for path in stack.paths]
-                        model_path_strs = [str(path) for path in model_paths]
-                        with concurrent.futures.ProcessPoolExecutor(
-                            max_workers=max_workers,
-                            initializer=_init_ensemble_predict_worker,
-                            initargs=(
-                                image_paths,
-                                band_indices_to_use,
-                                model_path_strs,
-                                classes_arr.tolist(),
-                                ci_t_crit,
-                                gpu,
-                            ),
-                        ) as executor:
-                            futures: Dict[concurrent.futures.Future, windows.Window] = (
-                                {}
+                        _log(
+                            f"[cyan]Starting {jobs} CPU prediction workers; "
+                            "prediction is underway."
+                        )
+                        worker_count = min(jobs, n_models)
+                        assignments = _assign_models_to_workers(n_models, worker_count)
+                        context = multiprocessing.get_context("spawn")
+                        task_queues = [context.Queue(maxsize=2) for _ in assignments]
+                        result_queue = context.Queue()
+                        workers = [
+                            context.Process(
+                                target=_ensemble_cpu_worker,
+                                args=(
+                                    [str(path) for path in model_paths],
+                                    assignment,
+                                    classes_arr.tolist(),
+                                    list(stack.nodata_values),
+                                    task_queue,
+                                    result_queue,
+                                ),
                             )
-                            for win in window_iter:
-                                future = executor.submit(
-                                    _predict_ensemble_block_worker,
-                                    brt._window_to_tuple(win),
-                                    block_overlap,
-                                )
-                                futures[future] = win
-                                if len(futures) >= max_pending:
-                                    done, _ = concurrent.futures.wait(
-                                        futures,
-                                        return_when=concurrent.futures.FIRST_COMPLETED,
-                                    )
-                                    for finished in done:
-                                        (
-                                            member_probs,
-                                            mean_probs,
-                                            lower_probs,
-                                            upper_probs,
-                                        ) = finished.result()
-                                        _write_block_result(
-                                            futures[finished],
-                                            member_probs,
-                                            mean_probs,
-                                            lower_probs,
-                                            upper_probs,
-                                        )
-                                        del futures[finished]
+                            for assignment, task_queue in zip(assignments, task_queues)
+                        ]
+                        for worker in workers:
+                            worker.start()
+                        try:
+                            pipeline_depth = 2
+                            pending_windows: Dict[int, windows.Window] = {}
+                            partial_results_by_window: Dict[
+                                int, Dict[Tuple[int, ...], Tuple[np.ndarray, np.ndarray, np.ndarray]]
+                            ] = {}
+                            next_window_id = 0
+                            exhausted = False
 
-                            for finished in concurrent.futures.as_completed(futures):
-                                member_probs, mean_probs, lower_probs, upper_probs = (
-                                    finished.result()
+                            def submit_cpu_window() -> bool:
+                                nonlocal next_window_id, exhausted
+                                if exhausted:
+                                    return False
+                                try:
+                                    win = next(window_iter)
+                                except StopIteration:
+                                    exhausted = True
+                                    return False
+                                read_window, write_slice = brt._window_with_overlap(
+                                    win,
+                                    block_overlap=block_overlap,
+                                    raster_width=stack.width,
+                                    raster_height=stack.height,
                                 )
-                                _write_block_result(
-                                    futures[finished],
-                                    member_probs,
-                                    mean_probs,
-                                    lower_probs,
-                                    upper_probs,
+                                task = (
+                                    next_window_id,
+                                    brt._window_to_tuple(win),
+                                    stack.read(window=read_window, out_dtype="float32"),
+                                    write_slice,
                                 )
+                                for task_queue in task_queues:
+                                    task_queue.put(task)
+                                pending_windows[next_window_id] = win
+                                next_window_id += 1
+                                return True
+
+                            while len(pending_windows) < pipeline_depth:
+                                if not submit_cpu_window():
+                                    break
+
+                            while pending_windows:
+                                try:
+                                    message = result_queue.get(timeout=300)
+                                except queue.Empty as exc:
+                                    dead = [
+                                        worker.pid
+                                        for worker in workers
+                                        if not worker.is_alive()
+                                    ]
+                                    raise RuntimeError(
+                                        "CPU prediction worker stopped before "
+                                        f"completing a window; pids={dead}."
+                                    ) from exc
+                                if message[0] == "error":
+                                    raise RuntimeError(
+                                        f"CPU prediction worker failed: {message[1]}"
+                                    )
+                                (
+                                    _, returned_window_id, indices,
+                                    probability_sum, probability_sum_sq, valid_counts,
+                                ) = message
+                                if returned_window_id not in pending_windows:
+                                    raise RuntimeError(
+                                        "CPU prediction returned an unexpected window."
+                                    )
+                                partial_results = partial_results_by_window.setdefault(
+                                    returned_window_id, {}
+                                )
+                                result_key = tuple(indices)
+                                if result_key in partial_results:
+                                    raise RuntimeError(
+                                        "Duplicate CPU prediction from a worker."
+                                    )
+                                partial_results[result_key] = (
+                                    probability_sum, probability_sum_sq, valid_counts
+                                )
+                                if sum(
+                                    len(model_indices)
+                                    for model_indices in partial_results
+                                ) == n_models:
+                                    returned_models = [
+                                        model_idx
+                                        for model_indices in partial_results
+                                        for model_idx in model_indices
+                                    ]
+                                    if sorted(returned_models) != list(range(n_models)):
+                                        raise RuntimeError(
+                                            "CPU prediction returned an incomplete "
+                                            "or duplicate model assignment."
+                                        )
+                                    win = pending_windows.pop(returned_window_id)
+                                    partial_results_by_window.pop(returned_window_id)
+                                    mean_probs, lower_probs, upper_probs = (
+                                        _aggregate_ensemble_statistics(
+                                            np.sum(
+                                                [result[0] for result in partial_results.values()],
+                                                axis=0,
+                                            ),
+                                            np.sum(
+                                                [result[1] for result in partial_results.values()],
+                                                axis=0,
+                                            ),
+                                            np.sum(
+                                                [result[2] for result in partial_results.values()],
+                                                axis=0,
+                                            ),
+                                            n_models,
+                                            ci_t_crit,
+                                        )
+                                    )
+                                    _write_block_result(
+                                        win, None, mean_probs, lower_probs, upper_probs
+                                    )
+                                    processed_windows += 1
+                                    next_checkpoint = _prediction_checkpoint(
+                                        processed_windows,
+                                        total_windows,
+                                        prediction_started_at,
+                                        next_checkpoint,
+                                    )
+                                    submit_cpu_window()
+                        finally:
+                            for task_queue in task_queues:
+                                task_queue.put(None)
+                            for worker in workers:
+                                worker.join(timeout=10)
+                                if worker.is_alive():
+                                    worker.terminate()
+                                    worker.join()
                     else:
+                        _log("[cyan]Running single-process prediction.")
                         for win in window_iter:
                             member_probs, mean_probs, lower_probs, upper_probs = (
                                 _predict_ensemble_block(
@@ -931,6 +1320,20 @@ class BRTEnsemble:
                             _write_block_result(
                                 win, member_probs, mean_probs, lower_probs, upper_probs
                             )
+                            processed_windows += 1
+                            next_checkpoint = _prediction_checkpoint(
+                                processed_windows,
+                                total_windows,
+                                prediction_started_at,
+                                next_checkpoint,
+                            )
+
+                    elapsed = time.perf_counter() - prediction_started_at
+                    _log(
+                        f"[green]Prediction processing complete: "
+                        f"{processed_windows:,}/{total_windows:,} windows in "
+                        f"{elapsed:.1f}s."
+                    )
 
         _log(f"[green]Mean probabilities saved to {mean_path}")
         if ci_t_crit is not None:
