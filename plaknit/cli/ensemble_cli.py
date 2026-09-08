@@ -263,7 +263,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "--jobs",
         type=int,
         default=1,
-        help="Parallel workers for block prediction (default: 1). Use -1 for all cores.",
+        help=(
+            "Parallel workers for block prediction (default: 1). Use -1 for all "
+            "cores on CPU, or up to the number of visible GPUs with --gpu."
+        ),
+    )
+    predict_parser.add_argument(
+        "--gpu",
+        action="store_true",
+        help=(
+            "Use CUDA for XGBoost prediction when available. With --jobs > 1, "
+            "models are distributed across persistent GPU workers."
+        ),
     )
     predict_parser.add_argument(
         "--block-overlap",
@@ -338,6 +349,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             feature_importance_out=args.feature_importance_out,
             block_overlap=args.block_overlap,
             jobs=args.jobs,
+            gpu=args.gpu,
         )
         return 0
 

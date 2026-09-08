@@ -151,12 +151,36 @@ def _prepare_brt_training_data(
 
 def _detect_gpu_available() -> bool:
     """Detect if GPU is available for XGBoost."""
-    try:
-        import cupy as cp  # noqa: F401
+    return bool(_available_cuda_devices())
 
-        return True
-    except ImportError:
-        return False
+
+def _available_cuda_devices() -> List[int]:
+    """Return logical CUDA device IDs visible to the current process."""
+    try:
+        import cupy as cp
+
+        count = int(cp.cuda.runtime.getDeviceCount())
+    except (ImportError, RuntimeError, AttributeError):
+        return []
+    return list(range(max(0, count)))
+
+
+def _configure_prediction_device(
+    model: xgb.XGBClassifier, gpu: bool, device_id: Optional[int] = None
+) -> None:
+    """Configure the loaded XGBoost model for CPU or CUDA inference."""
+    if not gpu:
+        return
+    if not _detect_gpu_available():
+        raise RuntimeError(
+            "GPU prediction requested, but CuPy/CUDA is unavailable. "
+            "Install the GPU dependencies or omit --gpu."
+        )
+    device = "cuda" if device_id is None else f"cuda:{device_id}"
+    try:
+        model.set_params(device=device, tree_method="hist", n_jobs=1)
+    except (AttributeError, TypeError, ValueError):
+        model.set_params(predictor="gpu_predictor", tree_method="gpu_hist", n_jobs=1)
 
 
 def train_brt(
@@ -658,6 +682,7 @@ def _init_predict_worker(
     out_dtype: str,
     nodata_value: Union[int, float],
     return_probs: bool,
+    gpu: bool,
 ) -> None:
     global _PREDICT_STACK
     global _PREDICT_MODEL
@@ -669,6 +694,7 @@ def _init_predict_worker(
     stack.__enter__()
     _PREDICT_STACK = stack
     _PREDICT_MODEL = joblib.load(model_path)
+    _configure_prediction_device(_PREDICT_MODEL, gpu)
     _PREDICT_OUT_DTYPE = out_dtype
     _PREDICT_NODATA = nodata_value
     _PREDICT_RETURN_PROBS = return_probs
@@ -706,6 +732,7 @@ def predict_brt(
     binary_out: Optional[PathLike] = None,
     block_overlap: int = 0,
     jobs: int = 1,
+    gpu: bool = False,
 ) -> Path:
     """Apply a trained BRT (XGBoost) model to a raster stack and write a classified GeoTIFF.
 
@@ -724,6 +751,7 @@ def predict_brt(
 
     _log("[bold cyan]Loading model...")
     model: xgb.XGBClassifier = joblib.load(model_path)
+    _configure_prediction_device(model, gpu)
     classes = getattr(model, "classes_", None)
     classes_dtype = getattr(classes, "dtype", np.int32)
     if np.issubdtype(classes_dtype, np.integer):
@@ -828,6 +856,7 @@ def predict_brt(
                         out_dtype,
                         nodata_value,
                         return_probs,
+                        gpu,
                     ),
                 ) as executor:
                     futures: Dict[concurrent.futures.Future, windows.Window] = {}

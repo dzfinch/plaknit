@@ -189,33 +189,63 @@ def _collect_pseudo_absence_candidate_pool(
     *,
     buffer_meters: float,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Collect valid background features and coordinates eligible for sampling."""
+    """Collect valid background features and coordinates eligible for sampling.
+
+    Raster data is read in bounded windows so large VRTs do not require a full
+    raster-sized float32 allocation during candidate collection.
+    """
 
     if buffer_meters < 0:
         raise ValueError("training buffer must be non-negative.")
 
-    full_window = windows.Window(0, 0, stack.width, stack.height)
-    data = stack.read(window=full_window, out_dtype="float32")
-    samples = data.reshape(stack.count, -1).T
-    valid = ~_nodata_pixel_mask(samples, stack.nodata_values)
-
     geometries = _buffer_training_geometries(stack, gdf, buffer_meters)
-    if geometries:
-        excluded = features.rasterize(
-            [(geom, 1) for geom in geometries],
-            out_shape=(stack.height, stack.width),
-            transform=stack.transform,
-            fill=0,
-            dtype="uint8",
-        ).reshape(-1)
-        valid &= excluded == 0
+    feature_chunks: List[np.ndarray] = []
+    row_chunks: List[np.ndarray] = []
+    col_chunks: List[np.ndarray] = []
+    block_size = 512
+    for row_off in range(0, stack.height, block_size):
+        for col_off in range(0, stack.width, block_size):
+            win = windows.Window(
+                col_off=col_off,
+                row_off=row_off,
+                width=min(block_size, stack.width - col_off),
+                height=min(block_size, stack.height - row_off),
+            )
+            data = stack.read(window=win, out_dtype="float32")
+            samples = data.reshape(stack.count, -1).T
+            valid = ~_nodata_pixel_mask(samples, stack.nodata_values)
 
-    candidate_indices = np.flatnonzero(valid)
-    rows, cols = np.unravel_index(candidate_indices, (stack.height, stack.width))
+            if geometries:
+                block_transform = windows.transform(win, stack.transform)
+                excluded = features.rasterize(
+                    [(geom, 1) for geom in geometries],
+                    out_shape=(int(win.height), int(win.width)),
+                    transform=block_transform,
+                    fill=0,
+                    dtype="uint8",
+                ).reshape(-1)
+                valid &= excluded == 0
+
+            candidate_indices = np.flatnonzero(valid)
+            if candidate_indices.size == 0:
+                continue
+            rows, cols = np.unravel_index(
+                candidate_indices, (int(win.height), int(win.width))
+            )
+            feature_chunks.append(samples[candidate_indices])
+            row_chunks.append((rows + int(win.row_off)).astype("int32", copy=False))
+            col_chunks.append((cols + int(win.col_off)).astype("int32", copy=False))
+
+    if not feature_chunks:
+        return (
+            np.empty((0, stack.count), dtype="float32"),
+            np.empty(0, dtype="int32"),
+            np.empty(0, dtype="int32"),
+        )
     return (
-        samples[candidate_indices],
-        rows.astype("int32", copy=False),
-        cols.astype("int32", copy=False),
+        np.vstack(feature_chunks),
+        np.concatenate(row_chunks),
+        np.concatenate(col_chunks),
     )
 
 

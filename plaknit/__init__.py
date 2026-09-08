@@ -10,7 +10,7 @@ from .models.rf import predict_rf, smooth_probs, train_rf
 
 __author__ = """Dryver Finch"""
 __email__ = "dryver2206@gmail.com"
-__version__ = "0.3.2"
+__version__ = "0.3.3"
 
 __all__ = [
     "BRTEnsemble",
