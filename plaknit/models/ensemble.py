@@ -819,8 +819,12 @@ class BRTEnsemble:
             if mc is not None and not (isinstance(mc, float) and np.isnan(mc)):
                 commission_vals.append(float(mc))
 
-        self.metadata_["avg_omission"] = float(np.mean(omission_vals)) if omission_vals else None
-        self.metadata_["avg_commission"] = float(np.mean(commission_vals)) if commission_vals else None
+        self.metadata_["avg_omission"] = (
+            float(np.mean(omission_vals)) if omission_vals else None
+        )
+        self.metadata_["avg_commission"] = (
+            float(np.mean(commission_vals)) if commission_vals else None
+        )
         metadata_path = ensemble_path / "ensemble_metadata.json"
         with open(metadata_path, "w") as f:
             json.dump(self.metadata_, f, indent=2)
