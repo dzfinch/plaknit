@@ -91,8 +91,12 @@ def _collect_holdout_metrics(
         "matrix": matrix,
         "omission_rates": omission_rates,
         "commission_rates": commission_rates,
-        "mean_omission": float(np.nanmean(omission_rates)) if len(omission_rates) else None,
-        "mean_commission": float(np.nanmean(commission_rates)) if len(commission_rates) else None,
+        "mean_omission": (
+            float(np.nanmean(omission_rates)) if len(omission_rates) else None
+        ),
+        "mean_commission": (
+            float(np.nanmean(commission_rates)) if len(commission_rates) else None
+        ),
         "band_importances": bands,
         "test_labels": test_labels,
         "predictions": predictions,
@@ -450,7 +454,9 @@ def generate_partial_dependence(
     if X is None:
         X = getattr(models[0], "test_samples_", None)
         if X is None:
-            raise ValueError("No sample matrix `X` provided and models[0] lacks `test_samples_`")
+            raise ValueError(
+                "No sample matrix `X` provided and models[0] lacks `test_samples_`"
+            )
 
     X = np.asarray(X)
     if X.ndim != 2:
@@ -495,11 +501,12 @@ def generate_partial_dependence(
     return np.asarray(grid), np.asarray(mean_probs)
 
 
-def _write_partial_dependence_csv(path: Path, feature_index: int, grid: np.ndarray, mean_probs: np.ndarray) -> None:
+def _write_partial_dependence_csv(
+    path: Path, feature_index: int, grid: np.ndarray, mean_probs: np.ndarray
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["feature_index", "feature_value", "mean_probability"])
         for val, prob in zip(grid, mean_probs):
             writer.writerow([feature_index, float(val), float(prob)])
-

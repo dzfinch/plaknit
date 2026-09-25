@@ -182,7 +182,9 @@ def _write_feature_importance_csv(path: Path, models: Sequence[Any]) -> None:
             min_imp = float(values.min()) if values.size > 0 else 0.0
             max_imp = float(values.max()) if values.size > 0 else 0.0
             used_count = int(np.count_nonzero(values))
-            avg_rank = float(np.nanmean(rank_vals)) if rank_vals.size > 0 else float("nan")
+            avg_rank = (
+                float(np.nanmean(rank_vals)) if rank_vals.size > 0 else float("nan")
+            )
             rows.append(
                 (
                     band_index,
@@ -803,7 +805,9 @@ class BRTEnsemble:
         # Write model summary and feature importance CSVs at end of training
         try:
             summary_path = ensemble_path / "model_summary.csv"
-            model_paths = [ensemble_path / f"brt_{i}.joblib" for i in range(self.n_models)]
+            model_paths = [
+                ensemble_path / f"brt_{i}.joblib" for i in range(self.n_models)
+            ]
             _write_model_summary_csv(summary_path, model_paths, self.metadata_)
             _log(f"[green]Model summary saved to {summary_path}")
         except Exception:
