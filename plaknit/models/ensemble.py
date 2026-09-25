@@ -798,6 +798,33 @@ class BRTEnsemble:
             "test_auc": test_auc,
             "holdout_metrics": holdout_summaries,
         }
+        # Compute ensemble-level summary statistics
+        # Mean AUC across members (ignore None entries)
+        valid_aucs = [a for a in test_auc if a is not None]
+        if valid_aucs:
+            self.metadata_["avg_test_auc"] = float(np.mean(valid_aucs))
+        else:
+            self.metadata_["avg_test_auc"] = None
+
+        # Average omission/commission across members (use mean_omission/mean_commission)
+        omission_vals: List[float] = []
+        commission_vals: List[float] = []
+        for summ in holdout_summaries:
+            if summ is None:
+                continue
+            mo = summ.get("mean_omission")
+            mc = summ.get("mean_commission")
+            if mo is not None and not (isinstance(mo, float) and np.isnan(mo)):
+                omission_vals.append(float(mo))
+            if mc is not None and not (isinstance(mc, float) and np.isnan(mc)):
+                commission_vals.append(float(mc))
+
+        self.metadata_["avg_omission"] = (
+            float(np.mean(omission_vals)) if omission_vals else None
+        )
+        self.metadata_["avg_commission"] = (
+            float(np.mean(commission_vals)) if commission_vals else None
+        )
         metadata_path = ensemble_path / "ensemble_metadata.json"
         with open(metadata_path, "w") as f:
             json.dump(self.metadata_, f, indent=2)
