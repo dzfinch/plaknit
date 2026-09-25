@@ -8,8 +8,10 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import geopandas as gpd
 import numpy as np
 import rasterio
+import csv
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix, roc_auc_score
+from scipy import stats
 
 from ..data.raster import _log
 
@@ -47,6 +49,21 @@ def _collect_holdout_metrics(
         label_names = [str(code) for code in classes]
 
     matrix = confusion_matrix(test_labels, predictions, labels=classes)
+    # Compute per-class omission (false negative rate) and commission (false positive rate)
+    # matrix rows = true, cols = pred
+    n_classes = matrix.shape[0]
+    omission_rates = []
+    commission_rates = []
+    for i in range(n_classes):
+        tp = float(matrix[i, i])
+        fn = float(matrix[i, :].sum() - matrix[i, i])
+        fp = float(matrix[:, i].sum() - matrix[i, i])
+        denom_om = tp + fn
+        denom_comm = tp + fp
+        omission = float(fn / denom_om) if denom_om > 0 else float("nan")
+        commission = float(fp / denom_comm) if denom_comm > 0 else float("nan")
+        omission_rates.append(omission)
+        commission_rates.append(commission)
     accuracy = accuracy_score(test_labels, predictions)
     auc: Optional[float] = None
     if len(np.unique(test_labels)) > 1 and 1 in classes:
@@ -72,6 +89,14 @@ def _collect_holdout_metrics(
         "labels": label_names,
         "classes": classes,
         "matrix": matrix,
+        "omission_rates": omission_rates,
+        "commission_rates": commission_rates,
+        "mean_omission": (
+            float(np.nanmean(omission_rates)) if len(omission_rates) else None
+        ),
+        "mean_commission": (
+            float(np.nanmean(commission_rates)) if len(commission_rates) else None
+        ),
         "band_importances": bands,
         "test_labels": test_labels,
         "predictions": predictions,
@@ -290,6 +315,32 @@ def _write_holdout_outputs(
         _format_confusion_matrix(matrix, labels),
     ]
 
+    # Omission / Commission reporting
+    omission_rates = metrics.get("omission_rates") or []
+    commission_rates = metrics.get("commission_rates") or []
+    if omission_rates:
+        lines.append("")
+        lines.append("Per-class omission rates (FN / (TP+FN)):")
+        for lbl, rate in zip(labels, omission_rates):
+            if rate is None or np.isnan(rate):
+                lines.append(f"{lbl}: unavailable")
+            else:
+                lines.append(f"{lbl}: {rate:.3f}")
+        mean_om = metrics.get("mean_omission")
+        if mean_om is not None:
+            lines.append(f"Mean omission: {mean_om:.3f}")
+    if commission_rates:
+        lines.append("")
+        lines.append("Per-class commission rates (FP / (TP+FP)):")
+        for lbl, rate in zip(labels, commission_rates):
+            if rate is None or np.isnan(rate):
+                lines.append(f"{lbl}: unavailable")
+            else:
+                lines.append(f"{lbl}: {rate:.3f}")
+        mean_comm = metrics.get("mean_commission")
+        if mean_comm is not None:
+            lines.append(f"Mean commission: {mean_comm:.3f}")
+
     raw_ids = _misclassified_ids(
         metrics["test_labels"], metrics["predictions"], metrics.get("test_ids")
     )
@@ -379,3 +430,83 @@ def _write_holdout_outputs(
 
     metrics_txt.write_text("\n".join(lines) + "\n", encoding="utf-8")
     _log(f"[green]Wrote holdout metrics to {metrics_txt}.")
+
+
+def generate_partial_dependence(
+    models: Sequence[Any],
+    feature_index: int,
+    X: Optional[np.ndarray] = None,
+    *,
+    grid: Optional[np.ndarray] = None,
+    grid_size: int = 20,
+    positive_class_index: Optional[int] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Compute a simple partial dependence (PDP) for a single feature.
+
+    This computes the marginal predicted probability for the positive class
+    while varying `feature_index` across `grid` values and averaging over
+    the provided samples `X`. `models` may be a list of fitted estimators;
+    predictions are averaged across models.
+    """
+    if not models:
+        raise ValueError("models must be a non-empty sequence of fitted estimators")
+
+    if X is None:
+        X = getattr(models[0], "test_samples_", None)
+        if X is None:
+            raise ValueError(
+                "No sample matrix `X` provided and models[0] lacks `test_samples_`"
+            )
+
+    X = np.asarray(X)
+    if X.ndim != 2:
+        raise ValueError("X must be a 2D array of shape (n_samples, n_features)")
+    if feature_index < 0 or feature_index >= X.shape[1]:
+        raise IndexError("feature_index out of range for X")
+
+    if grid is None:
+        col = X[:, feature_index]
+        vmin = float(np.nanmin(col))
+        vmax = float(np.nanmax(col))
+        if vmin == vmax:
+            grid = np.array([vmin])
+        else:
+            grid = np.linspace(vmin, vmax, grid_size)
+
+    # Determine positive class index if possible
+    if positive_class_index is None:
+        cls_attr = getattr(models[0], "classes_", None)
+        if cls_attr is not None and 1 in cls_attr:
+            positive_class_index = int(np.flatnonzero(cls_attr == 1)[0])
+        else:
+            positive_class_index = 0
+
+    mean_probs = []
+    for val in grid:
+        X_mod = X.copy()
+        X_mod[:, feature_index] = val
+        # average across samples then across models
+        model_means = []
+        for model in models:
+            probs = model.predict_proba(X_mod)
+            # guard: if classifier has only one class in proba output
+            if probs.ndim == 1 or probs.shape[1] <= positive_class_index:
+                # fallback: use predict and treat as 0/1
+                preds = model.predict(X_mod)
+                model_means.append(float(np.mean(preds == 1)))
+            else:
+                model_means.append(float(np.mean(probs[:, positive_class_index])))
+        mean_probs.append(float(np.mean(model_means)))
+
+    return np.asarray(grid), np.asarray(mean_probs)
+
+
+def _write_partial_dependence_csv(
+    path: Path, feature_index: int, grid: np.ndarray, mean_probs: np.ndarray
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["feature_index", "feature_value", "mean_probability"])
+        for val, prob in zip(grid, mean_probs):
+            writer.writerow([feature_index, float(val), float(prob)])
