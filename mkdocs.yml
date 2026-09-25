@@ -75,6 +75,7 @@ nav:
     - Home: index.md
     - Installation: installation.md
     - Usage: usage.md
+    - BRT CLI Guide: BRT_CLI_GUIDE.md
     - HPC Environments: hpcenv.md
     - Contributing: contributing.md
     - Report Issues: https://github.com/dzfinch/plaknit/issues
