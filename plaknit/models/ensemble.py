@@ -121,8 +121,8 @@ def _write_model_summary_csv(
 
 def _write_feature_importance_csv(path: Path, models: Sequence[Any]) -> None:
     """Write unweighted split-importance summary statistics for ensemble bands."""
-    importance_by_band: Dict[int, List[float]] = {}
     member_importances: List[Dict[int, float]] = []
+    # Collect per-member importance dicts
     for model in models:
         importances = getattr(model, "feature_importances_", None)
         if importances is None:
@@ -136,8 +136,23 @@ def _write_feature_importance_csv(path: Path, models: Sequence[Any]) -> None:
             for band_index, importance in zip(band_indices, importances)
         }
         member_importances.append(values)
-        for band_index in values:
-            importance_by_band.setdefault(band_index, [])
+
+    # Determine full set of bands across all members
+    all_bands = sorted({b for member in member_importances for b in member.keys()})
+
+    # Prepare per-band arrays and per-band ranks
+    rows = []
+    ranks_by_band: Dict[int, List[float]] = {b: [] for b in all_bands}
+
+    # Compute ranks for each member across the full band set
+    for member in member_importances:
+        vals = np.asarray([member.get(b, 0.0) for b in all_bands], dtype="float64")
+        if vals.size == 0:
+            continue
+        # rankdata with negative values so largest importance -> rank 1
+        member_ranks = stats.rankdata(-vals, method="average")
+        for b, r in zip(all_bands, member_ranks):
+            ranks_by_band[b].append(float(r))
 
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="") as f:
@@ -150,26 +165,45 @@ def _write_feature_importance_csv(path: Path, models: Sequence[Any]) -> None:
                 "min_importance",
                 "max_importance",
                 "models_using_feature",
+                "avg_rank",
+                "rank_by_mean",
             ]
         )
-        rows = []
-        for band_index in importance_by_band:
+
+        for band_index in all_bands:
             values = np.asarray(
                 [member.get(band_index, 0.0) for member in member_importances],
                 dtype="float64",
             )
+            # ranks for this band across members (may be empty)
+            rank_vals = np.asarray(ranks_by_band.get(band_index, []), dtype="float64")
+            mean_imp = float(values.mean()) if values.size > 0 else 0.0
+            std_imp = float(values.std()) if values.size > 0 else 0.0
+            min_imp = float(values.min()) if values.size > 0 else 0.0
+            max_imp = float(values.max()) if values.size > 0 else 0.0
+            used_count = int(np.count_nonzero(values))
+            avg_rank = float(np.nanmean(rank_vals)) if rank_vals.size > 0 else float("nan")
             rows.append(
                 (
                     band_index,
-                    float(values.mean()),
-                    float(values.std()),
-                    float(values.min()),
-                    float(values.max()),
-                    int(np.count_nonzero(values)),
+                    mean_imp,
+                    std_imp,
+                    min_imp,
+                    max_imp,
+                    used_count,
+                    avg_rank,
+                    0.0,  # placeholder for rank_by_mean filled below
                 )
             )
-        for row in sorted(rows, key=lambda row: (-row[1], row[0])):
-            writer.writerow(row)
+
+        # Sort rows by mean importance and assign rank_by_mean
+        rows_sorted = sorted(rows, key=lambda row: (-row[1], row[0]))
+        for rank_idx, row in enumerate(rows_sorted, start=1):
+            band_index = row[0]
+            # replace placeholder with actual rank
+            new_row = list(row)
+            new_row[-1] = float(rank_idx)
+            writer.writerow(new_row)
 
 
 def _aggregate_ensemble_probabilities(
@@ -673,6 +707,7 @@ class BRTEnsemble:
 
         self.models_ = []
         test_auc = []
+        holdout_summaries: List[Optional[Dict[str, Any]]] = []
         prepared = brt._prepare_brt_training_data(
             image_path,
             shapefile_path,
@@ -721,6 +756,18 @@ class BRTEnsemble:
             self.models_.append(model)
 
             metrics = _log_holdout_metrics(model)
+            summary: Optional[Dict[str, Any]] = None
+            if metrics is not None:
+                summary = {
+                    "sample_count": metrics.get("sample_count"),
+                    "accuracy": metrics.get("accuracy"),
+                    "auc": metrics.get("auc"),
+                    "omission_rates": metrics.get("omission_rates"),
+                    "commission_rates": metrics.get("commission_rates"),
+                    "mean_omission": metrics.get("mean_omission"),
+                    "mean_commission": metrics.get("mean_commission"),
+                }
+            holdout_summaries.append(summary)
             if metrics is not None and metrics.get("auc") is not None:
                 auc = float(metrics["auc"])
             else:
@@ -747,11 +794,27 @@ class BRTEnsemble:
             "band_indices": list(band_indices) if band_indices is not None else None,
             "grid_size": grid_size,
             "test_auc": test_auc,
+            "holdout_metrics": holdout_summaries,
         }
         metadata_path = ensemble_path / "ensemble_metadata.json"
         with open(metadata_path, "w") as f:
             json.dump(self.metadata_, f, indent=2)
         _log(f"[green]Ensemble metadata saved to {metadata_path}")
+        # Write model summary and feature importance CSVs at end of training
+        try:
+            summary_path = ensemble_path / "model_summary.csv"
+            model_paths = [ensemble_path / f"brt_{i}.joblib" for i in range(self.n_models)]
+            _write_model_summary_csv(summary_path, model_paths, self.metadata_)
+            _log(f"[green]Model summary saved to {summary_path}")
+        except Exception:
+            _log("[yellow]Failed to write model summary CSV after training.")
+
+        try:
+            importance_path = ensemble_path / "feature_importance.csv"
+            _write_feature_importance_csv(importance_path, self.models_)
+            _log(f"[green]Feature importance summary saved to {importance_path}")
+        except Exception:
+            _log("[yellow]Failed to write feature importance CSV after training.")
         _log("[green]Ensemble training complete.")
 
         return self
@@ -866,14 +929,8 @@ class BRTEnsemble:
         if not all(cs == class_sets[0] for cs in class_sets):
             raise ValueError("Ensemble models have inconsistent class definitions.")
 
-        if model_summary_out is not None:
-            summary_path = Path(model_summary_out)
-            _write_model_summary_csv(summary_path, model_paths, metadata)
-            _log(f"[green]Model summary saved to {summary_path}")
-        if feature_importance_out is not None:
-            importance_path = Path(feature_importance_out)
-            _write_feature_importance_csv(importance_path, models)
-            _log(f"[green]Feature importance summary saved to {importance_path}")
+        # Model summary and feature-importance CSVs are written at training time
+        # and therefore are not produced here during prediction.
 
         ci_t_crit: Optional[float] = None
         if n_models > 1:
