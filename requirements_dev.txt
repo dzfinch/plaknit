@@ -27,3 +27,4 @@ sphinx
 twine
 watchdog
 wheel
+matplotlib>=3.6

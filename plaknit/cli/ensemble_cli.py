@@ -3,10 +3,17 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 from typing import List, Optional, Sequence
 
 from ..models.brt import train_brt
 from ..models.ensemble import BRTEnsemble
+from ..processing.evaluation import (
+    generate_partial_dependence,
+    _write_partial_dependence_csv,
+    plot_partial_dependence,
+)
+from ..data.raster import _log
 
 
 def _add_common_smoothing_args(parser: argparse.ArgumentParser) -> None:
@@ -203,6 +210,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         default=1,
         help="Concurrent ensemble model fits (default: 1; GPU training remains serial).",
     )
+    train_parser.add_argument(
+        "--pdp-csv",
+        type=str,
+        default=None,
+        help=(
+            "Generate partial-dependence CSVs after training. "
+            "Pass '-1' to generate for all bands, or a comma-separated list of 1-based band indices, e.g. '1,3,5'. "
+            "CSV files are written into the model/ensemble output directory as 'pdp_band_<band>.csv'."
+        ),
+    )
 
     # Predict sub-command
     predict_parser = subparsers.add_parser(
@@ -288,7 +305,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.command == "train":
         image_paths = _flatten_image_args(args.image)
         if args.n_models == 1:
-            train_brt(
+            model = train_brt(
                 image_path=image_paths,
                 shapefile_path=args.labels,
                 label_column=args.label_column,
@@ -307,6 +324,48 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 gpu=args.gpu,
                 n_jobs=args.jobs,
             )
+            # Optionally generate PDP CSVs for single model
+            if args.pdp_csv is not None:
+                out_dir = Path(args.output).parent
+                _log(f"[cyan]Generating PDP CSV(s) into {out_dir}...")
+                try:
+                    pdp_arg = args.pdp_csv.strip()
+                    if pdp_arg == "-1":
+                        band_ids = getattr(model, "band_indices", None)
+                        if band_ids is None:
+                            n_feats = model.test_samples_.shape[1] if getattr(model, "test_samples_", None) is not None else 0
+                            band_ids = list(range(1, n_feats + 1))
+                        requested = list(band_ids)
+                    else:
+                        requested = [int(s) for s in pdp_arg.split(",") if s.strip()]
+
+                    if not requested:
+                        _log("[yellow]No PDP bands requested; skipping PDP generation.")
+                    else:
+                        for band in requested:
+                            band_indices = getattr(model, "band_indices", None)
+                            if band_indices is None:
+                                feature_index = band - 1
+                            else:
+                                try:
+                                    feature_index = int(band_indices.index(band))
+                                except ValueError:
+                                    _log(f"[yellow]Band {band} not found in model.band_indices; skipping.")
+                                    continue
+                            if getattr(model, "test_samples_", None) is None:
+                                _log("[yellow]Model lacks test samples; PDP requires sample matrix; skipping.")
+                                break
+                            grid, mean_probs = generate_partial_dependence([model], feature_index)
+                            out_path = out_dir / f"pdp_band_{band}.csv"
+                            _write_partial_dependence_csv(out_path, feature_index, grid, mean_probs)
+                            _log(f"[green]Wrote PDP CSV for band {band} to {out_path}")
+                            try:
+                                png_path = out_path.with_suffix(".png")
+                                plot_partial_dependence(png_path, grid, mean_probs, title=f"PDP band {band}")
+                            except Exception as exc:
+                                _log(f"[yellow]PDP plotting failed: {exc}")
+                except Exception as exc:
+                    _log(f"[yellow]PDP generation failed: {exc}")
         elif args.n_models > 1:
             ensemble = BRTEnsemble(
                 n_models=args.n_models,
@@ -330,6 +389,56 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 grid_size=args.grid_size,
                 jobs=args.jobs,
             )
+            # Optionally generate PDP CSVs for the ensemble
+            if args.pdp_csv is not None:
+                out_dir = Path(args.output)
+                _log(f"[cyan]Generating PDP CSV(s) into {out_dir}...")
+                try:
+                    pdp_arg = args.pdp_csv.strip()
+                    if pdp_arg == "-1":
+                        model0 = ensemble.models_[0] if ensemble.models_ else None
+                        if model0 is None:
+                            _log("[yellow]No models available for PDP generation; skipping.")
+                        else:
+                            band_ids = getattr(model0, "band_indices", None)
+                            if band_ids is None:
+                                n_feats = model0.test_samples_.shape[1] if getattr(model0, "test_samples_", None) is not None else 0
+                                requested = list(range(1, n_feats + 1))
+                            else:
+                                requested = list(band_ids)
+                    else:
+                        requested = [int(s) for s in pdp_arg.split(",") if s.strip()]
+
+                    if not requested:
+                        _log("[yellow]No PDP bands requested; skipping PDP generation.")
+                    else:
+                        model0 = ensemble.models_[0] if ensemble.models_ else None
+                        if model0 is None:
+                            _log("[yellow]No models available for PDP generation; skipping.")
+                        elif getattr(model0, "test_samples_", None) is None:
+                            _log("[yellow]Models lack test samples; PDP requires sample matrix; skipping.")
+                        else:
+                            for band in requested:
+                                band_indices = getattr(model0, "band_indices", None)
+                                if band_indices is None:
+                                    feature_index = band - 1
+                                else:
+                                    try:
+                                        feature_index = int(band_indices.index(band))
+                                    except ValueError:
+                                        _log(f"[yellow]Band {band} not found in model.band_indices; skipping.")
+                                        continue
+                                grid, mean_probs = generate_partial_dependence(ensemble.models_, feature_index)
+                                out_path = out_dir / f"pdp_band_{band}.csv"
+                                _write_partial_dependence_csv(out_path, feature_index, grid, mean_probs)
+                                _log(f"[green]Wrote PDP CSV for band {band} to {out_path}")
+                                try:
+                                    png_path = out_path.with_suffix(".png")
+                                    plot_partial_dependence(png_path, grid, mean_probs, title=f"PDP band {band}")
+                                except Exception as exc:
+                                    _log(f"[yellow]PDP plotting failed: {exc}")
+                except Exception as exc:
+                    _log(f"[yellow]PDP generation failed: {exc}")
         else:
             raise ValueError("n_models must be at least 1.")
         return 0
