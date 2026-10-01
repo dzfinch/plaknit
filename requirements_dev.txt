@@ -8,6 +8,7 @@ flake8
 
 ipykernel
 livereload
+matplotlib>=3.6
 mkdocs
 mkdocs-git-revision-date-localized-plugin
 mkdocs-git-revision-date-plugin
@@ -27,4 +28,3 @@ sphinx
 twine
 watchdog
 wheel
-matplotlib>=3.6

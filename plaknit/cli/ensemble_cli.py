@@ -333,7 +333,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     if pdp_arg == "-1":
                         band_ids = getattr(model, "band_indices", None)
                         if band_ids is None:
-                            n_feats = model.test_samples_.shape[1] if getattr(model, "test_samples_", None) is not None else 0
+                            n_feats = (
+                                model.test_samples_.shape[1]
+                                if getattr(model, "test_samples_", None) is not None
+                                else 0
+                            )
                             band_ids = list(range(1, n_feats + 1))
                         requested = list(band_ids)
                     else:
@@ -350,18 +354,28 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                                 try:
                                     feature_index = int(band_indices.index(band))
                                 except ValueError:
-                                    _log(f"[yellow]Band {band} not found in model.band_indices; skipping.")
+                                    _log(
+                                        f"[yellow]Band {band} not found in model.band_indices; skipping."
+                                    )
                                     continue
                             if getattr(model, "test_samples_", None) is None:
-                                _log("[yellow]Model lacks test samples; PDP requires sample matrix; skipping.")
+                                _log(
+                                    "[yellow]Model lacks test samples; PDP requires sample matrix; skipping."
+                                )
                                 break
-                            grid, mean_probs = generate_partial_dependence([model], feature_index)
+                            grid, mean_probs = generate_partial_dependence(
+                                [model], feature_index
+                            )
                             out_path = out_dir / f"pdp_band_{band}.csv"
-                            _write_partial_dependence_csv(out_path, feature_index, grid, mean_probs)
+                            _write_partial_dependence_csv(
+                                out_path, feature_index, grid, mean_probs
+                            )
                             _log(f"[green]Wrote PDP CSV for band {band} to {out_path}")
                             try:
                                 png_path = out_path.with_suffix(".png")
-                                plot_partial_dependence(png_path, grid, mean_probs, title=f"PDP band {band}")
+                                plot_partial_dependence(
+                                    png_path, grid, mean_probs, title=f"PDP band {band}"
+                                )
                             except Exception as exc:
                                 _log(f"[yellow]PDP plotting failed: {exc}")
                 except Exception as exc:
@@ -398,11 +412,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     if pdp_arg == "-1":
                         model0 = ensemble.models_[0] if ensemble.models_ else None
                         if model0 is None:
-                            _log("[yellow]No models available for PDP generation; skipping.")
+                            _log(
+                                "[yellow]No models available for PDP generation; skipping."
+                            )
                         else:
                             band_ids = getattr(model0, "band_indices", None)
                             if band_ids is None:
-                                n_feats = model0.test_samples_.shape[1] if getattr(model0, "test_samples_", None) is not None else 0
+                                n_feats = (
+                                    model0.test_samples_.shape[1]
+                                    if getattr(model0, "test_samples_", None)
+                                    is not None
+                                    else 0
+                                )
                                 requested = list(range(1, n_feats + 1))
                             else:
                                 requested = list(band_ids)
@@ -414,9 +435,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     else:
                         model0 = ensemble.models_[0] if ensemble.models_ else None
                         if model0 is None:
-                            _log("[yellow]No models available for PDP generation; skipping.")
+                            _log(
+                                "[yellow]No models available for PDP generation; skipping."
+                            )
                         elif getattr(model0, "test_samples_", None) is None:
-                            _log("[yellow]Models lack test samples; PDP requires sample matrix; skipping.")
+                            _log(
+                                "[yellow]Models lack test samples; PDP requires sample matrix; skipping."
+                            )
                         else:
                             for band in requested:
                                 band_indices = getattr(model0, "band_indices", None)
@@ -426,15 +451,28 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                                     try:
                                         feature_index = int(band_indices.index(band))
                                     except ValueError:
-                                        _log(f"[yellow]Band {band} not found in model.band_indices; skipping.")
+                                        _log(
+                                            f"[yellow]Band {band} not found in model.band_indices; skipping."
+                                        )
                                         continue
-                                grid, mean_probs = generate_partial_dependence(ensemble.models_, feature_index)
+                                grid, mean_probs = generate_partial_dependence(
+                                    ensemble.models_, feature_index
+                                )
                                 out_path = out_dir / f"pdp_band_{band}.csv"
-                                _write_partial_dependence_csv(out_path, feature_index, grid, mean_probs)
-                                _log(f"[green]Wrote PDP CSV for band {band} to {out_path}")
+                                _write_partial_dependence_csv(
+                                    out_path, feature_index, grid, mean_probs
+                                )
+                                _log(
+                                    f"[green]Wrote PDP CSV for band {band} to {out_path}"
+                                )
                                 try:
                                     png_path = out_path.with_suffix(".png")
-                                    plot_partial_dependence(png_path, grid, mean_probs, title=f"PDP band {band}")
+                                    plot_partial_dependence(
+                                        png_path,
+                                        grid,
+                                        mean_probs,
+                                        title=f"PDP band {band}",
+                                    )
                                 except Exception as exc:
                                     _log(f"[yellow]PDP plotting failed: {exc}")
                 except Exception as exc:
