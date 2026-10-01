@@ -510,3 +510,53 @@ def _write_partial_dependence_csv(
         writer.writerow(["feature_index", "feature_value", "mean_probability"])
         for val, prob in zip(grid, mean_probs):
             writer.writerow([feature_index, float(val), float(prob)])
+
+
+try:
+    import matplotlib.pyplot as plt  # type: ignore
+except Exception:  # pragma: no cover - optional plotting
+    plt = None
+
+
+def plot_partial_dependence(
+    out_path: Path,
+    grid: np.ndarray,
+    mean_probs: np.ndarray,
+    *,
+    lower: Optional[np.ndarray] = None,
+    upper: Optional[np.ndarray] = None,
+    title: Optional[str] = None,
+) -> None:
+    """Render a PDP line plot and save as PNG. Skips if matplotlib unavailable.
+
+    The plot shows the mean PDP and optionally shades the area between
+    ``lower`` and ``upper`` when both are provided.
+    """
+    if plt is None:
+        _log("[yellow]matplotlib not installed; skipping PDP PNG generation.")
+        return
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.plot(grid, mean_probs, marker="o", color="C0", label="mean")
+    if lower is not None and upper is not None:
+        try:
+            ax.fill_between(grid, lower, upper, color="C0", alpha=0.2, label="CI")
+        except Exception:
+            # In case of shape mismatch, ignore CI shading
+            pass
+    ax.set_xlabel("feature value")
+    ax.set_ylabel("mean probability")
+    if title:
+        ax.set_title(title)
+    ax.grid(True, linestyle="--", alpha=0.5)
+    # Clamp y-limits to [0,1] for probabilities
+    try:
+        ymin, ymax = ax.get_ylim()
+        ax.set_ylim(max(0.0, ymin), min(1.0, ymax))
+    except Exception:
+        pass
+    fig.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path)
+    plt.close(fig)
+    _log(f"[green]Wrote PDP plot to {out_path}")
