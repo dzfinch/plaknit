@@ -225,7 +225,7 @@ linear coefficient or a causal effect.
 
 ```bash
 # Classification-only workflow (RF or BRT)
-plaknit classify train --image stack.tif --labels train.gpkg ...
+plaknit rf train --image stack.tif --labels train.gpkg ...
 plaknit brt train --image stack.tif --labels train.gpkg ...
 
 # Planning (Planet data acquisition)
@@ -246,6 +246,6 @@ plaknit order --plan plan_id ...
 
 ## See Also
 
-- `plaknit classify` - Random Forest classification (same CLI structure)
-- `plaknit classify smooth` - Post-process probabilities with MRF/Bayes
+- `plaknit rf` - Random Forest classification (same CLI structure)
+- `plaknit rf smooth` - Post-process probabilities with MRF/Bayes
 - See package documentation: `plaknit --help`

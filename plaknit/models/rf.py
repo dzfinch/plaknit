@@ -360,6 +360,9 @@ def train_rf(
     class_stats["band_indices"] = np.asarray(band_ids, dtype=np.int64)
     rf.class_band_stats_ = class_stats  # type: ignore[attr-defined]
 
+    # Random Forest models do not use ROC AUC for holdout evaluation in this project
+    rf.holdout_supports_auc_ = False  # type: ignore[attr-defined]
+
     missing = class_stats["counts"] == 0
     if np.any(missing):
         missing_classes = classes[missing]

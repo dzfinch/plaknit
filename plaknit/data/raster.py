@@ -123,10 +123,11 @@ class _CastingDataset:
         # expose nodatavals as a tuple of scalars or None
         raw = ds.nodatavals or ()
         if raw:
-            self.nodatavals = tuple(
-                None if v is None else np.asarray(v).astype(target_dtype).item()
-                for v in raw
-            )
+            with np.errstate(over="ignore"):
+                self.nodatavals = tuple(
+                    None if v is None else np.asarray(v).astype(target_dtype).item()
+                    for v in raw
+                )
         else:
             self.nodatavals = tuple([None] * self.count)
 
@@ -160,7 +161,10 @@ class _CastingDataset:
             self._ds.read(indexes=[band_id], window=window, **kwargs)[0]
             for band_id in band_ids
         ]
-        return np.stack(bands, axis=0).astype(dtype, copy=False)
+        # Float64 nodata sentinels (e.g. 1.79e308) overflow to inf in float32;
+        # nodatavals are cast identically, so masking still matches.
+        with np.errstate(over="ignore"):
+            return np.stack(bands, axis=0).astype(dtype, copy=False)
 
     def close(self):
         try:

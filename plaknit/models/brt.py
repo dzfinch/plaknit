@@ -429,6 +429,9 @@ def train_brt(
     class_stats["band_indices"] = np.asarray(band_ids, dtype=np.int64)
     brt.class_band_stats_ = class_stats  # type: ignore[attr-defined]
 
+    # Indicate that BRT models provide holdout ROC AUC evaluation
+    brt.holdout_supports_auc_ = True  # type: ignore[attr-defined]
+
     missing = class_stats["counts"] == 0
     if np.any(missing):
         missing_classes = classes[missing]
