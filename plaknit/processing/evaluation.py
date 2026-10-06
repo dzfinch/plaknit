@@ -84,7 +84,9 @@ def _collect_holdout_metrics(
                 if len(classes) == 2 and 1 in classes:
                     positive_class_index = int(np.flatnonzero(classes == 1)[0])
                     auc = float(
-                        roc_auc_score(test_labels, probabilities[:, positive_class_index])
+                        roc_auc_score(
+                            test_labels, probabilities[:, positive_class_index]
+                        )
                     )
                 elif len(classes) > 2 and len(present) == len(classes):
                     auc = float(
