@@ -102,7 +102,7 @@ The venv now lives at `$PROJECT_DIR/venvs/plaknit` and can be reused across jobs
 
 ## 4a. Install classify dependencies (GeoPandas/Fiona)
 
-`plaknit classify` relies on GeoPandas + Fiona. Install them inside the container
+`plaknit rf` relies on GeoPandas + Fiona. Install them inside the container
 venv (installing on the host will not affect the container):
 
 ```bash
@@ -190,7 +190,7 @@ singularity exec \
 ### Random Forest classification (train + predict)
 
 This Singularity/Apptainer template mirrors the mosaic example but calls
-`plaknit classify`. The CLI accepts one or more `--image` paths; when bands
+`plaknit rf`. The CLI accepts one or more `--image` paths; when bands
 live in separate TIFFs, you can pass them directly (or repeat `--image`) or build
 a VRT first (for example `gdalbuildvrt stack.vrt band1.tif band2.tif ...`).
 Use `--band-indices` (1-based) to select a subset of stacked bands.
@@ -224,14 +224,14 @@ singularity exec \
     export PATH=/venvs/plaknit/bin:$PATH
 
     # Train (optional; skip if model already exists)
-    plaknit classify train \
+    plaknit rf train \
       --image /layers/stack.vrt /layers/mosaic.tif \
       --labels /project/training_points.gpkg \
       --label-column class \
       --model-out /model/rf_model.joblib
 
-    # Predict
-    plaknit classify predict \
+    # Classify
+    plaknit rf classify \
       --image /layers/stack.vrt /layers/mosaic.tif \
       --model /model/rf_model.joblib \
       --output /out/classification.tif \

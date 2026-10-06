@@ -80,7 +80,7 @@ def _flatten_image_args(image_args: Sequence[Sequence[str]]) -> List[str]:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="plaknit classify",
+        prog="plaknit rf",
         description="Train or apply a Random Forest classifier to raster stacks.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -154,7 +154,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
 
     predict_parser = subparsers.add_parser(
-        "predict", help="Apply a trained model to classify a raster stack."
+        "classify", help="Apply a trained model to classify a raster stack."
     )
     predict_parser.add_argument(
         "--image",

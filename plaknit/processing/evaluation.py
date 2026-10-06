@@ -66,10 +66,38 @@ def _collect_holdout_metrics(
         commission_rates.append(commission)
     accuracy = accuracy_score(test_labels, predictions)
     auc: Optional[float] = None
-    if len(np.unique(test_labels)) > 1 and 1 in classes:
-        positive_class_index = int(np.flatnonzero(classes == 1)[0])
-        probabilities = model.predict_proba(test_samples)
-        auc = float(roc_auc_score(test_labels, probabilities[:, positive_class_index]))
+
+    # Determine whether to compute ROC AUC:
+    # - If model explicitly sets holdout_supports_auc_ use that
+    # - Otherwise, compute AUC for models exposing predict_proba except RandomForestClassifier
+    supports = getattr(model, "holdout_supports_auc_", None)
+    if supports is None:
+        supports = hasattr(model, "predict_proba") and not isinstance(
+            model, RandomForestClassifier
+        )
+
+    if supports:
+        present = np.unique(test_labels)
+        if len(present) > 1:
+            probabilities = model.predict_proba(test_samples)
+            try:
+                if len(classes) == 2 and 1 in classes:
+                    positive_class_index = int(np.flatnonzero(classes == 1)[0])
+                    auc = float(
+                        roc_auc_score(test_labels, probabilities[:, positive_class_index])
+                    )
+                elif len(classes) > 2 and len(present) == len(classes):
+                    auc = float(
+                        roc_auc_score(
+                            test_labels,
+                            probabilities,
+                            multi_class="ovr",
+                            average="macro",
+                            labels=classes,
+                        )
+                    )
+            except ValueError:
+                auc = None
 
     importances = getattr(model, "feature_importances_", None)
     bands: Optional[List[Tuple[int, float]]]
@@ -120,11 +148,7 @@ def _log_holdout_metrics(model: RandomForestClassifier) -> Optional[Dict[str, An
     _log(
         f"[bold cyan]Holdout evaluation: {metrics['sample_count']:,} samples, "
         f"accuracy {metrics['accuracy']:.3f}"
-        + (
-            f", ROC AUC {metrics['auc']:.3f}"
-            if metrics["auc"] is not None
-            else ", ROC AUC unavailable"
-        )
+        + (f", ROC AUC {metrics['auc']:.3f}" if metrics.get("auc") is not None else "")
     )
     _log("[bold cyan]Confusion matrix (rows=true, cols=pred):")
     _log(_format_confusion_matrix(metrics["matrix"], metrics["labels"]))

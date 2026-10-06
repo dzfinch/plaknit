@@ -123,21 +123,21 @@ Install `plaknit[gpu]` and pass `backend="gpu"` to use CuPy.
 
 ## Random Forest classification
 
-`plaknit classify` trains and applies a Random Forest to multi-band stacks. The CLI
+`plaknit rf` trains and applies a Random Forest to multi-band stacks. The CLI
 accepts one or more `--image` paths; you can pass multiple aligned GeoTIFFs
 directly (or repeat `--image`) or build a VRT first (`gdalbuildvrt stack.vrt band1.tif band2.tif ...`).
 Use `--binary-out` during prediction to output individual binary masks for each class.
 
 ```bash
 # Train (writes a .joblib model)
-plaknit classify train \
+plaknit rf train \
   --image /data/stack.vrt /data/mosaic.tif \
   --labels /data/training_points.gpkg \
   --label-column class \
   --model-out /data/rf_model.joblib
 
-# Predict (writes a classified GeoTIFF of class IDs)
-plaknit classify predict \
+# Classify (writes a classified GeoTIFF of class IDs)
+plaknit rf classify \
   --image /data/stack.vrt /data/mosaic.tif \
   --model /data/rf_model.joblib \
   --output /data/output/classification.tif \

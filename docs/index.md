@@ -32,7 +32,7 @@ spend time answering big questions, not making a big mess of your data.
 -   Run everything from a single CLI (`plaknit`) that works cross-platform (plan, order, mosaic, classify, brt).
 -   Plan PSScene acquisitions per month (`plaknit plan`), auto-simplify ROIs to Planet's 1,500-vertex limit, and submit resilient Planet Orders (`plaknit order`).
 -   Build seamless mosaics (`plaknit mosaic`) with pre-tuned Orfeo Toolbox parameters and RAM hints after masking PlanetScope tiles against their UDM rasters using efficient GDAL workflows.
--   Train and apply Random Forest classifiers (`plaknit classify`) and Boosted Regression Tree ensembles (`plaknit brt`) with optional MRF/Bayesian smoothing on multi-band stacks.
+-   Train and apply Random Forest classifiers (`plaknit rf`) and Boosted Regression Tree ensembles (`plaknit brt`) with optional MRF/Bayesian smoothing on multi-band stacks.
 
 ## Need to run on HPC?
 

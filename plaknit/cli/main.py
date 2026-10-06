@@ -17,7 +17,7 @@ def _print_usage(error: Optional[str] = None) -> int:
     if error:
         print(f"Error: {error}", file=sys.stderr)
     print("Usage: plaknit <command> [options]", file=sys.stderr)
-    print("Commands: brt, classify, plan, order, mosaic", file=sys.stderr)
+    print("Commands: brt, rf, plan, order, mosaic", file=sys.stderr)
     print("Run `plaknit <command> --help` for subcommand options.", file=sys.stderr)
     return 2
 
@@ -38,7 +38,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     subargv: List[str] = args[1:]
     if command == "brt":
         return ensemble_cli.main(subargv)
-    if command == "classify":
+    if command == "rf":
         return classify_cli.main(subargv)
     if command == "plan":
         return planner_cli.main(subargv)
