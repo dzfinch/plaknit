@@ -1,14 +1,17 @@
 """Tests for classification raster-stack helpers."""
 
 import csv
+import geopandas as gpd
 import numpy as np
 import joblib
 import rasterio
 from rasterio.transform import from_origin
+from shapely.geometry import box
 from sklearn.tree import DecisionTreeClassifier
 
 from plaknit.classify import _open_raster_stack, predict_brt, predict_rf
 from plaknit.models.ensemble import BRTEnsemble, _write_feature_importance_csv
+from plaknit.models.rf import train_rf
 from plaknit.processing.evaluation import _collect_holdout_metrics
 
 
@@ -83,6 +86,46 @@ def test_predict_writes_binary_raster_for_each_class(tmp_path):
             np.testing.assert_array_equal(
                 binary.read(1), (classified_data == class_value).astype("uint8")
             )
+
+
+def test_train_rf_preserves_one_based_category_codes(tmp_path):
+    image_path = tmp_path / "image.tif"
+    labels_path = tmp_path / "labels.gpkg"
+    model_path = tmp_path / "model.joblib"
+    output_path = tmp_path / "classified.tif"
+    transform = from_origin(0, 4, 1, 1)
+    data = np.array(
+        [[1, 1, 8, 8], [1, 1, 8, 8], [1, 1, 8, 8], [1, 1, 8, 8]],
+        dtype="uint8",
+    )
+    _write_raster(image_path, data, transform)
+    labels = gpd.GeoDataFrame(
+        {
+            "label": ["pine", "oak"],
+            "geometry": [box(0, 0, 2, 4), box(2, 0, 4, 4)],
+        },
+        crs="EPSG:3857",
+    )
+    labels.to_file(labels_path, driver="GPKG")
+
+    model = train_rf(
+        image_path,
+        labels_path,
+        "label",
+        model_path,
+        test_fraction=0,
+        n_estimators=10,
+        random_state=0,
+    )
+    predict_rf(image_path, model_path, output_path)
+
+    np.testing.assert_array_equal(model.classes_, np.array([1, 2]))
+    assert model.label_decoder == {1: "oak", 2: "pine"}
+    with rasterio.open(output_path) as classified:
+        np.testing.assert_array_equal(
+            classified.read(1),
+            np.array([[2, 2, 1, 1], [2, 2, 1, 1], [2, 2, 1, 1], [2, 2, 1, 1]]),
+        )
 
 
 def test_predict_brt_writes_binary_raster_for_each_class(tmp_path):

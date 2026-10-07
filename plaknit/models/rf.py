@@ -264,10 +264,10 @@ def train_rf(
 
         label_cat = gdf[label_column].astype("category")
         code_column = "__plaknit_label_code__"
-        gdf[code_column] = label_cat.cat.codes
+        gdf[code_column] = label_cat.cat.codes + 1
 
         categories = list(label_cat.cat.categories)
-        decoder = {idx: value for idx, value in enumerate(categories)}
+        decoder = {idx + 1: value for idx, value in enumerate(categories)}
 
         X, y, sample_ids, sample_rows, sample_cols = _collect_training_samples(
             stack,
