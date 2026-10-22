@@ -9,6 +9,7 @@ from ..acquisition import orders as orders_cli
 from ..acquisition import planner as planner_cli
 from . import classify_cli
 from . import ensemble_cli
+from . import landcover_cli
 
 
 def _print_usage(error: Optional[str] = None) -> int:
@@ -17,7 +18,7 @@ def _print_usage(error: Optional[str] = None) -> int:
     if error:
         print(f"Error: {error}", file=sys.stderr)
     print("Usage: plaknit <command> [options]", file=sys.stderr)
-    print("Commands: brt, rf, plan, order, mosaic", file=sys.stderr)
+    print("Commands: brt, rf, plan, order, mosaic, landcover", file=sys.stderr)
     print("Run `plaknit <command> --help` for subcommand options.", file=sys.stderr)
     return 2
 
@@ -46,6 +47,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return orders_cli.main(subargv)
     if command == "mosaic":
         return mosaic_cli.main(subargv)
+
+    if command == "landcover":
+        return landcover_cli.main(subargv)
 
     return _print_usage(f"Unknown command '{command}'.")
 
