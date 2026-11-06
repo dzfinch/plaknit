@@ -8,7 +8,7 @@ import rasterio
 from rasterio.transform import from_origin
 from rasterio.warp import transform as warp_transform
 
-from plaknit.cli import landcover_cli
+from plaknit.cli import compare_cli
 from plaknit.processing import landcover_compare as lc
 
 CRS = "EPSG:32618"
@@ -93,6 +93,9 @@ def test_format_sequence_and_dtype():
     assert lc.pattern_dtype(5) == np.uint8
     assert lc.pattern_dtype(7) == np.uint16
     assert lc.pattern_dtype(10) == np.uint32
+    assert lc.pattern_dtype(16) == np.uint64
+    with pytest.raises(ValueError, match="safely representable"):
+        lc.pattern_dtype(26)
 
 
 # ------------------------------------------------------------- overlap rule
@@ -193,6 +196,54 @@ def test_native_centroids_per_raster_and_boundary_rule():
     assert lc.square_metrics(coarse, 0, 0, 4, 4)["n_cells"] == 4
 
 
+@pytest.mark.parametrize("shift", [0.0, 1.3, 4.9, 7.0, 9.99])
+def test_square_cell_counts_are_shift_invariant(shift):
+    # 300 m square: 3 m -> 10,000, 10 m -> 900, 30 m -> 100 centroids, wherever
+    # the square sits relative to each raster's grid.
+    expected = {3.0: 10000, 10.0: 900, 30.0: 100}
+    for res, count in expected.items():
+        n = int(1200 / res)
+        layer = make_layer(np.ones((n, n), int), res=res, x0=0.0, top=1200.0)
+        cx, cy = 600.0 + shift, 600.0 - shift * 0.7
+        m = lc.square_metrics(layer, cx - 150, cy - 150, cx + 150, cy + 150)
+        assert m["n_cells"] == count
+
+
+def test_metre_raster_reprojection_keeps_native_cell_size(tmp_path, recwarn):
+    # A 10 m raster in another projected CRS lands on a 10 m grid in the common
+    # UTM CRS, so a 300 m square holds 900 centroids.
+    x, y = warp_transform("EPSG:4326", "EPSG:3857", [-82.0], [27.0])
+    merc = write_raster(
+        tmp_path / "merc.tif", np.ones((500, 500)), 10, x[0], y[0], crs="EPSG:3857"
+    )
+    ux, uy = warp_transform("EPSG:4326", "EPSG:32617", [-82.0], [27.0])
+    fine = write_raster(
+        tmp_path / "fine.tif", np.ones((1000, 1000)), 3, ux[0], uy[0], crs="EPSG:32617"
+    )
+    layers, _ = lc.load_layers([fine, merc])
+    reproj = layers[1]
+    assert reproj.reprojected and reproj.res_x == pytest.approx(10.0)
+    assert not [w for w in recwarn if "changed the cell size" in str(w.message)]
+    cx, cy = reproj.left + 1500, reproj.top - 1500
+    n = lc.square_metrics(reproj, cx - 150, cy - 150, cx + 150, cy + 150)["n_cells"]
+    assert n == 900
+
+
+def test_reprojection_preserving_cell_size_keeps_counts(tmp_path, recwarn):
+    ux, uy = warp_transform("EPSG:4326", "EPSG:32617", [-82.0], [27.0])
+    fine = write_raster(
+        tmp_path / "fine.tif", np.ones((1000, 1000)), 3, ux[0], uy[0], crs="EPSG:32617"
+    )
+    other = write_raster(
+        tmp_path / "s10.tif", np.ones((500, 500)), 10, ux[0], uy[0], crs="EPSG:26917"
+    )
+    layers, _ = lc.load_layers([fine, other])
+    assert not [w for w in recwarn if "changed the cell size" in str(w.message)]
+    s = layers[1]
+    cx, cy = s.left + 1500, s.top - 1500
+    assert lc.square_metrics(s, cx - 150, cy - 150, cx + 150, cy + 150)["n_cells"] == 900
+
+
 def test_intersect_window_includes_edge_cells():
     layer = make_layer(np.zeros((10, 10), int), res=1.0)
     assert lc.intersect_window(layer, 2.5, 2.5, 5.5, 5.5)[2:] == (2, 5)
@@ -273,7 +324,22 @@ def test_search_limit_reported_without_impossibility_claim(tmp_path):
     assert sel.found < 50
     assert sel.search_limit == 40 and sel.draws == 40
     assert sel.limit_reached
+    assert "search limit: 40" in sel.message
     assert "Found" in sel.message and "does not show" in sel.message
+
+
+def test_search_limit_must_be_positive(tmp_path):
+    paths = make_rasters(tmp_path, 2)
+    layers, finest = lc.load_layers(paths)
+    with pytest.raises(ValueError, match="search_limit must be at least 1"):
+        lc.select_squares(layers, finest, 60, 2, search_limit=0)
+
+
+def test_square_width_must_be_finite(tmp_path):
+    paths = make_rasters(tmp_path, 2)
+    layers, finest = lc.load_layers(paths)
+    with pytest.raises(ValueError, match="width_m must be positive"):
+        lc.select_squares(layers, finest, float("nan"), 2)
 
 
 def test_width_smaller_than_coarse_cell_errors(tmp_path):
@@ -463,10 +529,24 @@ def test_blocks_and_parallel_match_serial(tmp_path, n_jobs, block_rows):
 
 def test_cli(tmp_path, capsys):
     paths = make_rasters(tmp_path, 3)
-    code = landcover_cli.main(
-        ["--rasters", *paths, "--out-dir", str(tmp_path / "cli"),
-         "--width", "30", "--samples", "3", "--seed", "1"]
+    args = ["spatial"]
+    for i, path in enumerate(paths):
+        label = f"input{i + 1}"
+        args.extend(["--input", f"{label}={path}"])
+    args.extend(
+        [
+            "--out-dir",
+            str(tmp_path / "cli"),
+            "--width",
+            "30",
+            "--samples",
+            "3",
+            "--seed",
+            "1",
+        ]
     )
+    code = compare_cli.main(args)
     assert code == 0
     assert "Selected" in capsys.readouterr().out
-    assert (tmp_path / "cli" / "landcover_agreement.tif").exists()
+    assert (tmp_path / "cli" / "compare_agreement.tif").exists()
+

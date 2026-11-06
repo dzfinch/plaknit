@@ -1,5 +1,171 @@
 # Usage
 
+## Land-cover comparison
+
+Land-cover comparison has two classification modes plus a reflectance command.
+Spatial mode compares classifications from different sources (for example
+different sensors); temporal mode compares classifications from different
+dates. Each input has a unique label, and the label identifies the input in
+tables, plots, and metadata. Temporal inputs additionally require a keyed date.
+This avoids positional metadata ambiguity for three or more inputs.
+
+### Spatial mode
+
+```bash
+plaknit compare spatial \
+  --input planet=planet_class.tif \
+  --input sentinel=sentinel_class.tif \
+  --out-dir ./spatial_compare/ \
+  --width 100 --samples 100 --seed 42
+```
+
+Spatial mode does not take dates. Tables and plots are grouped by input label,
+so choose labels that name the sensor or source.
+
+### Temporal mode
+
+```bash
+plaknit compare temporal \
+  --input june=class_2023_06.tif --date june=2023-06-15 \
+  --input july=class_2024_07.tif --date july=2024-07-15 \
+  --group-by year \
+  --out-dir ./temporal_compare/ \
+  --width 100 --samples 100 --seed 42
+```
+
+All inputs must have distinct ISO dates.
+`--group-by date|year` controls temporal table and plot labels (default:
+`date`).
+
+### Inputs and analysis options
+
+- Repeat `--input LABEL=CLASSIFICATION.tif` for each input. Labels must be
+  unique. Temporal mode also requires `--date LABEL=YYYY-MM-DD` for each
+  input; spatial mode does not accept or record dates. Input order is retained
+  in outputs.
+- `--width` is square width in metres (default 100); `--samples` is the number
+  of non-overlapping squares requested (default 100); `--seed` controls
+  reproducible selection and sampling (default 42). `--search-limit` caps
+  candidate centers (default `100 x samples`). If the limit is reached before
+  finding the requested count, the message reports the count and limit; this
+  does not prove that more squares are impossible.
+- `--classes` restricts allowed classification codes; `--no-reproject`
+  rejects classification CRS mismatches; `--n-jobs` controls agreement
+  workers (`-1` uses all CPUs); `--block-rows` sets agreement raster block
+  processing.
+- `--patch-min-area-m2` filters exported disagreement patches (default 0,
+  retaining all sizes). All patches use four-neighbor connectivity; NoData
+  separates patches.
+
+At least two rasters are required. Classifications must contain integer class
+codes (or whole-number floats), have north-up grids, and be in CRS units
+suitable for area and distance calculations. The comparison aligns differing
+CRSs to the finest projected input in metres with nearest-neighbor resampling.
+Class meanings are **not** inferred or verified: matching numeric codes are
+assumed comparable, so supply classifications with a shared code scheme.
+Different class-code sets are reported; inputs with no shared codes are
+rejected.
+
+### Common footprint and square metrics
+
+The common classification footprint is the intersection of input extents.
+For whole-raster metrics, each classification uses its native grid: a native
+cell is included when its centroid is in that extent and the containing cell
+at the same point is valid in every other classification. The per-input valid
+area and exclusions are recorded. Invalid pixels in other rasters never change
+classification-only metrics or agreement.
+
+Square centers are randomly selected from finest-grid cell centroids. Each
+square is fully inside the common extent, does not overlap another selected
+square (touching is allowed), and is accepted only when every classification
+cell whose interior intersects it is valid. Square-level landscape metrics
+and reflectance summaries retain the square ID. Square class metrics use each
+classification's native cells whose centroids lie in that square; west and
+north centroid boundaries are included, east and south are excluded. Existing
+square metrics retain deterministic majority ties (smallest class code),
+Shannon entropy in bits, and complexity (unlike shared edge length among
+included adjacent cells divided by geometric square area). Complexity is not
+pylandstats edge density.
+
+`*_class_metrics.csv` has one row per input and class (for example 3 inputs
+× 6 classes = 18 rows) with whole-raster `area_m2`, `proportion_pct`,
+`patch_count`, and `patch_density` (patches/ha). Patch adjacency is
+four-neighbor; denominators are the common-footprint native-cell area, and
+classes absent from an input get zero values. `*_squares_metrics.csv` holds the
+per-square pylandstats metrics (class proportion and patch density, landscape
+edge density) with the outer landscape boundary and NoData borders excluded
+from edge density (`count_boundary=False`). Native-resolution patch and edge
+differences can reflect resolution as well as classification differences.
+
+### Compare reflectance
+
+```bash
+plaknit compare reflectance \
+  --input planet=planet_class.tif --raster planet:red=planet_red.tif \
+  --raster planet:ndvi=planet_ndvi.tif \
+  --input sentinel=sentinel_class.tif --raster sentinel:red=sentinel_red.tif \
+  --raster sentinel:ndvi=sentinel_ndvi.tif \
+  --out-dir ./reflectance_compare/ --seed 42
+```
+
+This is a separate command from the spatial and temporal modes, which compare
+classifications only. Each `--raster LABEL:NAME=PATH` is a single-band
+continuous raster (reflectance band, NDVI, other index) tied to an input label;
+a `NAME` must be given for at least two inputs. Rasters must exactly match
+their classification grid (CRS, transform, width, height); if a classification
+is reprojected for comparison, values are bilinear-resampled with a
+nearest-neighbor validity mask. Options: `--out-dir`, `--prefix` (default
+`reflectance`), `--seed` (default 42), `--classes`, and `--no-reproject`.
+
+Scaling to 0-1 is automatic. The raster's GDAL scale/offset metadata
+(`value * scale + offset`) is used when it is declared and maps all valid
+values into 0-1. Otherwise (no metadata, or metadata that does not give 0-1) the
+raster's valid pixels are min/max scaled and a warning is issued. The method and
+parameters are recorded per raster in the metadata. Min/max scaling makes values
+relative to each raster's own range, so outliers compress the range and
+indices such as NDVI are distorted; prefer rasters with scale/offset metadata.
+A constant raster cannot be min/max scaled and raises an error.
+
+For each input, class, and raster name, a seeded random 95% sample of eligible
+pixels is drawn; eligible pixels are in the common classification footprint
+and valid in every input supplying that name. The summary reports eligible and
+sampled counts with the median and lower/upper quartiles. For each input pair,
+shared raster name, and class, an unpaired two-sided Mann-Whitney U test
+compares the samples, reported with a rank-biserial effect size
+(`2U/(n_a n_b) - 1`, positive when A tends to exceed B), a median difference
+(B minus A), and Benjamini-Hochberg-adjusted p-values. Groups with fewer than
+5 sampled pixels are marked `insufficient_pixels`. Adjacent pixels are spatially
+autocorrelated, so the p-values are overstated; rely on the effect size.
+Class masks come from each input's own classification, so the same class code
+need not cover the same locations.
+
+Outputs: `*_class_summary.csv`, `*_mann_whitney.csv`, one boxplot PNG per raster
+and class, and `*_metadata.json` (seed, scaling, definitions, caveats).
+
+### Agreement and output files
+
+- `*_squares.csv` and `*_squares.gpkg`: square IDs, geometries, centers, and
+  existing per-input native-resolution majority, entropy, complexity, and
+  cell counts.
+- `*_class_metrics.csv`: per-class whole-raster metrics, one row per input and
+  class. `*_squares_metrics.csv`: square-level pylandstats outputs.
+- `*_agreement.tif` and `*_agreement_legend.csv`: categorical agreement on
+  the finest input's native grid and a legend mapping numeric pattern IDs to
+  complete canonical grouping sequences. IDs are labels, not sequences.
+- `*_agreement_overview.csv`: one row with valid area, full-agreement and
+  disagreement area/fraction, distinct pattern count, and disagreement patch
+  count. `*_agreement_squares.csv` and `.gpkg` report each
+  square's full-agreement fraction, disagreement fraction, and leading
+  patterns.
+- `*_metadata.json`: mode, ordered inputs, dates, resolutions,
+  common valid areas, exclusions, seeds, thresholds, and metric definitions.
+
+This is **inter-input agreement**, not classification accuracy unless
+independent ground truth is supplied. Fine-grid cells inheriting a coarser
+input's class are not independent observations. Rasters are read into memory.
+The former `plaknit landcover` command was removed; migrate to one of the two
+`plaknit compare` modes.
+
 ## Planning Monthly Planet Composites
 
 `plaknit plan` queries Planet's Data/STAC API, filters PSScene candidates, tiles the AOI, and picks the smallest monthly set that meets both coverage and clear-observation targets. Planning now only writes/prints a plan; ordering is handled separately by `plaknit order`.

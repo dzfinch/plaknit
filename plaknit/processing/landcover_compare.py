@@ -35,7 +35,6 @@ from rasterio.warp import calculate_default_transform, reproject
 EPS = 1e-9
 DEFAULT_SEARCH_FACTOR = 100
 LEGEND_FULL_LIMIT = 10000
-MAX_RASTERS = 15  # Bell(15) still fits in uint32
 
 
 # --------------------------------------------------------------------------- #
@@ -150,14 +149,18 @@ def align_to_crs(layer: Layer, target_crs: CRS) -> Layer:
     """Reproject ``layer`` to ``target_crs`` with nearest-neighbour resampling.
 
     Class codes are never interpolated. Validity is reprojected as a separate
-    mask so cells with no source coverage become NoData. The output cell size is
-    chosen by GDAL's default transform (close to the source cell size).
+    mask so cells with no source coverage become NoData. Metre-based sources keep
+    their nominal cell size; others (e.g. geographic) use GDAL's default size.
     """
     if layer.crs == target_crs:
         return layer
     height, width = layer.data.shape
+    kwargs = {}
+    if layer.crs.is_projected and layer.crs.linear_units_factor[1] == 1.0:
+        # Keep the nominal metre cell size so per-square counts match the source grid.
+        kwargs["resolution"] = (layer.res_x, layer.res_y)
     dst_transform, dst_w, dst_h = calculate_default_transform(
-        layer.crs, target_crs, width, height, *layer.bounds
+        layer.crs, target_crs, width, height, *layer.bounds, **kwargs
     )
     src_data = layer.data
     if src_data.dtype.itemsize > 4:
@@ -219,7 +222,9 @@ def _unique_labels(paths: Sequence[str]) -> List[str]:
 
 
 def load_layers(
-    paths: Sequence, reproject_to_finest: bool = True
+    paths: Sequence,
+    reproject_to_finest: bool = True,
+    labels: Optional[Sequence[str]] = None,
 ) -> Tuple[List[Layer], int]:
     """Load rasters in input order; return ``(layers, finest_index)``.
 
@@ -230,8 +235,7 @@ def load_layers(
     paths = [str(p) for p in paths]
     if len(paths) < 2:
         raise ValueError("At least two rasters are required.")
-    if len(paths) > MAX_RASTERS:
-        raise ValueError(f"At most {MAX_RASTERS} rasters are supported.")
+    pattern_dtype(len(paths))
     infos = [inspect_raster(p) for p in paths]
     projected = [i for i, info in enumerate(infos) if info["projected"]]
     if not projected:
@@ -243,9 +247,12 @@ def load_layers(
     # compete to be the finest; the others are checked after reprojection.
     finest = min(projected, key=lambda i: infos[i]["res_x"] * infos[i]["res_y"])
     target = infos[finest]["crs"]
-    labels = _unique_labels(paths)
+    if labels is None:
+        labels = _unique_labels(paths)
+    elif len(labels) != len(paths) or len(set(labels)) != len(labels):
+        raise ValueError("Raster labels must be unique and match the input count.")
     layers = []
-    for p, info, label in zip(paths, infos, labels):
+    for layer_index, (p, label) in enumerate(zip(paths, labels)):
         layer = _read_layer(p, label)
         if layer.crs != target:
             if not reproject_to_finest:
@@ -253,7 +260,19 @@ def load_layers(
                     f"{p}: CRS differs from the finest raster's CRS and "
                     "reprojection is disabled."
                 )
+            native_res = (infos[layer_index]["res_x"], infos[layer_index]["res_y"])
             layer = align_to_crs(layer, target)
+            if (
+                abs(layer.res_x - native_res[0]) > 0.01 * native_res[0]
+                or abs(layer.res_y - native_res[1]) > 0.01 * native_res[1]
+            ):
+                warnings.warn(
+                    f"{p}: reprojection changed the cell size from "
+                    f"{native_res[0]:.4g} x {native_res[1]:.4g} (source CRS units) to "
+                    f"{layer.res_x:.4g} x {layer.res_y:.4g} m; per-square cell counts "
+                    "reflect the reprojected grid, not the source grid.",
+                    stacklevel=2,
+                )
             if layer.cell_area < infos[finest]["res_x"] * infos[finest]["res_y"] - EPS:
                 raise ValueError(
                     f"{p}: after reprojection its cells ({layer.res_x:.3g} x "
@@ -442,14 +461,20 @@ def select_squares(
     (``numpy.random.default_rng(seed)``); at most ``search_limit`` candidates
     (default ``100 * n_samples``) are examined.
     """
-    if width_m <= 0 or n_samples < 1:
+    if not math.isfinite(width_m) or width_m <= 0 or n_samples < 1:
         raise ValueError("width_m must be positive and n_samples at least 1.")
+    if search_limit is not None and int(search_limit) < 1:
+        raise ValueError("search_limit must be at least 1 when provided.")
     coarsest = max(max(l.res_x, l.res_y) for l in layers)
     if width_m < coarsest:
         raise ValueError(
             f"Square width {width_m} m is smaller than the coarsest cell ({coarsest} m)."
         )
-    limit = int(search_limit) if search_limit else DEFAULT_SEARCH_FACTOR * n_samples
+    limit = (
+        int(search_limit)
+        if search_limit is not None
+        else DEFAULT_SEARCH_FACTOR * n_samples
+    )
     fine = layers[finest_index]
     cxmin, cymin, cxmax, cymax = common_bounds(layers)
     half = width_m / 2.0
@@ -496,14 +521,14 @@ def _message(centers, requested, draws, limit, pool) -> str:
     if found >= requested:
         return f"Selected {found} squares after examining {draws} candidate centres."
     reason = (
-        f"the search limit of {limit} candidate centres was reached"
+        "the search limit was reached"
         if draws >= limit and limit < pool
         else "all eligible candidate centres were examined"
     )
     return (
         f"Found {found} of {requested} requested squares after examining {draws} "
-        f"candidate centres ({reason}). This does not show that more squares "
-        "cannot exist."
+        f"candidate centres (search limit: {limit}; {reason}). This does not show "
+        "that more squares cannot exist."
     )
 
 
@@ -616,12 +641,12 @@ def pattern_ids(groups: np.ndarray) -> np.ndarray:
     rasters, so they are data-independent. They are labels, not the sequence.
     """
     n = groups.shape[0]
-    rank = np.zeros(groups.shape[1:], dtype=np.int64)
+    rank = np.zeros(groups.shape[1:], dtype=np.uint64)
     current_max = np.zeros(groups.shape[1:], dtype=np.int64)
     for i in range(n):
         g = groups[i]
         table = np.array(
-            [_completions(n - i - 1, m) for m in range(n + 1)], dtype=np.int64
+            [_completions(n - i - 1, m) for m in range(n + 1)], dtype=np.uint64
         )
         for v in range(1, n + 1):
             rank += np.where(v < g, table[np.maximum(current_max, v)], 0)
@@ -662,10 +687,13 @@ def format_sequence(seq: Sequence[int], compact: bool = False) -> str:
 def pattern_dtype(n_rasters: int) -> np.dtype:
     """Smallest unsigned dtype that can hold every pattern ID (0 is NoData)."""
     top = bell_number(n_rasters)
-    for dtype in (np.uint8, np.uint16, np.uint32):
+    for dtype in (np.uint8, np.uint16, np.uint32, np.uint64):
         if top <= np.iinfo(dtype).max:
             return np.dtype(dtype)
-    raise ValueError(f"Pattern IDs for {n_rasters} rasters are not representable.")
+    raise ValueError(
+        f"Bell({n_rasters}) pattern IDs exceed the largest safely representable "
+        "GeoTIFF unsigned integer."
+    )
 
 
 def compute_agreement_block(
@@ -861,11 +889,12 @@ def compare_landcover(
     prefix: str = "landcover",
     n_jobs: Optional[int] = 1,
     block_rows: int = 512,
+    labels: Optional[Sequence[str]] = None,
 ) -> CompareResult:
     """Run the full comparison workflow and write all outputs to ``out_dir``."""
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    layers, finest = load_layers(raster_paths, reproject_to_finest)
+    layers, finest = load_layers(raster_paths, reproject_to_finest, labels)
     validate_class_codes(layers, classes)
     selection = select_squares(layers, finest, width_m, n_samples, seed, search_limit)
     records = square_records(layers, selection.centers, width_m)
