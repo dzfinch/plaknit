@@ -81,12 +81,6 @@ def _add_common_options(parser: argparse.ArgumentParser) -> None:
         default=512,
         help="Agreement rows per processing block.",
     )
-    parser.add_argument(
-        "--patch-min-area-m2",
-        type=float,
-        default=0.0,
-        help="Minimum disagreement patch area to export (default: retain all).",
-    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -124,7 +118,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--group-by",
         choices=("date", "year"),
         default="date",
-        help="Temporal output grouping (default: acquisition date).",
+        help="Temporal grouping recorded in metadata (default: acquisition date).",
     )
     reflectance = commands.add_parser(
         "reflectance",
@@ -253,7 +247,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             n_jobs=args.n_jobs,
             block_rows=args.block_rows,
             group_by=getattr(args, "group_by", "date"),
-            patch_min_area_m2=args.patch_min_area_m2,
         )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))

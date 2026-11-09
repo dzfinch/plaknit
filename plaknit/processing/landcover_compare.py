@@ -406,17 +406,36 @@ def edge_length_between_classes(block: np.ndarray, res_x: float, res_y: float) -
 def square_metrics(
     layer: Layer, xmin: float, ymin: float, xmax: float, ymax: float
 ) -> Dict[str, float]:
-    """Majority class, entropy and spatial complexity from native cell centroids."""
+    """Majority class and PyLandStats diversity metrics on native cell centroids."""
+    import pylandstats
+
     r0, r1, c0, c1 = centroid_window(layer, xmin, ymin, xmax, ymax)
     block = layer.data[r0 : r1 + 1, c0 : c1 + 1]
     if block.size == 0:
         raise ValueError("Square contains no cell centroids for this raster.")
     classes, counts = np.unique(block, return_counts=True)
-    area = (xmax - xmin) * (ymax - ymin)
+    if len(classes) == 1:
+        shannon, joint = 0.0, 0.0
+    else:
+        nodata = np.iinfo(np.int64).min
+        while nodata in classes:
+            nodata += 1
+        landscape = pylandstats.Landscape(
+            np.asarray(block, dtype=np.int64),
+            res=(layer.res_x, layer.res_y),
+            nodata=nodata,
+            neighborhood_rule="4",
+        )
+        shannon = float(landscape.shannon_diversity_index())
+        joint = float(landscape.joint_entropy())
+        if not math.isfinite(shannon) or not math.isfinite(joint):
+            raise ValueError(
+                f"{layer.label}: PyLandStats returned a non-finite square diversity metric."
+            )
     return {
         "majority": int(classes[int(np.argmax(counts))]),
-        "entropy": shannon_entropy(counts),
-        "complexity": edge_length_between_classes(block, layer.res_x, layer.res_y) / area,
+        "shannon_diversity_index": shannon,
+        "joint_entropy": joint,
         "n_cells": int(block.size),
     }
 
@@ -724,6 +743,8 @@ class CompareResult:
     agreement_tif: Path
     legend_csv: Path
     layers: List[Layer] = field(default_factory=list)
+    finest_index: int = 0
+    agreement_counts: Dict[int, int] = field(default_factory=dict)
 
 
 def square_records(
@@ -744,20 +765,23 @@ def square_records(
         for layer in layers:
             m = square_metrics(layer, cx - half, cy - half, cx + half, cy + half)
             rec[f"{layer.label}_majority"] = m["majority"]
-            rec[f"{layer.label}_entropy"] = m["entropy"]
-            rec[f"{layer.label}_complexity"] = m["complexity"]
+            rec[f"{layer.label}_shannon_diversity_index"] = m["shannon_diversity_index"]
+            rec[f"{layer.label}_joint_entropy"] = m["joint_entropy"]
             rec[f"{layer.label}_n_cells"] = m["n_cells"]
         records.append(rec)
     return records
 
 
-def _write_squares(records, crs, gpkg: Path, csv_path: Path) -> None:
+def _write_squares(records, crs, gpkg: Path, csv_path: Path, columns=None) -> None:
     import geopandas as gpd
     from shapely.geometry import box
 
-    columns = list(records[0].keys()) if records else [
-        "square_id", "center_x", "center_y", "xmin", "ymin", "xmax", "ymax"
-    ]
+    if columns is None:
+        columns = (
+            list(records[0].keys())
+            if records
+            else ["square_id", "center_x", "center_y", "xmin", "ymin", "xmax", "ymax"]
+        )
     with open(csv_path, "w", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=columns)
         writer.writeheader()
@@ -897,10 +921,50 @@ def compare_landcover(
     layers, finest = load_layers(raster_paths, reproject_to_finest, labels)
     validate_class_codes(layers, classes)
     selection = select_squares(layers, finest, width_m, n_samples, seed, search_limit)
-    records = square_records(layers, selection.centers, width_m)
-    gpkg, csv_path = out / f"{prefix}_squares.gpkg", out / f"{prefix}_squares.csv"
-    _write_squares(records, layers[finest].crs, gpkg, csv_path)
-    tif, legend = out / f"{prefix}_agreement.tif", out / f"{prefix}_agreement_legend.csv"
+    tif, legend = (
+        out / f"{prefix}_agreement.tif",
+        out / f"{prefix}_agreement_legend.csv",
+    )
     counts = write_agreement(layers, finest, tif, block_rows, n_jobs)
     write_legend(legend, layers, counts)
-    return CompareResult(selection, gpkg, csv_path, tif, legend, list(layers))
+    records = square_records(layers, selection.centers, width_m)
+    fine = layers[finest]
+    with rasterio.open(tif) as src:
+        for record, (cx, cy) in zip(records, selection.centers):
+            half = width_m / 2.0
+            r0, r1, c0, c1 = centroid_window(
+                fine, cx - half, cy - half, cx + half, cy + half
+            )
+            r0, c0 = max(0, r0), max(0, c0)
+            r1, c1 = min(fine.height - 1, r1), min(fine.width - 1, c1)
+            if r0 <= r1 and c0 <= c1:
+                block = src.read(
+                    1, window=rasterio.windows.Window(c0, r0, c1 - c0 + 1, r1 - r0 + 1)
+                )
+                valid = block[block > 0]
+            else:
+                valid = np.array([], dtype=np.uint8)
+            fraction = (
+                float(np.count_nonzero(valid == 1) / valid.size) if valid.size else None
+            )
+            record["full_agreement_fraction"] = fraction
+            record["disagreement_fraction"] = (
+                1.0 - fraction if fraction is not None else None
+            )
+    columns = ["square_id", "center_x", "center_y", "xmin", "ymin", "xmax", "ymax"]
+    for layer in layers:
+        columns.extend(
+            f"{layer.label}_{suffix}"
+            for suffix in (
+                "majority",
+                "shannon_diversity_index",
+                "joint_entropy",
+                "n_cells",
+            )
+        )
+    columns.extend(["full_agreement_fraction", "disagreement_fraction"])
+    gpkg, csv_path = out / f"{prefix}_squares.gpkg", out / f"{prefix}_squares.csv"
+    _write_squares(records, fine.crs, gpkg, csv_path, columns)
+    return CompareResult(
+        selection, gpkg, csv_path, tif, legend, list(layers), finest, counts
+    )

@@ -3,6 +3,7 @@ import math
 
 import numpy as np
 import pandas as pd
+import pylandstats
 import pytest
 import rasterio
 from rasterio.transform import from_origin
@@ -160,7 +161,14 @@ def test_overlap_not_nearest_neighbour():
 def make_layer(arr, res=1.0, x0=0.0, top=None, valid=None):
     top = arr.shape[0] * res if top is None else top
     valid = np.ones(arr.shape, bool) if valid is None else valid
-    return lc.Layer("x", "x", arr, valid, from_origin(x0, top, res, res), rasterio.crs.CRS.from_epsg(32618))
+    return lc.Layer(
+        "x",
+        "x",
+        arr,
+        valid,
+        from_origin(x0, top, res, res),
+        rasterio.crs.CRS.from_epsg(32618),
+    )
 
 
 def test_metrics_values():
@@ -168,17 +176,65 @@ def test_metrics_values():
     layer = make_layer(arr)
     m = lc.square_metrics(layer, 0, 0, 4, 4)
     assert m["majority"] == 1  # 8/8 tie -> smallest code
-    assert m["entropy"] == pytest.approx(1.0)
-    assert m["complexity"] == pytest.approx(4 / 16)  # 4 shared edges of length 1
+    expected = pylandstats.Landscape(
+        arr, res=(1, 1), nodata=-999, neighborhood_rule="4"
+    )
+    assert m["shannon_diversity_index"] == pytest.approx(
+        expected.shannon_diversity_index()
+    )
+    assert m["joint_entropy"] == pytest.approx(expected.joint_entropy())
+    assert m["shannon_diversity_index"] == pytest.approx(math.log(2))
+    assert m["joint_entropy"] != pytest.approx(4 / 16)
     uniform = make_layer(np.full((4, 4), 3))
     mu = lc.square_metrics(uniform, 0, 0, 4, 4)
-    assert (mu["majority"], mu["entropy"], mu["complexity"]) == (3, 0.0, 0.0)
+    assert (mu["majority"], mu["shannon_diversity_index"], mu["joint_entropy"]) == (
+        3,
+        0.0,
+        0.0,
+    )
     checker = make_layer(np.indices((2, 2)).sum(0) % 2)
-    assert lc.square_metrics(checker, 0, 0, 2, 2)["complexity"] == pytest.approx(4 / 4)
+    checker_metrics = lc.square_metrics(checker, 0, 0, 2, 2)
+    assert checker_metrics["shannon_diversity_index"] == pytest.approx(math.log(2))
+    assert checker_metrics["joint_entropy"] == pytest.approx(1.0)
     thirds = make_layer(np.array([[1, 2, 3]]))
     assert lc.shannon_entropy([1, 1, 1]) == pytest.approx(math.log2(3))
-    assert lc.square_metrics(thirds, 0, 0, 3, 1)["entropy"] == pytest.approx(math.log2(3))
+    metrics = lc.square_metrics(thirds, 0, 0, 3, 1)
+    expected = pylandstats.Landscape(
+        thirds.data, res=(1, 1), nodata=-999, neighborhood_rule="4"
+    )
+    assert metrics["shannon_diversity_index"] == pytest.approx(
+        expected.shannon_diversity_index()
+    )
+    assert metrics["joint_entropy"] == pytest.approx(expected.joint_entropy())
     assert lc.majority_class(np.array([5, 5, 2, 2, 9])) == 2
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        [[0, 0, 1], [1, 2, 2]],
+        [[-3, 0], [1, -3]],
+        [[1, 1, 1], [1, 1, 2]],
+    ],
+)
+def test_square_diversity_matches_pylandstats(values):
+    arr = np.array(values)
+    layer = make_layer(arr, res=3)
+    actual = lc.square_metrics(layer, 0, 0, arr.shape[1] * 3, arr.shape[0] * 3)
+    landscape = pylandstats.Landscape(
+        arr, res=(3, 3), nodata=np.iinfo(np.int64).min, neighborhood_rule="4"
+    )
+    assert actual["shannon_diversity_index"] == pytest.approx(
+        landscape.shannon_diversity_index()
+    )
+    assert actual["joint_entropy"] == pytest.approx(landscape.joint_entropy())
+
+
+def test_single_cell_diversity_is_zero():
+    layer = make_layer(np.array([[0]]))
+    metrics = lc.square_metrics(layer, 0, 0, 1, 1)
+    assert metrics["shannon_diversity_index"] == 0
+    assert metrics["joint_entropy"] == 0
 
 
 def test_native_centroids_per_raster_and_boundary_rule():
@@ -451,8 +507,42 @@ def test_end_to_end_outputs(tmp_path, n):
     assert len(df) == len(gdf) == res.selection.found > 0
     assert df["square_id"].tolist() == list(range(1, len(df) + 1))
     for l in layers:
-        for suffix in ("majority", "entropy", "complexity", "n_cells"):
+        for suffix in (
+            "majority",
+            "shannon_diversity_index",
+            "joint_entropy",
+            "n_cells",
+        ):
             assert f"{l.label}_{suffix}" in df.columns
+            assert f"{l.label}_{suffix}" in gdf.columns
+        assert f"{l.label}_entropy" not in df.columns
+        assert f"{l.label}_complexity" not in df.columns
+        for suffix in ("shannon_diversity_index", "joint_entropy"):
+            assert df[f"{l.label}_{suffix}"].to_numpy() == pytest.approx(
+                gdf[f"{l.label}_{suffix}"].to_numpy()
+            )
+        for row in df.itertuples(index=False):
+            r0, r1, c0, c1 = lc.centroid_window(
+                l, row.xmin, row.ymin, row.xmax, row.ymax
+            )
+            block = l.data[r0 : r1 + 1, c0 : c1 + 1]
+            if np.unique(block).size < 2:
+                shannon, joint = 0.0, 0.0
+            else:
+                landscape = pylandstats.Landscape(
+                    block,
+                    res=(l.res_x, l.res_y),
+                    nodata=np.iinfo(np.int64).min,
+                    neighborhood_rule="4",
+                )
+                shannon, joint = (
+                    landscape.shannon_diversity_index(),
+                    landscape.joint_entropy(),
+                )
+            assert getattr(row, f"{l.label}_shannon_diversity_index") == pytest.approx(
+                shannon
+            )
+            assert getattr(row, f"{l.label}_joint_entropy") == pytest.approx(joint)
     assert all(abs(g.area - 900) < 1e-6 for g in gdf.geometry)
     assert gdf.crs.to_epsg() == 32618
 
@@ -465,7 +555,10 @@ def test_end_to_end_outputs(tmp_path, n):
         arr = ds.read(1)
     legend = pd.read_csv(res.legend_csv, dtype={"compact_sequence": str})
     assert len(legend) == lc.bell_number(n)
-    seqs = {int(r.pattern_id): tuple(int(x) for x in r.grouping_sequence.split("-")) for r in legend.itertuples()}
+    seqs = {
+        int(r.pattern_id): tuple(int(x) for x in r.grouping_sequence.split("-"))
+        for r in legend.itertuples()
+    }
     assert legend["cell_count"].sum() == (arr > 0).sum()
 
     # Verify sampled pixels against brute-force overlap selection.
@@ -549,4 +642,3 @@ def test_cli(tmp_path, capsys):
     assert code == 0
     assert "Selected" in capsys.readouterr().out
     assert (tmp_path / "cli" / "compare_agreement.tif").exists()
-

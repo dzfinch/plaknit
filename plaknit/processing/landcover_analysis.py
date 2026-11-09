@@ -7,12 +7,12 @@ import json
 import re
 from dataclasses import dataclass
 from datetime import date
+from importlib.metadata import version
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 import rasterio
-from scipy import ndimage
 
 from . import landcover_compare as lc
 
@@ -34,7 +34,6 @@ def _validate_specs(
     mode: str,
     inputs: Sequence[InputSpec],
     group_by: str,
-    patch_min_area_m2: float,
 ) -> List[date]:
     if mode not in ("spatial", "temporal"):
         raise ValueError("mode must be 'spatial' or 'temporal'.")
@@ -65,8 +64,6 @@ def _validate_specs(
             )
         if group_by not in ("date", "year"):
             raise ValueError("Temporal group_by must be 'date' or 'year'.")
-    if patch_min_area_m2 < 0:
-        raise ValueError("--patch-min-area-m2 cannot be negative.")
     return dates
 
 
@@ -100,143 +97,6 @@ def _native_common_mask(layers: Sequence[lc.Layer], index: int) -> np.ndarray:
             & other.valid[rows[:, None], cols[None, :]]
         )
     return common
-
-
-def _pylandstats_metrics(
-    layer: lc.Layer,
-    mask: np.ndarray,
-    xmin: float,
-    ymin: float,
-    xmax: float,
-    ymax: float,
-    input_label: str,
-    square_id: Optional[int],
-) -> List[Dict[str, object]]:
-    import pylandstats
-
-    if square_id is None:
-        r0, r1, c0, c1 = lc.intersect_window(layer, xmin, ymin, xmax, ymax)
-    else:
-        r0, r1, c0, c1 = lc.centroid_window(layer, xmin, ymin, xmax, ymax)
-    r0, c0 = max(r0, 0), max(c0, 0)
-    r1, c1 = min(r1, layer.height - 1), min(c1, layer.width - 1)
-    if r0 > r1 or c0 > c1:
-        return []
-    selected = mask[r0 : r1 + 1, c0 : c1 + 1]
-    if not selected.any():
-        return []
-    data = layer.data[r0 : r1 + 1, c0 : c1 + 1]
-    classes = sorted(int(value) for value in np.unique(data[selected]))
-    nodata = np.iinfo(np.int64).min
-    while nodata in classes:
-        nodata += 1
-    array = np.asarray(data, dtype=np.int64).copy()
-    array[~selected] = nodata
-    landscape = pylandstats.Landscape(
-        array,
-        res=(layer.res_x, layer.res_y),
-        nodata=nodata,
-        neighborhood_rule="4",
-    )
-    class_metrics = landscape.compute_class_metrics_df(
-        metrics=["proportion_of_landscape", "patch_density"],
-        classes=classes,
-        metrics_kwargs={"patch_density": {"percent": False, "hectares": True}},
-    )
-    landscape_metrics = landscape.compute_landscape_metrics_df(
-        metrics=["edge_density"],
-        metrics_kwargs={
-            "edge_density": {"count_boundary": False, "hectares": True}
-        },
-    )
-    valid_area = float(selected.sum() * layer.cell_area)
-    common = {
-        "input_label": input_label,
-        "square_id": square_id,
-        "resolution_x_m": layer.res_x,
-        "resolution_y_m": layer.res_y,
-        "valid_area_m2": valid_area,
-        "valid_cell_count": int(selected.sum()),
-        "boundary_rule": "4-neighbor; outer landscape and NoData borders excluded",
-    }
-    rows: List[Dict[str, object]] = []
-    present_metrics = {
-        int(class_val): row for class_val, row in class_metrics.iterrows()
-    }
-    for class_val in sorted(
-        set(int(value) for value in np.unique(layer.data[layer.valid]))
-    ):
-        metric = present_metrics.get(class_val)
-        rows.append(
-            {
-                **common,
-                "metric_level": "class",
-                "class_code": class_val,
-                "class_status": "present" if metric is not None else "absent",
-                "proportion_of_landscape_pct": (
-                    float(metric["proportion_of_landscape"])
-                    if metric is not None
-                    else None
-                ),
-                "patch_density_patches_per_ha": (
-                    float(metric["patch_density"])
-                    if metric is not None
-                    else None
-                ),
-                "landscape_edge_density_m_per_ha": None,
-                "metric_definitions": (
-                    "proportion_of_landscape = class area / valid area * 100; "
-                    "patch density = patches / valid hectares"
-                ),
-            }
-        )
-    rows.append(
-        {
-            **common,
-            "metric_level": "landscape",
-            "class_code": None,
-            "class_status": "defined",
-            "proportion_of_landscape_pct": None,
-            "patch_density_patches_per_ha": None,
-            "landscape_edge_density_m_per_ha": float(
-                landscape_metrics.iloc[0]["edge_density"]
-            ),
-            "metric_definitions": (
-                "edge density = unlike shared 4-neighbor edge length "
-                "/ valid hectares; "
-                "landscape and NoData boundaries excluded"
-            ),
-        }
-    )
-    return rows
-
-
-def _all_metric_rows(
-    layers: Sequence[lc.Layer],
-    common_masks: Sequence[np.ndarray],
-    squares: Sequence[Tuple[float, float]],
-    width_m: float,
-    inputs: Sequence[InputSpec],
-    mode: str,
-) -> List[Dict[str, object]]:
-    rows: List[Dict[str, object]] = []
-    for i, layer in enumerate(layers):
-        half = width_m / 2.0
-        for square_id, (cx, cy) in enumerate(squares, start=1):
-            rows.extend(
-                _pylandstats_metrics(
-                    layer,
-                    common_masks[i],
-                    cx - half,
-                    cy - half,
-                    cx + half,
-                    cy + half,
-                    layer.label,
-                    square_id,
-                )
-            )
-    return rows
-
 
 CLASS_METRIC_FIELDS = [
     "input_label",
@@ -318,154 +178,104 @@ def _class_metric_rows(
     return rows
 
 
-def _group_name(item: InputSpec, mode: str, group_by: str) -> str:
-    if mode == "spatial":
-        return item.label
-    assert item.date is not None
-    if group_by == "year":
-        return str(date.fromisoformat(item.date).year)
-    return item.date
-
-
-def _agreement_summaries(
-    layers: Sequence[lc.Layer],
-    finest_index: int,
-    agreement_path: Path,
-    centers: Sequence[Tuple[float, float]],
+def _transition_metrics(
+    comparison: lc.CompareResult,
     width_m: float,
-    out: Path,
-    prefix: str,
-    patch_min_area_m2: float,
-) -> List[Path]:
-    fine = layers[finest_index]
-    with rasterio.open(agreement_path) as src:
-        data = src.read(1)
-    valid = data > 0
-    count_valid = int(valid.sum())
-    if count_valid == 0:
-        raise ValueError("The agreement raster has no valid common cells.")
-    cell_area = fine.cell_area
-    ids, counts = np.unique(data[valid], return_counts=True)
-    full_count = int(counts[ids == 1].sum())
-    disagreement_count = count_valid - full_count
-
-    square_rows = []
-    half = width_m / 2.0
-    for square_id, (cx, cy) in enumerate(centers, start=1):
-        r0, r1, c0, c1 = lc.centroid_window(
-            fine, cx - half, cy - half, cx + half, cy + half
-        )
-        block = data[
-            max(0, r0) : min(fine.height - 1, r1) + 1,
-            max(0, c0) : min(fine.width - 1, c1) + 1,
-        ]
-        square_valid = block[block > 0]
-        if square_valid.size:
-            patterns, pattern_counts = np.unique(
-                square_valid, return_counts=True
-            )
-            order = np.argsort(pattern_counts)[::-1][:3]
-            leading = []
-            for j in order:
-                pattern_id = int(patterns[j])
-                sequence = lc.format_sequence(
-                    lc.sequence_from_id(pattern_id, len(layers))
-                )
-                leading.append(f"{pattern_id}:{sequence}")
-            full = int(np.count_nonzero(square_valid == 1))
-            square_rows.append(
-                {
-                    "square_id": square_id,
-                    "valid_cell_count": int(square_valid.size),
-                    "full_agreement_fraction": float(full / square_valid.size),
-                    "disagreement_fraction": float(
-                        1 - full / square_valid.size
-                    ),
-                    "leading_patterns": "|".join(leading),
-                    "valid_area_m2": float(square_valid.size * cell_area),
-                }
-            )
-        else:
-            square_rows.append(
-                {
-                    "square_id": square_id,
-                    "valid_cell_count": 0,
-                    "full_agreement_fraction": None,
-                    "disagreement_fraction": None,
-                    "leading_patterns": "",
-                    "valid_area_m2": 0.0,
-                }
-            )
-    square_csv = out / f"{prefix}_agreement_squares.csv"
-    _write_csv(
-        square_csv,
-        square_rows,
-        [
-            "square_id",
-            "valid_cell_count",
-            "full_agreement_fraction",
-            "disagreement_fraction",
-            "leading_patterns",
-            "valid_area_m2",
-        ],
+) -> Tuple[List[Dict[str, object]], List[str], Dict[str, object]]:
+    layers = comparison.layers
+    fine = layers[comparison.finest_index]
+    reference_index = max(range(len(layers)), key=lambda i: layers[i].cell_area)
+    class_codes = sorted(
+        {int(value) for layer in layers for value in np.unique(layer.data[layer.valid])}
     )
-    import geopandas as gpd
-    from shapely.geometry import box
-
-    square_geometries = [
-        box(cx - half, cy - half, cx + half, cy + half) for cx, cy in centers
+    other_indices = [i for i in range(len(layers)) if i != reference_index]
+    transitions = [(i, code) for i in other_indices for code in class_codes]
+    columns = [
+        {
+            "column": f"input_{i + 1}_class_{code}_fraction",
+            "input_order": i + 1,
+            "input_label": layers[i].label,
+            "class_code": code,
+        }
+        for i, code in transitions
     ]
-    if square_rows:
-        square_gdf = gpd.GeoDataFrame(
-            square_rows, geometry=square_geometries, crs=fine.crs
-        )
-    else:
-        square_gdf = gpd.GeoDataFrame(
-            {
-                "square_id": [],
-                "valid_cell_count": [],
-                "full_agreement_fraction": [],
-                "disagreement_fraction": [],
-                "leading_patterns": [],
-                "valid_area_m2": [],
-                "geometry": [],
-            },
-            geometry="geometry",
-            crs=fine.crs,
-        )
-    square_gpkg = out / f"{prefix}_agreement_squares.gpkg"
-    square_gdf.to_file(square_gpkg, driver="GPKG")
-
-    components, n_components = ndimage.label(
-        valid & (data != 1),
-        structure=np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]]),
-    )
-    sizes = np.bincount(components.ravel(), minlength=n_components + 1)
-    patch_count = int(
-        sum(
-            1
-            for component_id in range(1, n_components + 1)
-            if sizes[component_id] * cell_area + lc.EPS >= patch_min_area_m2
-        )
-    )
-    overview_csv = out / f"{prefix}_agreement_overview.csv"
-    _write_csv(
-        overview_csv,
-        [
-            {
-                "valid_area_m2": float(count_valid * cell_area),
-                "full_agreement_area_m2": float(full_count * cell_area),
-                "full_agreement_fraction": float(full_count / count_valid),
-                "disagreement_area_m2": float(disagreement_count * cell_area),
-                "disagreement_fraction": float(
-                    disagreement_count / count_valid
-                ),
-                "distinct_pattern_count": int(ids.size),
-                "disagreement_patch_count": patch_count,
-            }
+    fields = [
+        "square_id",
+        "reference_class_code",
+        "reference_class_cell_count",
+        "reference_class_fraction",
+    ] + [f"input_{i + 1}_class_{code}_fraction" for i, code in transitions]
+    maps = [lc.overlap_maps(fine, layer) for layer in layers]
+    rows: List[Dict[str, object]] = []
+    half = width_m / 2.0
+    with rasterio.open(comparison.agreement_tif) as src:
+        for square_id, (cx, cy) in enumerate(comparison.selection.centers, start=1):
+            r0, r1, c0, c1 = lc.centroid_window(
+                fine, cx - half, cy - half, cx + half, cy + half
+            )
+            r0, c0 = max(0, r0), max(0, c0)
+            r1, c1 = min(fine.height - 1, r1), min(fine.width - 1, c1)
+            if r0 <= r1 and c0 <= c1:
+                valid = (
+                    src.read(
+                        1,
+                        window=rasterio.windows.Window(
+                            c0, r0, c1 - c0 + 1, r1 - r0 + 1
+                        ),
+                    )
+                    > 0
+                )
+                values = [
+                    lc.sample_with_maps(
+                        layer, row_map[r0 : r1 + 1], col_map[c0 : c1 + 1]
+                    )[0]
+                    for layer, (row_map, col_map) in zip(layers, maps)
+                ]
+            else:
+                valid = np.zeros((0, 0), dtype=bool)
+                values = [np.empty((0, 0), dtype=int) for _ in layers]
+            valid_count = int(valid.sum())
+            for code in class_codes:
+                selected = valid & (values[reference_index] == code)
+                count = int(selected.sum())
+                row: Dict[str, object] = {
+                    "square_id": square_id,
+                    "reference_class_code": code,
+                    "reference_class_cell_count": count,
+                    "reference_class_fraction": (
+                        count / valid_count if valid_count else None
+                    ),
+                }
+                for index, target in transitions:
+                    row[f"input_{index + 1}_class_{target}_fraction"] = (
+                        float(
+                            np.count_nonzero(selected & (values[index] == target))
+                            / count
+                        )
+                        if count
+                        else None
+                    )
+                rows.append(row)
+    metadata: Dict[str, object] = {
+        "reference_input_order": reference_index + 1,
+        "reference_input_label": layers[reference_index].label,
+        "reference_resolution_m": [
+            layers[reference_index].res_x,
+            layers[reference_index].res_y,
         ],
-    )
-    return [overview_csv, square_csv, square_gpkg]
+        "comparison_inputs": [
+            {
+                "input_order": i + 1,
+                "input_label": layers[i].label,
+                "resolution_m": [layers[i].res_x, layers[i].res_y],
+            }
+            for i in other_indices
+        ],
+        "class_codes": class_codes,
+        "transition_columns": columns,
+    }
+    return rows, fields, metadata
+
 
 def _write_csv(
     path: Path,
@@ -503,9 +313,8 @@ def run_analysis(
     n_jobs: Optional[int] = 1,
     block_rows: int = 512,
     group_by: str = "date",
-    patch_min_area_m2: float = 0.0,
 ) -> AnalysisResult:
-    _validate_specs(mode, inputs, group_by, patch_min_area_m2)
+    _validate_specs(mode, inputs, group_by)
     if not prefix or Path(prefix).name != prefix:
         raise ValueError(
             "prefix must be a non-empty filename prefix, not a path."
@@ -535,19 +344,11 @@ def run_analysis(
                 f"{item.label}: no native cell centroids are valid on the common "
                 "classification footprint."
             )
-    metric_rows = _all_metric_rows(
-        layers,
-        common_masks,
-        comparison.selection.centers,
-        width_m,
-        inputs,
-        mode,
+    if not comparison.agreement_counts:
+        raise ValueError("The agreement raster has no valid common cells.")
+    metric_rows, metric_fields, transition_metadata = _transition_metrics(
+        comparison, width_m
     )
-    spec_by_label = {item.label: item for item in inputs}
-    for row in metric_rows:
-        row["group"] = _group_name(
-            spec_by_label[str(row["input_label"])], mode, group_by
-        )
     class_metrics_path = out / f"{prefix}_class_metrics.csv"
     _write_csv(
         class_metrics_path,
@@ -555,7 +356,7 @@ def run_analysis(
         CLASS_METRIC_FIELDS,
     )
     metrics_path = out / f"{prefix}_squares_metrics.csv"
-    _write_csv(metrics_path, metric_rows)
+    _write_csv(metrics_path, metric_rows, metric_fields)
 
     output_paths: List[Path] = [
         comparison.squares_gpkg,
@@ -565,17 +366,6 @@ def run_analysis(
         class_metrics_path,
         metrics_path,
     ]
-    agreement_outputs = _agreement_summaries(
-        layers,
-        min(range(len(layers)), key=lambda i: layers[i].cell_area),
-        comparison.agreement_tif,
-        comparison.selection.centers,
-        width_m,
-        out,
-        prefix,
-        patch_min_area_m2,
-    )
-    output_paths.extend(agreement_outputs)
     xmin, ymin, xmax, ymax = lc.common_bounds(layers)
     metadata = {
         "mode": mode,
@@ -627,15 +417,14 @@ def run_analysis(
             "non_overlapping": True,
             "all_intersecting_class_cells_valid": True,
         },
-        "thresholds": {
-            "patch_min_area_m2": patch_min_area_m2,
-        },
+        "square_class_transitions": transition_metadata,
         "analysis_settings": {
             "class_filter": class_filter,
             "reproject_to_finest": reproject_to_finest,
             "agreement_workers": n_jobs,
             "agreement_block_rows": block_rows,
             "metric_engine": "pylandstats.Landscape",
+            "metric_engine_version": version("pylandstats"),
         },
         "metric_definitions": {
             "class_metrics": (
@@ -643,21 +432,30 @@ def run_analysis(
                 "and patch_density (patches/ha) on each native grid within the "
                 "common footprint; 4-neighbor patches"
             ),
-            "proportion_of_landscape": "class cell area / valid analysis area, percent",
-            "patch_density": "pylandstats patches per hectare, 4-neighbor patches",
-            "landscape_edge_density": (
-                "pylandstats unlike shared 4-neighbor edge length per valid hectare; "
-                "outer landscape and NoData boundaries excluded"
+            "square_class_transitions": (
+                "For each reference class, count valid agreement-grid cells whose "
+                "centroids are inside the square and whose mapped reference class "
+                "matches; reference_class_fraction divides that count by all valid "
+                "square agreement-grid cells. Each transition fraction divides the "
+                "count additionally mapped to the comparison class by the reference "
+                "class count; a zero denominator yields a blank. Mapping uses the "
+                "agreement raster's largest-overlap selection."
             ),
-            "square_complexity": (
-                "unlike shared horizontal/vertical edge length among centroid-selected "
-                "native cells divided by geometric square area; not pylandstats "
-                "edge density"
+            "square_shannon_diversity_index": (
+                "PyLandStats Landscape.shannon_diversity_index on centroid-selected "
+                "native cells, natural logarithm; single-class squares are reported "
+                "as zero instead of PyLandStats' undefined result"
+            ),
+            "square_joint_entropy": (
+                "PyLandStats Landscape.joint_entropy on centroid-selected native "
+                "cells, base 2, using horizontal and vertical adjacencies; "
+                "single-class squares are reported as zero instead of PyLandStats' "
+                "undefined result"
             ),
             "native_grid_rule": (
-                "whole-raster and square landscape metrics use each classification's "
-                "native "
-                "grid; square pixel inclusion follows its cell-centroid rule"
+                "Whole-raster class metrics and existing square metrics use each "
+                "classification's native grid; square pixel inclusion follows its "
+                "cell-centroid rule. Class transitions use the agreement grid."
             ),
             "agreement": (
                 "inter-input agreement, not classification accuracy without "
