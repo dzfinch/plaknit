@@ -103,9 +103,14 @@ for flags, output definitions, and limitations.
 plaknit compare reflectance \
   --input planet=planet_class.tif --raster planet:red=planet_red.tif \
   --input sentinel=sentinel_class.tif --raster sentinel:red=sentinel_red.tif \
+  --spatial-units compare_squares.gpkg \
   --out-dir ./reflectance_compare/
 ```
 
-Rasters (bands, NDVI, other indices) are scaled to 0-1 automatically from their
-scale/offset metadata, falling back to min/max scaling. The command reports
-class-wise median and quartiles and Mann-Whitney U tests between inputs.
+The command pairs per-class raster summaries by spatial-unit ID and reports
+paired differences with spatial-block uncertainty. Supply a vector file with
+unique IDs and a CRS, or a bounds CSV plus `--spatial-units-crs`. Declared raster
+scale/offset metadata is applied; otherwise native values are preserved rather
+than independently min-max stretched. See the
+[reflectance comparison guide](https://dzfinch.github.io/plaknit/usage.html#compare-reflectance)
+for assumptions, inference settings, and output definitions.

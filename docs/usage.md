@@ -101,11 +101,15 @@ can reflect resolution as well as classification differences.
 `*_squares_metrics.csv` describes class transitions, with one row per square
 and class in the union of input class codes. The reference is the input with
 the largest analysis-grid cell area, breaking ties in input order. For each
-row, `reference_class_fraction` is the fraction of valid finest-grid cells in
+row, `reference_input_label` identifies that input and
+`reference_class_fraction` is the fraction of valid finest-grid cells in
 the square mapped to that reference class; `reference_class_cell_count` is
-the corresponding count. Each `input_N_class_C_fraction` column is the
+the corresponding count. Each `input_N_LABEL_class_C_fraction` column is the
 fraction of those reference-class cells mapped to class C in input N, where N
-is the one-based input order. All non-reference inputs are included, even
+is the one-based input order and LABEL is its exact input label. The input
+number keeps columns distinct even for similar labels; CSV quoting preserves
+labels containing punctuation. This replaces the previous unlabeled
+`input_N_class_C_fraction` headers. All non-reference inputs are included, even
 when their resolutions are equal to the reference. Values for a comparison
 input sum to one per present reference class. When the reference class is
 absent, its count and square fraction are zero and its conditional fractions
@@ -124,42 +128,81 @@ plaknit compare reflectance \
   --raster planet:ndvi=planet_ndvi.tif \
   --input sentinel=sentinel_class.tif --raster sentinel:red=sentinel_red.tif \
   --raster sentinel:ndvi=sentinel_ndvi.tif \
+  --spatial-units ./compare_squares.gpkg \
   --out-dir ./reflectance_compare/ --seed 42
 ```
 
-This is a separate command from the spatial and temporal modes, which compare
-classifications only. Each `--raster LABEL:NAME=PATH` is a single-band
-continuous raster (reflectance band, NDVI, other index) tied to an input label;
-a `NAME` must be given for at least two inputs. Rasters must exactly match
-their classification grid (CRS, transform, width, height); if a classification
-is reprojected for comparison, values are bilinear-resampled with a
-nearest-neighbor validity mask. Options: `--out-dir`, `--prefix` (default
-`reflectance`), `--seed` (default 42), `--classes`, and `--no-reproject`.
+For multiband rasters, list one name per band in raster order:
 
-Scaling to 0-1 is automatic. The raster's GDAL scale/offset metadata
-(`value * scale + offset`) is used when it is declared and maps all valid
-values into 0-1. Otherwise (no metadata, or metadata that does not give 0-1) the
-raster's valid pixels are min/max scaled and a warning is issued. The method and
-parameters are recorded per raster in the metadata. Min/max scaling makes values
-relative to each raster's own range, so outliers compress the range and
-indices such as NDVI are distorted; prefer rasters with scale/offset metadata.
-A constant raster cannot be min/max scaled and raises an error.
+```powershell
+plaknit compare reflectance `
+  --input "planet=C:\data\planet_class.tif" `
+  --raster "planet:blue;green;red;nir=C:\data\planet_stack.tif" `
+  --input "sentinel=C:\data\sentinel_class.tif" `
+  --raster "sentinel:blue;green;red;nir=C:\data\sentinel_stack.tif" `
+  --spatial-units "C:\data\compare_squares.gpkg" `
+  --out-dir "C:\data\reflectance_compare"
+```
 
-For each input, class, and raster name, a seeded random 95% sample of eligible
-pixels is drawn; eligible pixels are in the common classification footprint
-and valid in every input supplying that name. The summary reports eligible and
-sampled counts with the median and lower/upper quartiles. For each input pair,
-shared raster name, and class, an unpaired two-sided Mann-Whitney U test
-compares the samples, reported with a rank-biserial effect size
-(`2U/(n_a n_b) - 1`, positive when A tends to exceed B), a median difference
-(B minus A), and Benjamini-Hochberg-adjusted p-values. Groups with fewer than
-5 sampled pixels are marked `insufficient_pixels`. Adjacent pixels are spatially
-autocorrelated, so the p-values are overstated; rely on the effect size.
-Class masks come from each input's own classification, so the same class code
-need not cover the same locations.
+Quote arguments containing semicolons in PowerShell and other shells. Names
+map to bands starting at 1; supply exactly as many names as the raster has
+bands. Single-band `LABEL:NAME=PATH` arguments remain supported and can be
+mixed with stacks. Each name must be unique within an input and supplied for
+at least two inputs. Matching names are compared, even if their band orders
+differ between inputs. Different names must also produce distinct plot
+filenames after punctuation is replaced with underscores.
+For Python callers, `ReflectanceInput.rasters` also accepts `ReflectanceBand`
+values specifying `path`, one-based `band`, and the raster's `band_count`;
+existing single-band path strings remain supported.
 
-Outputs: `*_class_summary.csv`, `*_mann_whitney.csv`, one boxplot PNG per raster
-and class, and `*_metadata.json` (seed, scaling, definitions, caveats).
+This command requires spatial-unit polygons with a unique ID, supplied by
+`--spatial-units`. A GeoPackage/vector file must carry its CRS and an ID field
+named `unit_id`, `square_id`, or `id`. A CSV must contain that ID and
+`xmin,ymin,xmax,ymax`; because CSV has no CRS, also provide
+`--spatial-units-crs` (for example `EPSG:32614`). Existing comparison
+`*_squares.gpkg`/`*_squares.csv` outputs can be used directly.
+
+Each raster is read on its input classification's native grid. If the grids
+differ, values are bilinear-resampled and validity masks nearest-neighbor
+resampled in memory within each spatial unit. Declared raster scale/offset
+metadata is applied. Without it, native values are preserved; inputs are not
+independently min/max stretched. Confirm that matching raster names have
+comparable units before interpreting their differences. Source path, band,
+scale method, unit IDs, CRS, alignment, and inference settings are recorded in
+metadata.
+
+For each input, raster name, class, and spatial unit, the analysis reports the
+median and quartiles of valid pixels selected by that input's own classification
+mask. Comparisons pair these unit-level medians by unit ID and class. The
+estimate is the median paired difference (input B minus input A); the effect
+size is paired rank-biserial correlation. Confidence intervals resample whole
+coordinate-based blocks, and p-values use paired block sign-flip permutations.
+Exact permutation is used for at most 15 blocks; larger tests use seeded Monte
+Carlo permutations with a plus-one correction. BH adjustment covers all
+comparisons with inferential p-values in the run; these permutation p-values
+cannot underflow to a reported zero.
+
+The empirical block-size estimate uses the pooled semivariogram of square-level
+paired differences. `--block-size-m` overrides it. If no stable range can be
+estimated and no override is supplied, the analysis reports descriptive
+estimates but no confidence intervals or p-values. Rows with fewer than
+`--min-independent-blocks` (default 10) are also descriptive only. The block
+estimate is limited by the number and spacing of supplied spatial units and is
+not proof that blocks are independent. `--bootstrap-replicates` (default 2000),
+`--permutation-replicates` (default 9999), `--seed`, `--classes`, and block
+settings are recorded for reproducibility.
+
+Results describe the supplied raster products, not a sensor-only causal effect.
+Acquisition dates, scene IDs, processing histories, and quality-mask provenance
+are not inferred; provide and evaluate those separately. Matching class codes
+are assumed to have comparable meanings. A class with no paired spatial units
+cannot be tested.
+
+Outputs: `*_spatial_unit_summary.csv` (one row per input/unit/class/raster),
+`*_class_summary.csv` (summary across unit medians),
+`*_spatial_comparisons.csv` (paired estimates, intervals, effects, p-values,
+and status), `*_methods_report.md`, `*_effect_estimates.png`, and
+`*_metadata.json`.
 
 ### Agreement and output files
 
@@ -170,7 +213,10 @@ and class, and `*_metadata.json` (seed, scaling, definitions, caveats).
   class. `*_squares_metrics.csv`: per-square conditional class transitions.
 - `*_agreement.tif` and `*_agreement_legend.csv`: categorical agreement on
   the finest input's native grid and a legend mapping numeric pattern IDs to
-  complete canonical grouping sequences. IDs are labels, not sequences.
+  complete canonical grouping sequences. The legend's `cell_proportion` is
+  the pattern's cell count divided by all valid agreement cells (excluding
+  NoData); it is blank when there are no valid cells. IDs are labels, not
+  sequences.
 - `*_metadata.json`: mode, ordered inputs, dates, resolutions,
   common valid areas, exclusions, seeds, transition columns, and metric definitions.
 

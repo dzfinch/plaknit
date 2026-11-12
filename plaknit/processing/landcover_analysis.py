@@ -190,9 +190,13 @@ def _transition_metrics(
     )
     other_indices = [i for i in range(len(layers)) if i != reference_index]
     transitions = [(i, code) for i in other_indices for code in class_codes]
+
+    def transition_column(index: int, code: int) -> str:
+        return f"input_{index + 1}_{layers[index].label}_class_{code}_fraction"
+
     columns = [
         {
-            "column": f"input_{i + 1}_class_{code}_fraction",
+            "column": transition_column(i, code),
             "input_order": i + 1,
             "input_label": layers[i].label,
             "class_code": code,
@@ -201,10 +205,11 @@ def _transition_metrics(
     ]
     fields = [
         "square_id",
+        "reference_input_label",
         "reference_class_code",
         "reference_class_cell_count",
         "reference_class_fraction",
-    ] + [f"input_{i + 1}_class_{code}_fraction" for i, code in transitions]
+    ] + [transition_column(i, code) for i, code in transitions]
     maps = [lc.overlap_maps(fine, layer) for layer in layers]
     rows: List[Dict[str, object]] = []
     half = width_m / 2.0
@@ -240,6 +245,7 @@ def _transition_metrics(
                 count = int(selected.sum())
                 row: Dict[str, object] = {
                     "square_id": square_id,
+                    "reference_input_label": layers[reference_index].label,
                     "reference_class_code": code,
                     "reference_class_cell_count": count,
                     "reference_class_fraction": (
@@ -247,7 +253,7 @@ def _transition_metrics(
                     ),
                 }
                 for index, target in transitions:
-                    row[f"input_{index + 1}_class_{target}_fraction"] = (
+                    row[transition_column(index, target)] = (
                         float(
                             np.count_nonzero(selected & (values[index] == target))
                             / count

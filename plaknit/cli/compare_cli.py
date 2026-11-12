@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import argparse
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Dict, Optional, Sequence, Tuple, Union
 
 from ..processing.landcover_analysis import InputSpec, run_analysis
-from ..processing.reflectance_analysis import ReflectanceInput, run_reflectance
+from ..processing.reflectance_analysis import (
+    ReflectanceBand,
+    ReflectanceInput,
+    run_reflectance,
+)
 
 
 def _key_value(value: str, option: str) -> Tuple[str, str]:
@@ -124,8 +128,8 @@ def build_parser() -> argparse.ArgumentParser:
         "reflectance",
         help="Compare continuous rasters (bands, NDVI) by class.",
         description=(
-            "Scale continuous rasters to 0-1 and compare their class-wise "
-            "distributions across inputs with Mann-Whitney U tests."
+            "Compare class-wise raster summaries across matched spatial units "
+            "using spatial-block inference."
         ),
     )
     reflectance.add_argument(
@@ -139,8 +143,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--raster",
         action="append",
         required=True,
-        metavar="LABEL:NAME=PATH",
-        help="Continuous raster on its classification grid; repeat as needed.",
+        metavar="LABEL:NAME[;NAME...]=PATH",
+        help="Name each raster band in order; quote arguments containing semicolons.",
     )
     reflectance.add_argument("--out-dir", required=True, help="Output directory.")
     reflectance.add_argument(
@@ -151,9 +155,44 @@ def build_parser() -> argparse.ArgumentParser:
         "--classes", type=int, nargs="+", default=None, help="Allowed class codes."
     )
     reflectance.add_argument(
-        "--no-reproject",
-        action="store_true",
-        help="Reject classification CRS mismatches instead of reprojecting.",
+        "--spatial-units",
+        required=True,
+        help=(
+            "Polygon vector or bounds CSV containing unique spatial-unit IDs; "
+            "inference pairs inputs by these IDs."
+        ),
+    )
+    reflectance.add_argument(
+        "--spatial-units-crs",
+        default=None,
+        help="CRS for a bounds CSV (vector files carry their own CRS).",
+    )
+    reflectance.add_argument(
+        "--block-size-m",
+        type=float,
+        default=None,
+        help="Override the empirical spatial block size in meters.",
+    )
+    reflectance.add_argument(
+        "--bootstrap-replicates",
+        type=int,
+        default=2000,
+        help="Whole-block bootstrap replicates for confidence intervals.",
+    )
+    reflectance.add_argument(
+        "--permutation-replicates",
+        type=int,
+        default=9999,
+        help=(
+            "Monte Carlo block sign-flip permutations when exact enumeration "
+            "is impractical."
+        ),
+    )
+    reflectance.add_argument(
+        "--min-independent-blocks",
+        type=int,
+        default=10,
+        help="Minimum number of spatial blocks required for inferential results.",
     )
     return parser
 
@@ -165,14 +204,24 @@ def _reflectance_inputs(args) -> Sequence[ReflectanceInput]:
         if ":" in label:
             raise ValueError("Input labels cannot contain ':'.")
         paths.append((label, path))
-    rasters: Dict[str, Dict[str, str]] = {label: {} for label, _ in paths}
+    rasters: Dict[str, Dict[str, Union[str, ReflectanceBand]]] = {
+        label: {} for label, _ in paths
+    }
     for raw in args.raster:
-        label, name, path = _label_band(raw, "--raster")
+        label, names, path = _label_band(raw, "--raster")
         if label not in rasters:
             raise ValueError(f"--raster references unknown input label {label!r}.")
-        if name in rasters[label]:
-            raise ValueError(f"--raster: duplicate {label!r}/{name!r}.")
-        rasters[label][name] = path
+        bands = names.split(";")
+        if any(not name or name != name.strip() for name in bands):
+            raise ValueError(
+                "--raster: band names must be non-empty without surrounding whitespace."
+            )
+        for index, name in enumerate(bands, start=1):
+            if name in rasters[label]:
+                raise ValueError(f"--raster: duplicate {label!r}/{name!r}.")
+            rasters[label][name] = (
+                path if len(bands) == 1 else ReflectanceBand(path, index, len(bands))
+            )
     return [ReflectanceInput(label, path, rasters[label]) for label, path in paths]
 
 
@@ -225,7 +274,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 prefix=args.prefix,
                 seed=args.seed,
                 classes=args.classes,
-                reproject_to_finest=not args.no_reproject,
+                spatial_units=args.spatial_units,
+                spatial_units_crs=args.spatial_units_crs,
+                block_size_m=args.block_size_m,
+                bootstrap_replicates=args.bootstrap_replicates,
+                permutation_replicates=args.permutation_replicates,
+                min_independent_blocks=args.min_independent_blocks,
             )
         except (OSError, ValueError) as exc:
             parser.error(str(exc))

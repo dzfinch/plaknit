@@ -270,6 +270,8 @@ def test_squares_agreement_columns_match_geopackage(tmp_path, mode):
         transitions = list(csv.DictReader(stream))
     assert len(transitions) == len(rows) * 2
     assert {row["reference_class_code"] for row in transitions} == {"1", "2"}
+    assert {row["reference_input_label"] for row in transitions} == {"a"}
+    assert "input_2_b_class_1_fraction" in transitions[0]
 
 
 def _transition_fixture(tmp_path, arrays, resolutions, centers, width):
@@ -315,23 +317,25 @@ def test_transition_values_and_five_class_rows(tmp_path):
     assert len(rows) == 5
     assert metadata["reference_input_order"] == 2
     assert metadata["class_codes"] == [1, 2, 3, 4, 5]
-    assert len(fields) == 4 + 2 * 5
+    assert len(fields) == 5 + 2 * 5
+    assert all(row["reference_input_label"] == "layer_1" for row in rows)
     by_class = {row["reference_class_code"]: row for row in rows}
     one = by_class[1]
     assert one["reference_class_cell_count"] == 8
     assert one["reference_class_fraction"] == 0.5
-    assert one["input_1_class_1_fraction"] == 0.5
-    assert one["input_1_class_2_fraction"] == 0.25
-    assert one["input_1_class_4_fraction"] == 0.25
-    assert one["input_3_class_1_fraction"] == 0.5
-    assert one["input_3_class_5_fraction"] == 0.5
-    assert by_class[2]["input_1_class_2_fraction"] == 0.75
-    assert by_class[2]["input_1_class_4_fraction"] == 0.25
-    assert by_class[3]["input_1_class_3_fraction"] == 1.0
+    assert one["input_1_layer_0_class_1_fraction"] == 0.5
+    assert one["input_1_layer_0_class_2_fraction"] == 0.25
+    assert one["input_1_layer_0_class_4_fraction"] == 0.25
+    assert one["input_3_layer_2_class_1_fraction"] == 0.5
+    assert one["input_3_layer_2_class_5_fraction"] == 0.5
+    assert by_class[2]["input_1_layer_0_class_2_fraction"] == 0.75
+    assert by_class[2]["input_1_layer_0_class_4_fraction"] == 0.25
+    assert by_class[3]["input_1_layer_0_class_3_fraction"] == 1.0
     for row in rows:
         for index in (1, 3):
             fractions = [
-                row[f"input_{index}_class_{code}_fraction"] for code in range(1, 6)
+                row[f"input_{index}_layer_{index - 1}_class_{code}_fraction"]
+                for code in range(1, 6)
             ]
             if row["reference_class_cell_count"]:
                 assert sum(fractions) == pytest.approx(1.0)
@@ -366,6 +370,9 @@ def test_five_classes_emit_five_csv_rows_per_square(tmp_path):
     assert [(item["input_label"], item["class_code"]) for item in columns] == [
         ("b", code) for code in range(1, 6)
     ]
+    assert [item["column"] for item in columns] == [
+        f"input_2_b_class_{code}_fraction" for code in range(1, 6)
+    ]
 
 
 def test_equal_resolution_reference_tie_and_nodata(tmp_path):
@@ -380,9 +387,35 @@ def test_equal_resolution_reference_tie_and_nodata(tmp_path):
     by_class = {row["reference_class_code"]: row for row in rows}
     assert by_class[1]["reference_class_cell_count"] == 2
     assert by_class[1]["reference_class_fraction"] == pytest.approx(2 / 3)
-    assert by_class[1]["input_2_class_1_fraction"] == 0.5
+    assert by_class[1]["input_2_layer_1_class_1_fraction"] == 0.5
     assert by_class[2]["reference_class_cell_count"] == 1
-    assert by_class[2]["input_2_class_2_fraction"] == 1.0
+    assert by_class[2]["input_2_layer_1_class_2_fraction"] == 1.0
+
+
+def test_square_metrics_labels_are_preserved_and_columns_are_distinct(tmp_path):
+    arrays = np.tile(np.array([[1, 2]], dtype="uint8"), (12, 12))
+    labels = ["reference, sensor", "sensor-a", "sensor_a", "sensor,b"]
+    inputs = [
+        InputSpec(label, _write(tmp_path / f"sensor_{i}.tif", arrays))
+        for i, label in enumerate(labels)
+    ]
+    out = tmp_path / "labels"
+    result = run_analysis("spatial", inputs, out, width_m=20, n_samples=1)
+    assert result.selection.found == 1
+    with open(out / "compare_squares_metrics.csv", newline="", encoding="utf-8") as stream:
+        reader = csv.DictReader(stream)
+        fields = reader.fieldnames
+        rows = list(reader)
+    assert len(fields) == len(set(fields))
+    assert {row["reference_input_label"] for row in rows} == {"reference, sensor"}
+    assert "input_2_sensor-a_class_1_fraction" in fields
+    assert "input_3_sensor_a_class_1_fraction" in fields
+    assert "input_4_sensor,b_class_1_fraction" in fields
+    metadata = json.loads((out / "compare_metadata.json").read_text())
+    columns = metadata["square_class_transitions"]["transition_columns"]
+    for column in columns:
+        assert column["column"] in fields
+        assert labels[column["input_order"] - 1] == column["input_label"]
 
 
 def test_transition_mapping_uses_largest_overlap_on_shifted_grid(tmp_path):
@@ -422,10 +455,10 @@ def test_transition_mapping_uses_largest_overlap_on_shifted_grid(tmp_path):
     by_class = {row["reference_class_code"]: row for row in rows}
     assert by_class[1]["reference_class_cell_count"] == 8
     assert by_class[1]["reference_class_fraction"] == pytest.approx(2 / 3)
-    assert by_class[1]["input_1_class_1_fraction"] == 0.5
-    assert by_class[1]["input_1_class_2_fraction"] == 0.5
+    assert by_class[1]["input_1_r1_fine_class_1_fraction"] == 0.5
+    assert by_class[1]["input_1_r1_fine_class_2_fraction"] == 0.5
     assert by_class[2]["reference_class_cell_count"] == 4
-    assert by_class[2]["input_1_class_2_fraction"] == 1.0
+    assert by_class[2]["input_1_r1_fine_class_2_fraction"] == 1.0
 
 
 def test_transitions_use_the_agreement_producers_finest_index(tmp_path):
@@ -478,7 +511,8 @@ def test_empty_selection_writes_stable_headers(tmp_path):
     )
     with open(out / "compare_squares_metrics.csv", newline="") as stream:
         reader = csv.DictReader(stream)
-        assert "input_2_class_1_fraction" in reader.fieldnames
+        assert "input_2_b_class_1_fraction" in reader.fieldnames
+        assert "reference_input_label" in reader.fieldnames
         assert list(reader) == []
 
 

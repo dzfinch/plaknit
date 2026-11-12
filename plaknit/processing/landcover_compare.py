@@ -877,16 +877,17 @@ def _resolve_jobs(n_jobs: Optional[int]) -> int:
 def write_legend(
     path: Path, layers: Sequence[Layer], counts: Dict[int, int]
 ) -> None:
-    """Legend CSV: every ID (when feasible) with its full grouping sequence."""
+    """Write grouping sequences and their fractions of valid agreement cells."""
     n = len(layers)
     total = bell_number(n)
+    valid_count = sum(counts.values())
     ids = range(1, total + 1) if total <= LEGEND_FULL_LIMIT else sorted(counts)
     order = "|".join(f"{i}:{l.label}" for i, l in enumerate(layers, start=1))
     with open(path, "w", newline="") as fh:
         writer = csv.writer(fh)
         writer.writerow(
             ["pattern_id", "grouping_sequence", "compact_sequence", "n_groups",
-             "cell_count", "input_order"]
+             "cell_count", "cell_proportion", "input_order"]
         )
         for pid in ids:
             seq = sequence_from_id(pid, n)
@@ -897,6 +898,7 @@ def write_legend(
                 compact if "-" not in compact else "",
                 max(seq),
                 counts.get(pid, 0),
+                counts.get(pid, 0) / valid_count if valid_count else None,
                 order,
             ])
 

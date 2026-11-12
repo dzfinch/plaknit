@@ -560,6 +560,11 @@ def test_end_to_end_outputs(tmp_path, n):
         for r in legend.itertuples()
     }
     assert legend["cell_count"].sum() == (arr > 0).sum()
+    assert legend["cell_proportion"].sum() == pytest.approx(1.0)
+    for row in legend.itertuples():
+        count = np.count_nonzero(arr == row.pattern_id)
+        assert row.cell_count == count
+        assert row.cell_proportion == pytest.approx(count / np.count_nonzero(arr))
 
     # Verify sampled pixels against brute-force overlap selection.
     rng = np.random.default_rng(0)
@@ -593,6 +598,34 @@ def test_nodata_and_outside_coverage_in_agreement(tmp_path):
     assert (arr[0:3, 0:3] == 0).all()  # inside NoData coarse cell
     assert (arr[:, 14:] == 0).all()  # fine cols >= 42 m are outside coverage
     assert arr[10, 5] == 1
+
+
+def test_legend_proportions_include_zero_patterns_and_handle_empty_counts(tmp_path):
+    layers = [make_layer(np.ones((2, 2), dtype=int)) for _ in range(3)]
+    path = tmp_path / "legend.csv"
+    lc.write_legend(path, layers, {1: 3, 3: 1})
+    legend = pd.read_csv(path).set_index("pattern_id")
+    assert len(legend) == 5
+    assert legend.loc[1, "cell_proportion"] == pytest.approx(0.75)
+    assert legend.loc[3, "cell_proportion"] == pytest.approx(0.25)
+    assert legend.loc[2, "cell_proportion"] == 0
+    assert legend["cell_proportion"].sum() == pytest.approx(1)
+
+    lc.write_legend(path, layers, {})
+    empty = pd.read_csv(path)
+    assert (empty["cell_count"] == 0).all()
+    assert empty["cell_proportion"].isna().all()
+
+
+def test_observed_only_legend_proportions(tmp_path, monkeypatch):
+    monkeypatch.setattr(lc, "LEGEND_FULL_LIMIT", 1)
+    layers = [make_layer(np.ones((2, 2), dtype=int)) for _ in range(3)]
+    path = tmp_path / "legend.csv"
+    lc.write_legend(path, layers, {1: 2, 3: 6})
+    legend = pd.read_csv(path).set_index("pattern_id")
+    assert list(legend.index) == [1, 3]
+    assert legend.loc[1, "cell_proportion"] == pytest.approx(0.25)
+    assert legend.loc[3, "cell_proportion"] == pytest.approx(0.75)
 
 
 def test_separate_agreeing_pairs_encoded(tmp_path):
