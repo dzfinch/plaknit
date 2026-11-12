@@ -121,7 +121,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Compare continuous rasters (bands, NDVI) by class.",
         description=(
             "Compare class-wise raster summaries across matched spatial units "
-            "using spatial-block inference."
+            "using spatial-block inference. Each raster band is independently "
+            "min-max normalized over its full valid range."
         ),
     )
     reflectance.add_argument(

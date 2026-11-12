@@ -10,6 +10,8 @@ from shapely.geometry import box
 
 from plaknit.cli import compare_cli
 from plaknit.processing.reflectance_analysis import (
+    ReflectanceBand,
+    ReflectanceInput,
     SpatialUnit,
     _benjamini_hochberg,
     _estimate_block_size,
@@ -115,8 +117,6 @@ def _inputs(tmp_path, missing_unit=False, scaled=False):
 
 
 def _reflectance_inputs(records):
-    from plaknit.processing.reflectance_analysis import ReflectanceInput
-
     return [
         ReflectanceInput(row["label"], row["classification"], {"NDVI": row["raster"]})
         for row in records
@@ -148,7 +148,7 @@ def test_spatial_units_require_unique_ids_and_crs(tmp_path):
         load_spatial_units(units_path, "EPSG:32618")
 
 
-def test_spatial_comparisons_pair_unit_medians_and_preserve_native_values(tmp_path):
+def test_spatial_comparisons_pair_normalized_unit_medians(tmp_path):
     inputs = _reflectance_inputs(_inputs(tmp_path))
     result = run_reflectance(
         inputs,
@@ -161,8 +161,8 @@ def test_spatial_comparisons_pair_unit_medians_and_preserve_native_values(tmp_pa
     )
     class_rows = _read_csv(tmp_path / "out" / "reflectance_class_summary.csv")
     assert len(class_rows) == 4
-    assert all(row["scaling_method"] == "native" for row in class_rows)
-    assert 0.1 < float(class_rows[0]["median_of_unit_medians"]) < 0.4
+    assert all(row["scaling_method"] == "min-max" for row in class_rows)
+    assert 0 <= float(class_rows[0]["median_of_unit_medians"]) <= 1
 
     unit_rows = _read_csv(tmp_path / "out" / "reflectance_spatial_unit_summary.csv")
     assert len(unit_rows) == 80
@@ -174,10 +174,9 @@ def test_spatial_comparisons_pair_unit_medians_and_preserve_native_values(tmp_pa
     for row in comparisons:
         assert int(row["paired_unit_count"]) == 10
         assert int(row["independent_block_count"]) == 10
-        assert float(row["median_difference_b_minus_a"]) == pytest.approx(0.1)
+        assert float(row["median_difference_b_minus_a"]) == pytest.approx(0, abs=1e-6)
         estimate = float(row["median_difference_b_minus_a"])
         assert float(row["ci_lower"]) <= estimate <= float(row["ci_upper"])
-        assert float(row["paired_rank_biserial_effect"]) == pytest.approx(1)
         assert 0 < float(row["p_value"]) <= 1
         assert 0 < float(row["p_value_bh"]) <= 1
     assert (tmp_path / "out" / "reflectance_effect_estimates.png").exists()
@@ -186,7 +185,7 @@ def test_spatial_comparisons_pair_unit_medians_and_preserve_native_values(tmp_pa
     metadata = json.loads((tmp_path / "out" / "reflectance_metadata.json").read_text())
     assert metadata["spatial_units"]["count"] == 20
     assert metadata["uncertainty"]["block_size_source"] == "user_override"
-    assert metadata["value_scaling"].find("No independent min-max") >= 0
+    assert "min-max normalize" in metadata["value_scaling"]
     assert len(result.outputs) == 6
     run_reflectance(
         inputs,
@@ -202,20 +201,91 @@ def test_spatial_comparisons_pair_unit_medians_and_preserve_native_values(tmp_pa
     ).read_text()
 
 
-def test_declared_scale_offset_is_applied_instead_of_minmax(tmp_path):
-    inputs = _reflectance_inputs(_inputs(tmp_path, scaled=True))
+def test_full_raster_minmax_excludes_nodata_and_ignores_scale_metadata(tmp_path):
+    classes = np.ones((4, 4), dtype="uint8")
+    classification = _write(tmp_path / "class.tif", classes)
+    values = np.array(
+        [[2, 4, -9999, 0], [4, 6, 10, 5], [3, 5, 5, 5], [np.nan, np.inf, 5, 5]],
+        dtype="float32",
+    )
+    a_path = _write(tmp_path / "a.tif", values, nodata=-9999, scale=0.1, offset=3)
+    b_values = np.where(values == -9999, -9999, values * 2 + 10)
+    b_path = _write(tmp_path / "b.tif", b_values, nodata=-9999)
+    inputs = _reflectance_inputs(
+        [
+            {"label": "a", "classification": classification, "raster": a_path},
+            {"label": "b", "classification": classification, "raster": b_path},
+        ]
+    )
     run_reflectance(
         inputs,
         tmp_path / "out",
-        spatial_units=_units(),
-        block_size_m=100,
+        spatial_units=[SpatialUnit("sample", box(0, 20, 20, 40), TEST_CRS)],
+        block_size_m=20,
         bootstrap_replicates=100,
-        min_independent_blocks=10,
     )
     rows = _read_csv(tmp_path / "out" / "reflectance_spatial_unit_summary.csv")
-    a_rows = [row for row in rows if row["input_label"] == "a"]
-    assert all(row["scaling_method"] == "metadata-scale-offset" for row in a_rows)
-    assert float(a_rows[0]["median"]) == pytest.approx(0.164, abs=0.005)
+    assert all(row["scaling_method"] == "min-max" for row in rows)
+    assert all(float(row["median"]) == pytest.approx(0.4) for row in rows)
+    comparisons = _read_csv(tmp_path / "out" / "reflectance_spatial_comparisons.csv")
+    assert float(comparisons[0]["median_difference_b_minus_a"]) == pytest.approx(0)
+    metadata = json.loads((tmp_path / "out" / "reflectance_metadata.json").read_text())
+    a_scaling = metadata["inputs"][0]["rasters"]["NDVI"]
+    b_scaling = metadata["inputs"][1]["rasters"]["NDVI"]
+    assert (a_scaling["minimum"], a_scaling["maximum"]) == (0, 10)
+    assert (b_scaling["minimum"], b_scaling["maximum"]) == (10, 30)
+    assert a_scaling["scale"] == pytest.approx(0.1)
+    assert a_scaling["offset"] == 3
+
+
+def test_multiband_ranges_are_independent(tmp_path):
+    classification = _write(tmp_path / "class.tif", np.ones((4, 4), dtype="uint8"))
+    stack = tmp_path / "stack.tif"
+    first = np.arange(16, dtype="float32").reshape(4, 4)
+    second = 100 + 2 * np.flip(first)
+    with rasterio.open(
+        stack,
+        "w",
+        driver="GTiff",
+        height=4,
+        width=4,
+        count=2,
+        dtype="float32",
+        crs=TEST_CRS,
+        transform=from_origin(0, 40, 10, 10),
+    ) as dst:
+        dst.write(first, 1)
+        dst.write(second, 2)
+    bands = {
+        "NDVI": ReflectanceBand(str(stack), 1, 2),
+        "Elevation": ReflectanceBand(str(stack), 2, 2),
+    }
+    inputs = [
+        ReflectanceInput("a", classification, bands),
+        ReflectanceInput("b", classification, bands),
+    ]
+    result = run_reflectance(
+        inputs,
+        tmp_path / "out",
+        spatial_units=[SpatialUnit("sample", box(0, 20, 20, 40), TEST_CRS)],
+        block_size_m=20,
+        bootstrap_replicates=10,
+    )
+    rows = _read_csv(tmp_path / "out" / "reflectance_spatial_unit_summary.csv")
+    medians = {row["raster"]: float(row["median"]) for row in rows}
+    assert medians["NDVI"] == pytest.approx(1 / 6)
+    assert medians["Elevation"] == pytest.approx(5 / 6)
+    assert result.scaling["a"]["NDVI"]["maximum"] == 15
+    assert result.scaling["a"]["Elevation"]["minimum"] == 100
+    assert result.scaling["a"]["Elevation"]["maximum"] == 130
+
+
+def test_constant_valid_band_fails_explicitly(tmp_path):
+    inputs = _reflectance_inputs(_inputs(tmp_path))
+    path = _write(tmp_path / "constant.tif", np.full((100, 100), 5, dtype="uint8"))
+    inputs[0].rasters = {"NDVI": path}
+    with pytest.raises(ValueError, match="band 1 has a constant valid value"):
+        run_reflectance(inputs, tmp_path / "out", spatial_units=_units())
 
 
 def test_missing_values_reduce_paired_units_without_pixel_inference(tmp_path):
@@ -272,6 +342,10 @@ def test_class_filter_and_no_paired_units_are_explicit(tmp_path):
     empty_rows = _read_csv(tmp_path / "empty" / "reflectance_spatial_comparisons.csv")
     assert all(row["status"] == "no_paired_units" for row in empty_rows)
     assert all(row["p_value"] == "" for row in empty_rows)
+    metadata = json.loads(
+        (tmp_path / "empty" / "reflectance_metadata.json").read_text()
+    )
+    assert metadata["inputs"][1]["rasters"]["NDVI"]["method"] == "no-valid-pixels"
 
 
 def test_duplicate_units_and_invalid_block_width_fail(tmp_path):
@@ -369,8 +443,8 @@ def test_grid_mismatch_resamples_values_and_validity(tmp_path):
     classes = np.ones((100, 100), dtype="uint8")
     _write(tmp_path / "class_a.tif", classes, nodata=255)
     _write(tmp_path / "class_b.tif", classes, nodata=255)
-    a = np.full((100, 100), 0.2, dtype="float32")
-    b = np.full((50, 50), 0.4, dtype="float32")
+    a = np.tile(np.arange(100, dtype="float32"), (100, 1))
+    b = np.tile(np.arange(50, dtype="float32"), (50, 1))
     b[0, 0] = -9999
     a_path = _write(tmp_path / "a.tif", a, nodata=-9999)
     b_path = _write(tmp_path / "b_coarse.tif", b, resolution=20, top=1000, nodata=-9999)
@@ -396,5 +470,5 @@ def test_grid_mismatch_resamples_values_and_validity(tmp_path):
     )
     rows = _read_csv(tmp_path / "out" / "reflectance_spatial_unit_summary.csv")
     b_rows = [row for row in rows if row["input_label"] == "b"]
-    assert all(float(row["median"]) == pytest.approx(0.4) for row in b_rows)
+    assert float(b_rows[0]["median"]) == pytest.approx(2 / 49, abs=0.002)
     assert len(result.outputs) == 6
