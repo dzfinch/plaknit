@@ -9,6 +9,7 @@ import numpy as np
 from pyproj import Transformer
 import rasterio
 from rasterio import features, windows
+from rasterio.errors import WindowError
 from rasterio.features import geometry_window
 from shapely.ops import transform as transform_geometry
 from sklearn.model_selection import train_test_split
@@ -82,7 +83,7 @@ def _collect_training_samples(
         try:
             assert stack.template is not None
             win = geometry_window(stack.template, [geom])
-        except ValueError:
+        except (ValueError, WindowError):
             _log(f"[yellow]Skipping geometry {idx}: outside raster bounds.")
             continue
 

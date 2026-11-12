@@ -21,7 +21,8 @@ mkdocstrings-python-legacy
 nbconvert
 nbformat
 pygments
-pymdown-extensions
+# mkdocstrings 0.28.2 is incompatible with newer Highlight constructor APIs.
+pymdown-extensions==11.0.2
 pytest
 pytest-runner
 sphinx

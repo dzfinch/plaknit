@@ -20,6 +20,22 @@ def test_expand_raster_inputs_accepts_file_and_dir(tmp_path):
     assert _expand_raster_inputs(raster) == [raster]
 
 
+def test_nodata_mask_skips_unrepresentable_values_without_warning():
+    import warnings
+
+    from plaknit.data.raster import _nodata_pixel_mask
+
+    u8 = np.array([[0], [255], [7]], dtype=np.uint8)
+    f32 = np.array([[1.0], [-3.4e38], [np.nan]], dtype=np.float32)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert not _nodata_pixel_mask(u8, -9999).any()
+        assert _nodata_pixel_mask(u8, 255).tolist() == [False, True, False]
+        assert not _nodata_pixel_mask(f32, -1e300).any()
+        assert _nodata_pixel_mask(f32, np.nan).tolist() == [False, False, True]
+        assert not _nodata_pixel_mask(u8, np.nan).any()
+
+
 def test_normalize_nodata_expands_single_value():
     assert _normalize_nodata(0.0, 3) == [0.0, 0.0, 0.0]
 

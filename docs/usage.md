@@ -1,5 +1,236 @@
 # Usage
 
+## Land-cover comparison
+
+Land-cover comparison has two classification modes plus a reflectance command.
+Spatial mode compares classifications from different sources (for example
+different sensors); temporal mode compares classifications from different
+dates. Each input has a unique label, and the label identifies the input in
+tables, plots, and metadata. Temporal inputs additionally require a keyed date.
+This avoids positional metadata ambiguity for three or more inputs.
+
+### Spatial mode
+
+```bash
+plaknit compare spatial \
+  --input planet=planet_class.tif \
+  --input sentinel=sentinel_class.tif \
+  --out-dir ./spatial_compare/ \
+  --width 100 --samples 100 --seed 42
+```
+
+Spatial mode does not take dates. Input labels identify sources in tables and
+metadata, so choose labels that name the sensor or source.
+
+### Temporal mode
+
+```bash
+plaknit compare temporal \
+  --input june=class_2023_06.tif --date june=2023-06-15 \
+  --input july=class_2024_07.tif --date july=2024-07-15 \
+  --group-by year \
+  --out-dir ./temporal_compare/ \
+  --width 100 --samples 100 --seed 42
+```
+
+All inputs must have distinct ISO dates.
+`--group-by date|year` records the temporal grouping in metadata (default:
+`date`); the wide square transition table identifies inputs by their order.
+
+### Inputs and analysis options
+
+- Repeat `--input LABEL=CLASSIFICATION.tif` for each input. Labels must be
+  unique. Temporal mode also requires `--date LABEL=YYYY-MM-DD` for each
+  input; spatial mode does not accept or record dates. Input order is retained
+  in outputs.
+- `--width` is square width in metres (default 100); `--samples` is the number
+  of non-overlapping squares requested (default 100); `--seed` controls
+  reproducible selection and sampling (default 42). `--search-limit` caps
+  candidate centers (default `100 x samples`). If the limit is reached before
+  finding the requested count, the message reports the count and limit; this
+  does not prove that more squares are impossible.
+- `--classes` restricts allowed classification codes; `--no-reproject`
+  rejects classification CRS mismatches; `--n-jobs` controls agreement
+  workers (`-1` uses all CPUs); `--block-rows` sets agreement raster block
+  processing.
+
+At least two rasters are required. Classifications must contain integer class
+codes (or whole-number floats), have north-up grids, and be in CRS units
+suitable for area and distance calculations. The comparison aligns differing
+CRSs to the finest projected input in metres with nearest-neighbor resampling.
+Class meanings are **not** inferred or verified: matching numeric codes are
+assumed comparable, so supply classifications with a shared code scheme.
+Different class-code sets are reported; inputs with no shared codes are
+rejected.
+
+### Common footprint and square metrics
+
+The common classification footprint is the intersection of input extents.
+For whole-raster metrics, each classification uses its native grid: a native
+cell is included when its centroid is in that extent and the containing cell
+at the same point is valid in every other classification. The per-input valid
+area and exclusions are recorded. Invalid pixels in other rasters never change
+classification-only metrics or agreement.
+
+Square centers are randomly selected from finest-grid cell centroids. Each
+square is fully inside the common extent, does not overlap another selected
+square (touching is allowed), and is accepted only when every classification
+cell whose interior intersects it is valid. Square outputs retain the square
+ID. Existing square statistics use each classification's native cells whose
+centroids lie in that square; west and
+north centroid boundaries are included, east and south are excluded. Existing
+square metrics retain deterministic majority ties (smallest class code), and
+use PyLandStats `shannon_diversity_index` (natural logarithm) and
+`joint_entropy` (base 2, horizontal and vertical adjacencies). Both are
+computed on the selected native cells. PyLandStats returns an undefined result
+for single-class landscapes; both metrics are reported as zero in that case.
+The installed PyLandStats version determines the exact metric implementation
+and is recorded in metadata. In PyLandStats 3.1.0, Shannon diversity is
+calculated using adjacency counts, so it can differ from Shannon entropy
+calculated directly from class proportions.
+These columns replace the former base-2 `entropy` and unlike-edge-length
+`complexity` columns, whose values are not interchangeable with the new metrics.
+
+`*_class_metrics.csv` has one row per input and class (for example 3 inputs
+× 6 classes = 18 rows) with whole-raster `area_m2`, `proportion_pct`,
+`patch_count`, and `patch_density` (patches/ha). Patch adjacency is
+four-neighbor; denominators are the common-footprint native-cell area, and
+classes absent from an input get zero values. Native-resolution patch differences
+can reflect resolution as well as classification differences.
+
+`*_squares_metrics.csv` describes class transitions, with one row per square
+and class in the union of input class codes. The reference is the input with
+the largest analysis-grid cell area, breaking ties in input order. For each
+row, `reference_input_label` identifies that input and
+`reference_class_fraction` is the fraction of valid finest-grid cells in
+the square mapped to that reference class; `reference_class_cell_count` is
+the corresponding count. Each `input_N_LABEL_class_C_fraction` column is the
+fraction of those reference-class cells mapped to class C in input N, where N
+is the one-based input order and LABEL is its exact input label. The input
+number keeps columns distinct even for similar labels; CSV quoting preserves
+labels containing punctuation. This replaces the previous unlabeled
+`input_N_class_C_fraction` headers. All non-reference inputs are included, even
+when their resolutions are equal to the reference. Values for a comparison
+input sum to one per present reference class. When the reference class is
+absent, its count and square fraction are zero and its conditional fractions
+are blank (undefined), not zero. Mapping and validity match the agreement
+raster's largest-overlap rule; square inclusion uses finest-grid cell
+centroids. Metadata maps the columns to input labels, resolutions, and class
+codes. If a square has no valid agreement-grid cells, its agreement fractions
+and reference-class square fractions are also blank. These are mapped cell
+proportions, not exact intersection areas.
+
+### Compare reflectance
+
+```bash
+plaknit compare reflectance \
+  --input planet=planet_class.tif --raster planet:red=planet_red.tif \
+  --raster planet:ndvi=planet_ndvi.tif \
+  --input sentinel=sentinel_class.tif --raster sentinel:red=sentinel_red.tif \
+  --raster sentinel:ndvi=sentinel_ndvi.tif \
+  --spatial-units ./compare_squares.gpkg \
+  --out-dir ./reflectance_compare/ --seed 42
+```
+
+For multiband rasters, list one name per band in raster order:
+
+```powershell
+plaknit compare reflectance `
+  --input "planet=C:\data\planet_class.tif" `
+  --raster "planet:blue;green;red;nir=C:\data\planet_stack.tif" `
+  --input "sentinel=C:\data\sentinel_class.tif" `
+  --raster "sentinel:blue;green;red;nir=C:\data\sentinel_stack.tif" `
+  --spatial-units "C:\data\compare_squares.gpkg" `
+  --out-dir "C:\data\reflectance_compare"
+```
+
+Quote arguments containing semicolons in PowerShell and other shells. Names
+map to bands starting at 1; supply exactly as many names as the raster has
+bands. Single-band `LABEL:NAME=PATH` arguments remain supported and can be
+mixed with stacks. Each name must be unique within an input and supplied for
+at least two inputs. Matching names are compared, even if their band orders
+differ between inputs. Different names must also produce distinct plot
+filenames after punctuation is replaced with underscores.
+For Python callers, `ReflectanceInput.rasters` also accepts `ReflectanceBand`
+values specifying `path`, one-based `band`, and the raster's `band_count`;
+existing single-band path strings remain supported.
+
+This command requires spatial-unit polygons with a unique ID, supplied by
+`--spatial-units`. A GeoPackage/vector file must carry its CRS and an ID field
+named `unit_id`, `square_id`, or `id`. A CSV must contain that ID and
+`xmin,ymin,xmax,ymax`; because CSV has no CRS, also provide
+`--spatial-units-crs` (for example `EPSG:32614`). Existing comparison
+`*_squares.gpkg`/`*_squares.csv` outputs can be used directly.
+
+Each raster is read on its input classification's native grid. If the grids
+differ, values are bilinear-resampled and validity masks nearest-neighbor
+resampled in memory within each spatial unit. Declared raster scale/offset
+metadata is applied. Without it, native values are preserved; inputs are not
+independently min/max stretched. Confirm that matching raster names have
+comparable units before interpreting their differences. Source path, band,
+scale method, unit IDs, CRS, alignment, and inference settings are recorded in
+metadata.
+
+For each input, raster name, class, and spatial unit, the analysis reports the
+median and quartiles of valid pixels selected by that input's own classification
+mask. Comparisons pair these unit-level medians by unit ID and class. The
+estimate is the median paired difference (input B minus input A); the effect
+size is paired rank-biserial correlation. Confidence intervals resample whole
+coordinate-based blocks, and p-values use paired block sign-flip permutations.
+Exact permutation is used for at most 15 blocks; larger tests use seeded Monte
+Carlo permutations with a plus-one correction. BH adjustment covers all
+comparisons with inferential p-values in the run; these permutation p-values
+cannot underflow to a reported zero.
+
+The empirical block-size estimate uses the pooled semivariogram of square-level
+paired differences. `--block-size-m` overrides it. If no stable range can be
+estimated and no override is supplied, the analysis reports descriptive
+estimates but no confidence intervals or p-values. Rows with fewer than
+`--min-independent-blocks` (default 10) are also descriptive only. The block
+estimate is limited by the number and spacing of supplied spatial units and is
+not proof that blocks are independent. `--bootstrap-replicates` (default 2000),
+`--permutation-replicates` (default 9999), `--seed`, `--classes`, and block
+settings are recorded for reproducibility.
+
+Results describe the supplied raster products, not a sensor-only causal effect.
+Acquisition dates, scene IDs, processing histories, and quality-mask provenance
+are not inferred; provide and evaluate those separately. Matching class codes
+are assumed to have comparable meanings. A class with no paired spatial units
+cannot be tested.
+
+Outputs: `*_spatial_unit_summary.csv` (one row per input/unit/class/raster),
+`*_class_summary.csv` (summary across unit medians),
+`*_spatial_comparisons.csv` (paired estimates, intervals, effects, p-values,
+and status), `*_methods_report.md`, `*_effect_estimates.png`, and
+`*_metadata.json`.
+
+### Agreement and output files
+
+- `*_squares.csv` and `*_squares.gpkg`: square IDs, geometries, centers, and
+  per-input native-resolution majority, Shannon diversity index, joint entropy,
+  and cell counts, plus overall full-agreement and disagreement fractions.
+- `*_class_metrics.csv`: per-class whole-raster metrics, one row per input and
+  class. `*_squares_metrics.csv`: per-square conditional class transitions.
+- `*_agreement.tif` and `*_agreement_legend.csv`: categorical agreement on
+  the finest input's native grid and a legend mapping numeric pattern IDs to
+  complete canonical grouping sequences. The legend's `cell_proportion` is
+  the pattern's cell count divided by all valid agreement cells (excluding
+  NoData); it is blank when there are no valid cells. IDs are labels, not
+  sequences.
+- `*_metadata.json`: mode, ordered inputs, dates, resolutions,
+  common valid areas, exclusions, seeds, transition columns, and metric definitions.
+
+The former agreement overview and separate agreement-square outputs are no
+longer written, and `--patch-min-area-m2` and the corresponding Python
+`run_analysis` argument have been removed. Older files in an existing output
+directory are not deleted automatically.
+
+This is **inter-input agreement**, not classification accuracy unless
+independent ground truth is supplied. Fine-grid cells inheriting a coarser
+input's class are not independent observations. Rasters are read into memory.
+The former `plaknit landcover` command was removed; migrate to one of the two
+`plaknit compare` modes.
+
 ## Planning Monthly Planet Composites
 
 `plaknit plan` queries Planet's Data/STAC API, filters PSScene candidates, tiles the AOI, and picks the smallest monthly set that meets both coverage and clear-observation targets. Planning now only writes/prints a plan; ordering is handled separately by `plaknit order`.

@@ -95,11 +95,27 @@ def _nodata_pixel_mask(
     for band_idx, nd_val in enumerate(nodata_per_band):
         if nd_val is None:
             continue
+        col = samples[:, band_idx]
         if np.isnan(nd_val):
-            mask |= np.isnan(samples[:, band_idx])
-        else:
-            mask |= samples[:, band_idx] == nd_val
+            if col.dtype.kind == "f":
+                mask |= np.isnan(col)
+            continue
+        if not _representable(nd_val, col.dtype):
+            # No pixel of this dtype can hold the nodata value, so none match.
+            continue
+        mask |= col == nd_val
     return mask
+
+
+def _representable(value: float, dtype: np.dtype) -> bool:
+    """True if ``value`` fits in ``dtype`` without overflow or truncation."""
+
+    if dtype.kind in "iu":
+        info = np.iinfo(dtype)
+        return float(value).is_integer() and info.min <= value <= info.max
+    if dtype.kind == "f":
+        return bool(np.isinf(value)) or abs(float(value)) <= float(np.finfo(dtype).max)
+    return True
 
 
 class _RasterStack:

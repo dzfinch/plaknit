@@ -60,3 +60,57 @@ plaknit brt predict \
 ```
 
 See [Usage](https://dzfinch.github.io/plaknit/usage.html) for complete examples and all supported options.
+
+### Compare Spatial Land-Cover Classifications
+
+```bash
+plaknit compare spatial \
+  --input planet=planet_class.tif \
+  --input sentinel=sentinel_class.tif \
+  --out-dir ./spatial_compare/ \
+  --width 100 --samples 100 --seed 42
+```
+
+### Compare Temporal Land-Cover Classifications
+
+```bash
+plaknit compare temporal \
+  --input june=classification_2023_06.tif --date june=2023-06-15 \
+  --input july=classification_2024_07.tif --date july=2024-07-15 \
+  --group-by year \
+  --out-dir ./temporal_compare/ \
+  --width 100 --samples 100 --seed 42
+```
+
+Each `--input` has a unique label, which identifies it in tables, plots, and
+metadata, even when comparing more than two inputs. Spatial comparisons do not
+require dates;
+temporal comparisons require a keyed `--date` for every input. The old
+`plaknit landcover` command has been replaced; use `plaknit compare spatial` or
+`plaknit compare temporal`.
+
+The comparison also produces native-resolution whole-raster and square-level
+pylandstats metrics and finest-grid inter-input agreement
+summaries. Numeric class codes are assumed to have comparable meanings; this
+assumption is recorded, not independently verified. Patch and edge differences can
+reflect resolution as well as classification differences. See the [land-cover
+comparison guide](https://dzfinch.github.io/plaknit/usage.html#land-cover-comparison)
+for flags, output definitions, and limitations.
+
+### Compare Reflectance by Class
+
+```bash
+plaknit compare reflectance \
+  --input planet=planet_class.tif --raster planet:red=planet_red.tif \
+  --input sentinel=sentinel_class.tif --raster sentinel:red=sentinel_red.tif \
+  --spatial-units compare_squares.gpkg \
+  --out-dir ./reflectance_compare/
+```
+
+The command pairs per-class raster summaries by spatial-unit ID and reports
+paired differences with spatial-block uncertainty. Supply a vector file with
+unique IDs and a CRS, or a bounds CSV plus `--spatial-units-crs`. Declared raster
+scale/offset metadata is applied; otherwise native values are preserved rather
+than independently min-max stretched. See the
+[reflectance comparison guide](https://dzfinch.github.io/plaknit/usage.html#compare-reflectance)
+for assumptions, inference settings, and output definitions.
