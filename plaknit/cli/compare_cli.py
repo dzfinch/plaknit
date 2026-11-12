@@ -187,6 +187,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=10,
         help="Minimum number of spatial blocks required for inferential results.",
     )
+    reflectance.add_argument(
+        "--n-jobs",
+        type=int,
+        default=1,
+        help="Spatial-unit workers (-1 = all CPUs; default: 1).",
+    )
     return parser
 
 
@@ -269,6 +275,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 bootstrap_replicates=args.bootstrap_replicates,
                 permutation_replicates=args.permutation_replicates,
                 min_independent_blocks=args.min_independent_blocks,
+                n_jobs=args.n_jobs,
             )
         except (OSError, ValueError) as exc:
             parser.error(str(exc))

@@ -1,5 +1,6 @@
 import csv
 import json
+import threading
 
 import numpy as np
 import pytest
@@ -9,6 +10,7 @@ from rasterio.transform import from_origin
 from shapely.geometry import box
 
 from plaknit.cli import compare_cli
+from plaknit.processing import reflectance_analysis
 from plaknit.processing.reflectance_analysis import (
     ReflectanceBand,
     ReflectanceInput,
@@ -201,6 +203,64 @@ def test_spatial_comparisons_pair_normalized_unit_medians(tmp_path):
     ).read_text()
 
 
+def test_parallel_workers_match_serial_results(tmp_path, monkeypatch):
+    inputs = _reflectance_inputs(_inputs(tmp_path, missing_unit=True))
+    kwargs = {
+        "spatial_units": _units(),
+        "block_size_m": 100,
+        "seed": 17,
+        "bootstrap_replicates": 100,
+    }
+    run_reflectance(inputs, tmp_path / "serial", **kwargs)
+
+    barrier = threading.Barrier(2)
+    thread_ids = set()
+    original = reflectance_analysis._summarize_unit_chunk
+
+    def synchronized_summary(*args, **kwargs):
+        thread_ids.add(threading.get_ident())
+        barrier.wait(timeout=20)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(
+        reflectance_analysis, "_summarize_unit_chunk", synchronized_summary
+    )
+    monkeypatch.setattr("os.cpu_count", lambda: 2)
+    run_reflectance(inputs, tmp_path / "parallel", n_jobs=-1, **kwargs)
+    assert len(thread_ids) == 2
+    for suffix in (
+        "spatial_unit_summary.csv",
+        "class_summary.csv",
+        "spatial_comparisons.csv",
+    ):
+        assert (tmp_path / "serial" / f"reflectance_{suffix}").read_text() == (
+            tmp_path / "parallel" / f"reflectance_{suffix}"
+        ).read_text()
+    metadata = json.loads(
+        (tmp_path / "parallel" / "reflectance_metadata.json").read_text()
+    )
+    assert metadata["parallel_processing"]["requested_jobs"] == -1
+    assert metadata["parallel_processing"]["workers"] == 2
+
+
+@pytest.mark.parametrize("n_jobs", [0, -2])
+def test_reflectance_rejects_invalid_worker_count(tmp_path, n_jobs):
+    inputs = _reflectance_inputs(_inputs(tmp_path))
+    with pytest.raises(ValueError, match="n_jobs must be -1 or a positive integer"):
+        run_reflectance(inputs, tmp_path / "out", spatial_units=_units(), n_jobs=n_jobs)
+
+
+def test_parallel_worker_errors_are_propagated(tmp_path):
+    inputs = _reflectance_inputs(_inputs(tmp_path))
+    path = inputs[0].classification
+    with rasterio.open(path) as dataset:
+        values = dataset.read(1).astype("float32")
+    values[90, 0] = 1.5
+    inputs[0].classification = _write(tmp_path / "invalid.tif", values)
+    with pytest.raises(ValueError, match="classification contains non-integer"):
+        run_reflectance(inputs, tmp_path / "out", spatial_units=_units(), n_jobs=2)
+
+
 def test_full_raster_minmax_excludes_nodata_and_ignores_scale_metadata(tmp_path):
     classes = np.ones((4, 4), dtype="uint8")
     classification = _write(tmp_path / "class.tif", classes)
@@ -270,6 +330,7 @@ def test_multiband_ranges_are_independent(tmp_path):
         spatial_units=[SpatialUnit("sample", box(0, 20, 20, 40), TEST_CRS)],
         block_size_m=20,
         bootstrap_replicates=10,
+        n_jobs=4,
     )
     rows = _read_csv(tmp_path / "out" / "reflectance_spatial_unit_summary.csv")
     medians = {row["raster"]: float(row["median"]) for row in rows}
@@ -278,6 +339,8 @@ def test_multiband_ranges_are_independent(tmp_path):
     assert result.scaling["a"]["NDVI"]["maximum"] == 15
     assert result.scaling["a"]["Elevation"]["minimum"] == 100
     assert result.scaling["a"]["Elevation"]["maximum"] == 130
+    metadata = json.loads((tmp_path / "out" / "reflectance_metadata.json").read_text())
+    assert metadata["parallel_processing"]["workers"] == 1
 
 
 def test_constant_valid_band_fails_explicitly(tmp_path):
@@ -319,6 +382,7 @@ def test_class_filter_and_no_paired_units_are_explicit(tmp_path):
         block_size_m=100,
         bootstrap_replicates=100,
         min_independent_blocks=10,
+        n_jobs=2,
     )
     rows = _read_csv(tmp_path / "filtered" / "reflectance_spatial_comparisons.csv")
     assert len(rows) == 1 and rows[0]["class_code"] == "2"
@@ -338,6 +402,7 @@ def test_class_filter_and_no_paired_units_are_explicit(tmp_path):
         spatial_units=_units(),
         block_size_m=100,
         bootstrap_replicates=100,
+        n_jobs=2,
     )
     empty_rows = _read_csv(tmp_path / "empty" / "reflectance_spatial_comparisons.csv")
     assert all(row["status"] == "no_paired_units" for row in empty_rows)
@@ -431,11 +496,15 @@ def test_cli_accepts_spatial_units_and_writes_spatial_outputs(tmp_path, capsys):
         "EPSG:32618",
         "--block-size-m",
         "100",
+        "--n-jobs",
+        "2",
         "--out-dir",
         str(tmp_path / "cli"),
     ]
     assert compare_cli.main(args) == 0
     assert (tmp_path / "cli" / "reflectance_spatial_comparisons.csv").exists()
+    metadata = json.loads((tmp_path / "cli" / "reflectance_metadata.json").read_text())
+    assert metadata["parallel_processing"]["workers"] == 2
     assert "reflectance_effect_estimates.png" in capsys.readouterr().out
 
 
@@ -466,9 +535,26 @@ def test_grid_mismatch_resamples_values_and_validity(tmp_path):
         spatial_units=_units(),
         block_size_m=100,
         bootstrap_replicates=100,
+        permutation_replicates=50,
         min_independent_blocks=10,
     )
     rows = _read_csv(tmp_path / "out" / "reflectance_spatial_unit_summary.csv")
     b_rows = [row for row in rows if row["input_label"] == "b"]
     assert float(b_rows[0]["median"]) == pytest.approx(2 / 49, abs=0.002)
     assert len(result.outputs) == 6
+    comparisons = _read_csv(tmp_path / "out" / "reflectance_spatial_comparisons.csv")
+    assert comparisons[0]["permutation_method"].startswith("Monte Carlo")
+    run_reflectance(
+        _reflectance_inputs(inputs),
+        tmp_path / "parallel",
+        spatial_units=_units(),
+        block_size_m=100,
+        bootstrap_replicates=100,
+        permutation_replicates=50,
+        min_independent_blocks=10,
+        n_jobs=3,
+    )
+    for suffix in ("spatial_unit_summary.csv", "spatial_comparisons.csv"):
+        assert (tmp_path / "out" / f"reflectance_{suffix}").read_text() == (
+            tmp_path / "parallel" / f"reflectance_{suffix}"
+        ).read_text()
