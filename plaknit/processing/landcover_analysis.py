@@ -59,9 +59,7 @@ def _validate_specs(
                 "Temporal mode requires a unique acquisition date per input."
             )
         if len(set(dates)) < 2:
-            raise ValueError(
-                "Temporal mode requires at least two distinct dates."
-            )
+            raise ValueError("Temporal mode requires at least two distinct dates.")
         if group_by not in ("date", "year"):
             raise ValueError("Temporal group_by must be 'date' or 'year'.")
     return dates
@@ -98,6 +96,7 @@ def _native_common_mask(layers: Sequence[lc.Layer], index: int) -> np.ndarray:
         )
     return common
 
+
 CLASS_METRIC_FIELDS = [
     "input_label",
     "class_code",
@@ -128,9 +127,7 @@ def _class_metric_rows(
         r0, c0 = max(r0, 0), max(c0, 0)
         r1, c1 = min(r1, layer.height - 1), min(c1, layer.width - 1)
         selected = mask[r0 : r1 + 1, c0 : c1 + 1]
-        data = np.asarray(
-            layer.data[r0 : r1 + 1, c0 : c1 + 1], dtype=np.int64
-        ).copy()
+        data = np.asarray(layer.data[r0 : r1 + 1, c0 : c1 + 1], dtype=np.int64).copy()
         nodata = np.iinfo(np.int64).min
         present = set(int(value) for value in np.unique(data[selected]))
         while nodata in present:
@@ -149,9 +146,7 @@ def _class_metric_rows(
                 "patch_density",
             ],
             classes=sorted(present),
-            metrics_kwargs={
-                "patch_density": {"percent": False, "hectares": True}
-            },
+            metrics_kwargs={"patch_density": {"percent": False, "hectares": True}},
         )
         for class_code in all_classes:
             if class_code in present:
@@ -160,8 +155,7 @@ def _class_metric_rows(
                 count = int(metric["number_of_patches"])
                 density = float(metric["patch_density"])
                 area = float(
-                    np.count_nonzero(data[selected] == class_code)
-                    * layer.cell_area
+                    np.count_nonzero(data[selected] == class_code) * layer.cell_area
                 )
             else:
                 proportion, count, density, area = 0.0, 0, 0.0, 0.0
@@ -322,9 +316,7 @@ def run_analysis(
 ) -> AnalysisResult:
     _validate_specs(mode, inputs, group_by)
     if not prefix or Path(prefix).name != prefix:
-        raise ValueError(
-            "prefix must be a non-empty filename prefix, not a path."
-        )
+        raise ValueError("prefix must be a non-empty filename prefix, not a path.")
     class_filter = None if classes is None else list(classes)
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -390,9 +382,7 @@ def run_analysis(
                 "reprojected": layers[index].reprojected,
                 "class_codes": sorted(
                     int(value)
-                    for value in np.unique(
-                        layers[index].data[layers[index].valid]
-                    )
+                    for value in np.unique(layers[index].data[layers[index].valid])
                 ),
             }
             for index, item in enumerate(inputs)

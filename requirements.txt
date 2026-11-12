@@ -1,5 +1,5 @@
-geopandas
 fiona<1.10; python_version < "3.9"
+geopandas
 joblib
 matplotlib>=3.6
 numpy

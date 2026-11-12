@@ -54,7 +54,11 @@ def make_rasters(tmp_path, n):
     paths = []
     for i, (res, x0, ytop, size) in enumerate(SPECS[:n]):
         cells = int(size / res)
-        paths.append(write_raster(tmp_path / f"r{i}.tif", blobs((cells, cells), i), res, x0, ytop))
+        paths.append(
+            write_raster(
+                tmp_path / f"r{i}.tif", blobs((cells, cells), i), res, x0, ytop
+            )
+        )
     return paths
 
 
@@ -89,7 +93,10 @@ def test_pattern_ids_unique_dense_and_invertible(n, bell):
 
 def test_format_sequence_and_dtype():
     assert lc.format_sequence((1, 1, 1, 1, 1), compact=True) == "11111"
-    assert lc.format_sequence((1, 2, 3, 4, 5, 6, 7, 8, 9, 10), compact=True) == "1-2-3-4-5-6-7-8-9-10"
+    assert (
+        lc.format_sequence((1, 2, 3, 4, 5, 6, 7, 8, 9, 10), compact=True)
+        == "1-2-3-4-5-6-7-8-9-10"
+    )
     assert lc.format_sequence((1, 1, 2)) == "1-1-2"
     assert lc.pattern_dtype(5) == np.uint8
     assert lc.pattern_dtype(7) == np.uint16
@@ -297,7 +304,9 @@ def test_reprojection_preserving_cell_size_keeps_counts(tmp_path, recwarn):
     assert not [w for w in recwarn if "changed the cell size" in str(w.message)]
     s = layers[1]
     cx, cy = s.left + 1500, s.top - 1500
-    assert lc.square_metrics(s, cx - 150, cy - 150, cx + 150, cy + 150)["n_cells"] == 900
+    assert (
+        lc.square_metrics(s, cx - 150, cy - 150, cx + 150, cy + 150)["n_cells"] == 900
+    )
 
 
 def test_intersect_window_includes_edge_cells():
@@ -336,13 +345,15 @@ def test_selection_validity_nonoverlap_nodata_and_reproducible(tmp_path):
     assert sel.centers != other.centers
     assert sel.found > 0
     xmin, ymin, xmax, ymax = lc.common_bounds(layers)
-    for (cx, cy) in sel.centers:
+    for cx, cy in sel.centers:
         assert cx - 15 >= xmin - 1e-9 and cx + 15 <= xmax + 1e-9
         assert cy - 15 >= ymin - 1e-9 and cy + 15 <= ymax + 1e-9
         assert brute_valid(layers, cx - 15, cy - 15, cx + 15, cy + 15)
         # centre is a finest-grid centroid
         fine = layers[finest]
-        assert ((cx - fine.left) / fine.res_x - 0.5) == pytest.approx(round((cx - fine.left) / fine.res_x - 0.5))
+        assert ((cx - fine.left) / fine.res_x - 0.5) == pytest.approx(
+            round((cx - fine.left) / fine.res_x - 0.5)
+        )
     for a, b in itertools.combinations(sel.centers, 2):
         assert not lc.squares_overlap(a, b, 30)
         assert abs(a[0] - b[0]) >= 30 - 1e-9 or abs(a[1] - b[1]) >= 30 - 1e-9
@@ -352,9 +363,18 @@ def test_float_raster_with_whole_number_classes_and_nan_nodata(tmp_path):
     arr = np.full((10, 10), 2.0, "float32")
     arr[0, 0] = np.nan
     p = tmp_path / "f.tif"
-    with rasterio.open(p, "w", driver="GTiff", height=10, width=10, count=1,
-                       dtype="float32", crs=CRS, transform=from_origin(0, 30, 3, 3),
-                       nodata=np.nan) as d:
+    with rasterio.open(
+        p,
+        "w",
+        driver="GTiff",
+        height=10,
+        width=10,
+        count=1,
+        dtype="float32",
+        crs=CRS,
+        transform=from_origin(0, 30, 3, 3),
+        nodata=np.nan,
+    ) as d:
         d.write(arr, 1)
     other = write_raster(tmp_path / "o.tif", np.full((3, 3), 2), 10, 0, 30)
     layers, _ = lc.load_layers([str(p), other])
@@ -410,14 +430,32 @@ def test_validation_errors(tmp_path):
     with pytest.raises(ValueError):
         lc.load_layers([a])
     geo = tmp_path / "geo.tif"
-    with rasterio.open(geo, "w", driver="GTiff", height=2, width=2, count=1, dtype="uint8",
-                       crs="EPSG:4326", transform=from_origin(0, 1, 0.1, 0.1)) as d:
+    with rasterio.open(
+        geo,
+        "w",
+        driver="GTiff",
+        height=2,
+        width=2,
+        count=1,
+        dtype="uint8",
+        crs="EPSG:4326",
+        transform=from_origin(0, 1, 0.1, 0.1),
+    ) as d:
         d.write(np.ones((2, 2), "uint8"), 1)
     with pytest.raises(ValueError, match="At least one"):
         lc.load_layers([str(geo), str(geo)])
     flt = tmp_path / "f.tif"
-    with rasterio.open(flt, "w", driver="GTiff", height=2, width=2, count=1, dtype="float32",
-                       crs=CRS, transform=from_origin(0, 6, 3, 3)) as d:
+    with rasterio.open(
+        flt,
+        "w",
+        driver="GTiff",
+        height=2,
+        width=2,
+        count=1,
+        dtype="float32",
+        crs=CRS,
+        transform=from_origin(0, 6, 3, 3),
+    ) as d:
         d.write(np.full((2, 2), 1.5, "float32"), 1)
     with pytest.raises(ValueError, match="non-integer"):
         lc.load_layers([a, str(flt)])
@@ -440,9 +478,16 @@ def _utm_pair(tmp_path):
     lon, lat = -77.9, 40.0
     (x18,), (y18,) = warp_transform("EPSG:4326", "EPSG:32618", [lon], [lat])
     (x17,), (y17,) = warp_transform("EPSG:4326", "EPSG:32617", [lon], [lat])
-    fine = write_raster(tmp_path / "fine.tif", np.full((100, 100), 1), 3, x18, y18 + 300)
+    fine = write_raster(
+        tmp_path / "fine.tif", np.full((100, 100), 1), 3, x18, y18 + 300
+    )
     coarse = write_raster(
-        tmp_path / "coarse.tif", np.full((60, 60), 1), 10, x17 - 150, y17 + 450, crs="EPSG:32617"
+        tmp_path / "coarse.tif",
+        np.full((60, 60), 1),
+        10,
+        x17 - 150,
+        y17 + 450,
+        crs="EPSG:32617",
     )
     return fine, coarse
 
@@ -466,15 +511,26 @@ def test_geographic_raster_is_reprojected_to_projected_finest(tmp_path):
     fine = write_raster(tmp_path / "fine.tif", np.full((200, 200), 1), 3, x, y + 600)
     deg = 30 / 111_000.0  # ~30 m
     geo = tmp_path / "geo.tif"
-    with rasterio.open(geo, "w", driver="GTiff", height=40, width=40, count=1,
-                       dtype="uint8", crs="EPSG:4326", nodata=NODATA,
-                       transform=from_origin(lon - 5 * deg, lat + 25 * deg, deg, deg)) as d:
+    with rasterio.open(
+        geo,
+        "w",
+        driver="GTiff",
+        height=40,
+        width=40,
+        count=1,
+        dtype="uint8",
+        crs="EPSG:4326",
+        nodata=NODATA,
+        transform=from_origin(lon - 5 * deg, lat + 25 * deg, deg, deg),
+    ) as d:
         d.write(np.ones((40, 40), "uint8"), 1)
     layers, finest = lc.load_layers([str(geo), fine])
     assert finest == 1
     assert layers[0].reprojected and layers[0].crs == layers[1].crs
     assert 20 < layers[0].res_x < 40
-    res = lc.compare_landcover([str(geo), fine], tmp_path / "o", width_m=60, n_samples=3)
+    res = lc.compare_landcover(
+        [str(geo), fine], tmp_path / "o", width_m=60, n_samples=3
+    )
     assert res.selection.found > 0
     with pytest.raises(ValueError, match="reprojection is disabled"):
         lc.load_layers([str(geo), fine], reproject_to_finest=False)
@@ -482,7 +538,9 @@ def test_geographic_raster_is_reprojected_to_projected_finest(tmp_path):
 
 def test_end_to_end_with_reprojection(tmp_path):
     fine, coarse = _utm_pair(tmp_path)
-    res = lc.compare_landcover([fine, coarse], tmp_path / "o", width_m=30, n_samples=3, seed=1)
+    res = lc.compare_landcover(
+        [fine, coarse], tmp_path / "o", width_m=30, n_samples=3, seed=1
+    )
     with rasterio.open(res.agreement_tif) as ds:
         arr = ds.read(1)
         assert ds.crs.to_epsg() == 32618
@@ -580,7 +638,9 @@ def test_end_to_end_outputs(tmp_path, n):
         if not ok:
             assert arr[row, col] == 0
             continue
-        expected = tuple(lc.canonical_groups(np.array(vals).reshape(-1, 1))[:, 0].tolist())
+        expected = tuple(
+            lc.canonical_groups(np.array(vals).reshape(-1, 1))[:, 0].tolist()
+        )
         assert seqs[int(arr[row, col])] == expected
 
 
@@ -630,7 +690,10 @@ def test_observed_only_legend_proportions(tmp_path, monkeypatch):
 
 def test_separate_agreeing_pairs_encoded(tmp_path):
     arrs = [np.full((4, 4), v) for v in (1, 1, 2, 2)]
-    paths = [write_raster(tmp_path / f"p{i}.tif", a, 10 + i, 0, 40 + 10 * i) for i, a in enumerate(arrs)]
+    paths = [
+        write_raster(tmp_path / f"p{i}.tif", a, 10 + i, 0, 40 + 10 * i)
+        for i, a in enumerate(arrs)
+    ]
     layers, finest = lc.load_layers(paths)
     out = tmp_path / "pairs.tif"
     lc.write_agreement(layers, finest, out)
@@ -645,7 +708,9 @@ def test_blocks_and_parallel_match_serial(tmp_path, n_jobs, block_rows):
     layers, finest = lc.load_layers(make_rasters(tmp_path, 4))
     ref, out = tmp_path / "ref.tif", tmp_path / "out.tif"
     c_ref = lc.write_agreement(layers, finest, ref, block_rows=512, n_jobs=1)
-    c_out = lc.write_agreement(layers, finest, out, block_rows=block_rows, n_jobs=n_jobs)
+    c_out = lc.write_agreement(
+        layers, finest, out, block_rows=block_rows, n_jobs=n_jobs
+    )
     with rasterio.open(ref) as a, rasterio.open(out) as b:
         assert (a.read(1) == b.read(1)).all()
     assert c_ref == c_out
