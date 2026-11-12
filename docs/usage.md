@@ -200,6 +200,15 @@ not proof that blocks are independent. `--bootstrap-replicates` (default 2000),
 `--permutation-replicates` (default 9999), `--seed`, `--classes`, and block
 settings are recorded for reproducibility.
 
+Use `--n-jobs 4` to process spatial-unit summaries with four threads, or
+`--n-jobs -1` for all detected CPUs. The default is one worker; workers are
+capped at the number of spatial units. Each worker opens its own raster
+datasets, so additional workers increase I/O and open-file usage. Full-raster
+range scans, geometry-mask rasterization, reprojection, and statistical
+inference remain serial. Results are reproducible across worker counts, and
+the worker count is recorded in metadata.
+On a shared HPC system, set the count to your allocated CPUs.
+
 Results describe the supplied raster products, not a sensor-only causal effect.
 Acquisition dates, scene IDs, processing histories, and quality-mask provenance
 are not inferred; provide and evaluate those separately. Matching class codes

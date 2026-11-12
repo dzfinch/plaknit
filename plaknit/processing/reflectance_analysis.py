@@ -7,10 +7,13 @@ import itertools
 import json
 import math
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
-from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple, Union
 
 import numpy as np
 import rasterio
@@ -21,10 +24,12 @@ from rasterio.windows import Window, from_bounds
 from scipy.stats import rankdata
 
 from .landcover_analysis import _write_csv
+from .landcover_compare import _resolve_jobs
 
 MIN_INDEPENDENT_BLOCKS = 10
 DEFAULT_BOOTSTRAP_REPLICATES = 2000
 DEFAULT_PERMUTATION_REPLICATES = 9999
+_MEMORY_DATASET_LOCK = threading.Lock()
 
 
 @dataclass
@@ -163,13 +168,15 @@ def _unit_window(dataset, geometry):
     if window.width <= 0 or window.height <= 0:
         return None, None
     transform = dataset.window_transform(window)
-    inside = geometry_mask(
-        [geometry.__geo_interface__],
-        out_shape=(int(window.height), int(window.width)),
-        transform=transform,
-        all_touched=False,
-        invert=True,
-    )
+    # Rasterio's in-memory operations use process-wide warning filters.
+    with _MEMORY_DATASET_LOCK:
+        inside = geometry_mask(
+            [geometry.__geo_interface__],
+            out_shape=(int(window.height), int(window.width)),
+            transform=transform,
+            all_touched=False,
+            invert=True,
+        )
     return window, inside
 
 
@@ -251,29 +258,30 @@ def _aligned_unit_values(
     values = _normalize_values(raw, source_valid, value_range)
     aligned = np.full(shape, np.nan, dtype=np.float64)
     source_transform = source.window_transform(source_window)
-    reproject(
-        source=values,
-        destination=aligned,
-        src_transform=source_transform,
-        src_crs=source.crs,
-        src_nodata=np.nan,
-        dst_transform=target_transform,
-        dst_crs=target.crs,
-        dst_nodata=np.nan,
-        resampling=Resampling.bilinear,
-    )
     aligned_valid = np.zeros(shape, dtype=np.uint8)
-    reproject(
-        source=source_valid.astype(np.uint8),
-        destination=aligned_valid,
-        src_transform=source_transform,
-        src_crs=source.crs,
-        src_nodata=0,
-        dst_transform=target_transform,
-        dst_crs=target.crs,
-        dst_nodata=0,
-        resampling=Resampling.nearest,
-    )
+    with _MEMORY_DATASET_LOCK:
+        reproject(
+            source=values,
+            destination=aligned,
+            src_transform=source_transform,
+            src_crs=source.crs,
+            src_nodata=np.nan,
+            dst_transform=target_transform,
+            dst_crs=target.crs,
+            dst_nodata=np.nan,
+            resampling=Resampling.bilinear,
+        )
+        reproject(
+            source=source_valid.astype(np.uint8),
+            destination=aligned_valid,
+            src_transform=source_transform,
+            src_crs=source.crs,
+            src_nodata=0,
+            dst_transform=target_transform,
+            dst_crs=target.crs,
+            dst_nodata=0,
+            resampling=Resampling.nearest,
+        )
     valid = (aligned_valid > 0) & np.isfinite(aligned)
     return aligned, valid
 
@@ -293,6 +301,80 @@ def _unit_summary(values: np.ndarray) -> Dict[str, object]:
         "lower_quartile": float(q1),
         "upper_quartile": float(q3),
     }
+
+
+def _summarize_unit_chunk(
+    units: Sequence[SpatialUnit],
+    inputs: Sequence[ReflectanceInput],
+    raster_specs: Mapping[
+        Tuple[int, str], Tuple[ReflectanceBand, Optional[Tuple[float, float]]]
+    ],
+    scaling: Mapping[str, Mapping[str, Mapping[str, object]]],
+    unit_centers: Mapping[str, Tuple[float, float]],
+    class_filter: Optional[Set[int]],
+) -> Tuple[Dict[Tuple[str, str, int, str], Dict[str, object]], Set[int]]:
+    records: Dict[Tuple[str, str, int, str], Dict[str, object]] = {}
+    all_codes: Set[int] = set()
+    with ExitStack() as stack:
+        class_sources = [
+            stack.enter_context(rasterio.open(item.classification)) for item in inputs
+        ]
+        raster_sources = {
+            key: stack.enter_context(rasterio.open(spec.path))
+            for key, (spec, _) in raster_specs.items()
+        }
+        for unit in units:
+            for index, item in enumerate(inputs):
+                classification = class_sources[index]
+                geometry = _unit_geometry(unit, classification.crs)
+                window, inside = _unit_window(classification, geometry)
+                if window is None:
+                    continue
+                class_values = classification.read(1, window=window)
+                class_valid = (
+                    (classification.read_masks(1, window=window) > 0)
+                    & np.isfinite(class_values)
+                    & inside
+                )
+                if not class_valid.any():
+                    continue
+                rounded = np.rint(class_values[class_valid])
+                if not np.allclose(class_values[class_valid], rounded):
+                    raise ValueError(
+                        f"{item.label}: classification contains non-integer "
+                        "class codes."
+                    )
+                present_codes = {int(code) for code in np.unique(rounded)}
+                all_codes.update(present_codes)
+                codes = (
+                    sorted(present_codes & class_filter)
+                    if class_filter is not None
+                    else sorted(present_codes)
+                )
+                for name in item.rasters:
+                    key = (index, name)
+                    spec, value_range = raster_specs[key]
+                    aligned, raster_valid = _aligned_unit_values(
+                        raster_sources[key],
+                        spec.band,
+                        classification,
+                        window,
+                        value_range,
+                    )
+                    usable = raster_valid & inside & class_valid
+                    for code in codes:
+                        selected = aligned[usable & (class_values == code)]
+                        records[(item.label, name, code, unit.unit_id)] = {
+                            "input_label": item.label,
+                            "raster": name,
+                            "class_code": code,
+                            "unit_id": unit.unit_id,
+                            "center_x": unit_centers[unit.unit_id][0],
+                            "center_y": unit_centers[unit.unit_id][1],
+                            "scaling_method": scaling[item.label][name]["method"],
+                            **_unit_summary(selected),
+                        }
+    return records, all_codes
 
 
 def _paired_rank_biserial(differences: np.ndarray) -> Optional[float]:
@@ -636,6 +718,7 @@ def _methods_report(
         f"- Monte Carlo permutation replicates: "
         f"`{settings['permutation_replicates']}`",
         f"- Supplied spatial units: `{settings['spatial_unit_count']}`",
+        f"- Spatial-unit workers: `{settings['workers']}`",
         f"- Inferential comparisons: `{len(tested)}` of `{len(comparisons)}`",
         "",
         "## Key results",
@@ -692,7 +775,9 @@ def run_reflectance(
     bootstrap_replicates: int = DEFAULT_BOOTSTRAP_REPLICATES,
     permutation_replicates: int = DEFAULT_PERMUTATION_REPLICATES,
     min_independent_blocks: int = MIN_INDEPENDENT_BLOCKS,
+    n_jobs: Optional[int] = 1,
 ) -> ReflectanceResult:
+    workers = _resolve_jobs(n_jobs)
     if len(inputs) < 2:
         raise ValueError("At least two classification inputs are required.")
     labels = [item.label for item in inputs]
@@ -724,6 +809,7 @@ def run_reflectance(
         if isinstance(spatial_units, (str, Path))
         else _validate_units(spatial_units)
     )
+    workers = min(workers, len(units))
     unit_crs = units[0].crs
     unit_scale = float(unit_crs.linear_units_factor[1])
     if not math.isfinite(unit_scale) or unit_scale <= 0:
@@ -756,28 +842,22 @@ def run_reflectance(
         raise ValueError("At least one class code is required when filtering.")
 
     unit_records: Dict[Tuple[str, str, int, str], Dict[str, object]] = {}
-    all_codes = set()
+    all_codes: Set[int] = set()
     scaling: Dict[str, Dict[str, Dict[str, object]]] = {
         item.label: {} for item in inputs
     }
-    with ExitStack() as stack:
-        class_sources = [
-            stack.enter_context(rasterio.open(item.classification)) for item in inputs
-        ]
-        raster_sources: Dict[
-            Tuple[int, str], Tuple[object, int, Optional[Tuple[float, float]]]
-        ] = {}
-        for index, item in enumerate(inputs):
-            for name, raster in item.rasters.items():
-                spec = (
-                    ReflectanceBand(raster, 1, 1) if isinstance(raster, str) else raster
+    raster_specs: Dict[
+        Tuple[int, str], Tuple[ReflectanceBand, Optional[Tuple[float, float]]]
+    ] = {}
+    for index, item in enumerate(inputs):
+        for name, raster in item.rasters.items():
+            spec = ReflectanceBand(raster, 1, 1) if isinstance(raster, str) else raster
+            if not 1 <= spec.band <= spec.band_count:
+                raise ValueError(
+                    f"{item.label}:{name}: band index must be within the "
+                    "declared band count."
                 )
-                if not 1 <= spec.band <= spec.band_count:
-                    raise ValueError(
-                        f"{item.label}:{name}: band index must be within the "
-                        "declared band count."
-                    )
-                source = stack.enter_context(rasterio.open(spec.path))
+            with rasterio.open(spec.path) as source:
                 if source.count != spec.band_count:
                     raise ValueError(
                         f"{spec.path}: {item.label}:{name} declares "
@@ -785,7 +865,7 @@ def run_reflectance(
                         f"{source.count} band(s)."
                     )
                 value_range = _band_range(source, spec.band)
-                raster_sources[(index, name)] = (source, spec.band, value_range)
+                raster_specs[(index, name)] = (spec, value_range)
                 scale = float(source.scales[spec.band - 1])
                 offset = float(source.offsets[spec.band - 1])
                 scaling[item.label][name] = {
@@ -800,52 +880,26 @@ def run_reflectance(
                     "offset": offset,
                 }
 
-        for unit in units:
-            for index, item in enumerate(inputs):
-                classification = class_sources[index]
-                geometry = _unit_geometry(unit, classification.crs)
-                window, inside = _unit_window(classification, geometry)
-                if window is None:
-                    continue
-                class_values = classification.read(1, window=window)
-                class_valid = (
-                    (classification.read_masks(1, window=window) > 0)
-                    & np.isfinite(class_values)
-                    & inside
-                )
-                if not class_valid.any():
-                    continue
-                rounded = np.rint(class_values[class_valid])
-                if not np.allclose(class_values[class_valid], rounded):
-                    raise ValueError(
-                        f"{item.label}: classification contains non-integer "
-                        "class codes."
-                    )
-                present_codes = {int(code) for code in np.unique(rounded)}
-                all_codes.update(present_codes)
-                codes = (
-                    sorted(present_codes & class_filter)
-                    if class_filter is not None
-                    else sorted(present_codes)
-                )
-                for name in item.rasters:
-                    source, band, value_range = raster_sources[(index, name)]
-                    aligned, raster_valid = _aligned_unit_values(
-                        source, band, classification, window, value_range
-                    )
-                    usable = raster_valid & inside & class_valid
-                    for code in codes:
-                        selected = aligned[usable & (class_values == code)]
-                        unit_records[(item.label, name, code, unit.unit_id)] = {
-                            "input_label": item.label,
-                            "raster": name,
-                            "class_code": code,
-                            "unit_id": unit.unit_id,
-                            "center_x": unit_centers[unit.unit_id][0],
-                            "center_y": unit_centers[unit.unit_id][1],
-                            "scaling_method": scaling[item.label][name]["method"],
-                            **_unit_summary(selected),
-                        }
+    summarize = partial(
+        _summarize_unit_chunk,
+        inputs=inputs,
+        raster_specs=raster_specs,
+        scaling=scaling,
+        unit_centers=unit_centers,
+        class_filter=class_filter,
+    )
+    chunks = [
+        units[len(units) * i // workers : len(units) * (i + 1) // workers]
+        for i in range(workers)
+    ]
+    if workers == 1:
+        results = [summarize(chunks[0])]
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            results = list(executor.map(summarize, chunks))
+    for records, codes in results:
+        unit_records.update(records)
+        all_codes.update(codes)
 
     if class_filter is not None:
         missing = class_filter - all_codes
@@ -1056,6 +1110,7 @@ def run_reflectance(
     settings = {
         "seed": seed,
         "spatial_unit_count": len(units),
+        "workers": workers,
         "block_size_m": effective_block_size,
         "block_size_source": block_source,
         "minimum_independent_blocks": min_independent_blocks,
@@ -1089,6 +1144,11 @@ def run_reflectance(
             "pairing": "same spatial-unit ID and class code across input products",
         },
         "class_filter": sorted(class_filter) if class_filter is not None else None,
+        "parallel_processing": {
+            "requested_jobs": n_jobs,
+            "workers": workers,
+            "scope": "spatial-unit summaries",
+        },
         "value_scaling": (
             "Independently min-max normalize each input band using valid finite "
             "values across its full source raster. Raster scale/offset metadata "
