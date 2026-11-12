@@ -173,28 +173,36 @@ def _unit_window(dataset, geometry):
     return window, inside
 
 
-def _apply_scale_offset(values: np.ndarray, scale: float, offset: float) -> np.ndarray:
-    if not (math.isfinite(scale) and math.isfinite(offset)) or scale <= 0:
+def _band_range(source, band: int) -> Optional[Tuple[float, float]]:
+    minimum = maximum = None
+    for _, window in source.block_windows(band):
+        raw = source.read(band, window=window).astype(np.float64)
+        valid = (source.read_masks(band, window=window) > 0) & np.isfinite(raw)
+        if valid.any():
+            block_min = float(np.min(raw[valid]))
+            block_max = float(np.max(raw[valid]))
+            minimum = block_min if minimum is None else min(minimum, block_min)
+            maximum = block_max if maximum is None else max(maximum, block_max)
+    if minimum is None or maximum is None:
+        return None
+    if minimum == maximum:
         raise ValueError(
-            "Raster scale/offset metadata must be finite with positive scale."
+            f"{source.name}: band {band} has a constant valid value; "
+            "min-max normalization is undefined."
         )
-    if scale != 1.0 or offset != 0.0:
-        return values * scale + offset
+    if not math.isfinite(maximum - minimum):
+        raise ValueError(f"{source.name}: band {band} has an invalid value range.")
+    return minimum, maximum
+
+
+def _normalize_values(
+    raw: np.ndarray, valid: np.ndarray, value_range: Optional[Tuple[float, float]]
+) -> np.ndarray:
+    values = np.full(raw.shape, np.nan, dtype=np.float64)
+    if value_range is not None:
+        minimum, maximum = value_range
+        values[valid] = (raw[valid] - minimum) / (maximum - minimum)
     return values
-
-
-def _scale_info(scale: float, offset: float) -> Dict[str, object]:
-    if not (math.isfinite(scale) and math.isfinite(offset)) or scale <= 0:
-        raise ValueError(
-            "Raster scale/offset metadata must be finite with positive scale."
-        )
-    if scale == 1.0 and offset == 0.0:
-        return {"method": "native", "scale": scale, "offset": offset}
-    return {
-        "method": "metadata-scale-offset",
-        "scale": scale,
-        "offset": offset,
-    }
 
 
 def _aligned_unit_values(
@@ -202,9 +210,9 @@ def _aligned_unit_values(
     band: int,
     target,
     target_window: Window,
+    value_range: Optional[Tuple[float, float]],
 ) -> Tuple[np.ndarray, np.ndarray]:
     shape = (int(target_window.height), int(target_window.width))
-    scale, offset = float(source.scales[band - 1]), float(source.offsets[band - 1])
     if (
         source.width == target.width
         and source.height == target.height
@@ -213,7 +221,7 @@ def _aligned_unit_values(
     ):
         raw = source.read(band, window=target_window).astype(np.float64)
         valid = (source.read_masks(band, window=target_window) > 0) & np.isfinite(raw)
-        values = _apply_scale_offset(raw, scale, offset)
+        values = _normalize_values(raw, valid, value_range)
         return values, valid
 
     if source.crs is None or target.crs is None:
@@ -240,8 +248,7 @@ def _aligned_unit_values(
     source_valid = (source.read_masks(band, window=source_window) > 0) & np.isfinite(
         raw
     )
-    values = _apply_scale_offset(raw, scale, offset)
-    values[~source_valid] = np.nan
+    values = _normalize_values(raw, source_valid, value_range)
     aligned = np.full(shape, np.nan, dtype=np.float64)
     source_transform = source.window_transform(source_window)
     reproject(
@@ -563,7 +570,7 @@ def _write_effect_plot(path: Path, rows: Sequence[Mapping[str, object]]) -> None
             transform=ax.transAxes,
         )
     ax.axvline(0, color="black", linewidth=0.8, linestyle="--")
-    ax.set_xlabel("Median paired difference (input B minus input A)")
+    ax.set_xlabel("Median paired difference (normalized B minus A)")
     ax.set_title(
         "Median paired effects (whiskers = 95% block CI; x = descriptive only)"
     )
@@ -590,10 +597,11 @@ def _methods_report(
         "Comparisons pair those summaries by unit ID and use the median of "
         "`input B - input A` differences as the estimate.",
         "",
-        "Declared raster scale/offset metadata is applied. When it is absent, "
-        "native raster values are retained; inputs are not independently "
-        "min–max stretched. Units and physical comparability must still be "
-        "confirmed by the analyst.",
+        "Each input band is independently min-max normalized to 0–1 using "
+        "valid finite values across the full source raster. Declared scale/offset "
+        "metadata is not applied. Normalized values are relative to each band's "
+        "observed range, not physical reflectance; independent stretching can "
+        "remove real differences and does not establish physical comparability.",
         "",
         "Confidence intervals use a percentile bootstrap resampling whole "
         "coordinate-based spatial blocks. P-values use a paired block "
@@ -756,7 +764,9 @@ def run_reflectance(
         class_sources = [
             stack.enter_context(rasterio.open(item.classification)) for item in inputs
         ]
-        raster_sources: Dict[Tuple[int, str], Tuple[object, int]] = {}
+        raster_sources: Dict[
+            Tuple[int, str], Tuple[object, int, Optional[Tuple[float, float]]]
+        ] = {}
         for index, item in enumerate(inputs):
             for name, raster in item.rasters.items():
                 spec = (
@@ -774,13 +784,20 @@ def run_reflectance(
                         f"{spec.band_count} band name(s), but raster has "
                         f"{source.count} band(s)."
                     )
-                raster_sources[(index, name)] = (source, spec.band)
+                value_range = _band_range(source, spec.band)
+                raster_sources[(index, name)] = (source, spec.band, value_range)
                 scale = float(source.scales[spec.band - 1])
                 offset = float(source.offsets[spec.band - 1])
                 scaling[item.label][name] = {
                     "path": spec.path,
                     "band": spec.band,
-                    **_scale_info(scale, offset),
+                    "method": (
+                        "min-max" if value_range is not None else "no-valid-pixels"
+                    ),
+                    "minimum": value_range[0] if value_range is not None else None,
+                    "maximum": value_range[1] if value_range is not None else None,
+                    "scale": scale,
+                    "offset": offset,
                 }
 
         for unit in units:
@@ -812,9 +829,9 @@ def run_reflectance(
                     else sorted(present_codes)
                 )
                 for name in item.rasters:
-                    source, band = raster_sources[(index, name)]
+                    source, band, value_range = raster_sources[(index, name)]
                     aligned, raster_valid = _aligned_unit_values(
-                        source, band, classification, window
+                        source, band, classification, window, value_range
                     )
                     usable = raster_valid & inside & class_valid
                     for code in codes:
@@ -1073,8 +1090,9 @@ def run_reflectance(
         },
         "class_filter": sorted(class_filter) if class_filter is not None else None,
         "value_scaling": (
-            "Apply declared raster scale/offset metadata; otherwise preserve native "
-            "values. No independent min-max scaling is applied."
+            "Independently min-max normalize each input band using valid finite "
+            "values across its full source raster. Raster scale/offset metadata "
+            "is recorded but not applied. Constant bands cannot be normalized."
         ),
         "alignment": (
             "Read each input on its own classification grid; align continuous "
@@ -1088,7 +1106,7 @@ def run_reflectance(
         "effect_size": (
             "Paired rank-biserial effect from signed ranks of nonzero unit "
             "differences; positive indicates input B tends to be higher. The "
-            "primary estimate remains the median difference in source units."
+            "primary estimate is the median difference in normalized units."
         ),
         "uncertainty": {
             **block_settings,

@@ -164,17 +164,25 @@ named `unit_id`, `square_id`, or `id`. A CSV must contain that ID and
 
 Each raster is read on its input classification's native grid. If the grids
 differ, values are bilinear-resampled and validity masks nearest-neighbor
-resampled in memory within each spatial unit. Declared raster scale/offset
-metadata is applied. Without it, native values are preserved; inputs are not
-independently min/max stretched. Confirm that matching raster names have
-comparable units before interpreting their differences. Source path, band,
-scale method, unit IDs, CRS, alignment, and inference settings are recorded in
-metadata.
+resampled in memory within each spatial unit. Every input band, including NDVI
+and elevation, is independently min-max normalized to 0–1 using all valid,
+finite pixels across the full source raster, before resampling or class
+selection. Declared scale/offset metadata is recorded but not applied. The
+source range and normalization method are recorded in the output metadata.
+Constant valid bands cause an error because their range is zero; bands with no
+valid pixels yield missing summaries.
+
+These are relative values, not physical reflectance or elevation. Independent
+stretching can remove actual differences between inputs, and outliers or
+differences in raster extent can affect the range. It does not establish
+physical comparability. Source path, band, unit IDs, CRS, alignment, and
+inference settings are also recorded in metadata.
 
 For each input, raster name, class, and spatial unit, the analysis reports the
 median and quartiles of valid pixels selected by that input's own classification
 mask. Comparisons pair these unit-level medians by unit ID and class. The
-estimate is the median paired difference (input B minus input A); the effect
+estimate is the median paired difference in normalized units (input B minus
+input A); the effect
 size is paired rank-biserial correlation. Confidence intervals resample whole
 coordinate-based blocks, and p-values use paired block sign-flip permutations.
 Exact permutation is used for at most 15 blocks; larger tests use seeded Monte
