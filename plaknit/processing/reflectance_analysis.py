@@ -237,8 +237,8 @@ def _aligned_unit_values(
         return np.full(shape, np.nan), np.zeros(shape, dtype=bool)
 
     raw = source.read(band, window=source_window).astype(np.float64)
-    source_valid = (
-        (source.read_masks(band, window=source_window) > 0) & np.isfinite(raw)
+    source_valid = (source.read_masks(band, window=source_window) > 0) & np.isfinite(
+        raw
     )
     values = _apply_scale_offset(raw, scale, offset)
     values[~source_valid] = np.nan
@@ -381,7 +381,7 @@ def _estimate_block_size(
     candidate = None
     for index in range(1, len(lag_values) - 1):
         if lag_values[index] >= 0.95 * sill and all(
-            value >= 0.75 * sill for value in lag_values[index + 1:]
+            value >= 0.75 * sill for value in lag_values[index + 1 :]
         ):
             candidate = lag_upper_edges[index]
             break
@@ -452,9 +452,7 @@ def _block_permutation_pvalue(
                 dtype=np.float64,
                 count=len(blocks),
             )
-            statistic = abs(
-                float(np.median(differences * signs[observation_blocks]))
-            )
+            statistic = abs(float(np.median(differences * signs[observation_blocks])))
             extreme += statistic + tolerance >= observed
         return extreme / total, "exact block sign-flip permutation", total
 
@@ -512,17 +510,13 @@ def _write_effect_plot(path: Path, rows: Sequence[Mapping[str, object]]) -> None
         )
         low = np.asarray(
             [
-                float(row["ci_lower"])
-                if row.get("ci_lower") is not None
-                else estimate
+                float(row["ci_lower"]) if row.get("ci_lower") is not None else estimate
                 for row, estimate in zip(available, estimates)
             ]
         )
         high = np.asarray(
             [
-                float(row["ci_upper"])
-                if row.get("ci_upper") is not None
-                else estimate
+                float(row["ci_upper"]) if row.get("ci_upper") is not None else estimate
                 for row, estimate in zip(available, estimates)
             ]
         )
@@ -653,13 +647,9 @@ def _methods_report(
             if row["ci_lower"] is not None and row["ci_upper"] is not None
             else ""
         )
-        p_value = (
-            f"{float(row['p_value']):.6g}" if row["p_value"] is not None else ""
-        )
+        p_value = f"{float(row['p_value']):.6g}" if row["p_value"] is not None else ""
         p_value_bh = (
-            f"{float(row['p_value_bh']):.6g}"
-            if row["p_value_bh"] is not None
-            else ""
+            f"{float(row['p_value_bh']):.6g}" if row["p_value_bh"] is not None else ""
         )
         block_count = (
             str(row["independent_block_count"])
@@ -738,8 +728,10 @@ def run_reflectance(
         for unit in units
     }
     unit_width_m = max(
-        max(unit.geometry.bounds[2] - unit.geometry.bounds[0],
-            unit.geometry.bounds[3] - unit.geometry.bounds[1])
+        max(
+            unit.geometry.bounds[2] - unit.geometry.bounds[0],
+            unit.geometry.bounds[3] - unit.geometry.bounds[1],
+        )
         * unit_scale
         for unit in units
     )
@@ -768,9 +760,7 @@ def run_reflectance(
         for index, item in enumerate(inputs):
             for name, raster in item.rasters.items():
                 spec = (
-                    ReflectanceBand(raster, 1, 1)
-                    if isinstance(raster, str)
-                    else raster
+                    ReflectanceBand(raster, 1, 1) if isinstance(raster, str) else raster
                 )
                 if not 1 <= spec.band <= spec.band_count:
                     raise ValueError(
@@ -1074,9 +1064,11 @@ def run_reflectance(
             "count": len(units),
             "id_field": "unit_id (normalized from unit_id, square_id, or id)",
             "crs": unit_crs.to_string(),
-            "geometry_source": str(spatial_units)
-            if isinstance(spatial_units, (str, Path))
-            else "Python SpatialUnit sequence",
+            "geometry_source": (
+                str(spatial_units)
+                if isinstance(spatial_units, (str, Path))
+                else "Python SpatialUnit sequence"
+            ),
             "pairing": "same spatial-unit ID and class code across input products",
         },
         "class_filter": sorted(class_filter) if class_filter is not None else None,

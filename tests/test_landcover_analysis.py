@@ -56,9 +56,7 @@ def _inputs(tmp_path):
 
 
 @pytest.mark.parametrize("mode", ["spatial", "temporal"])
-def test_cli_subcommands_emit_landscape_and_agreement_outputs(
-    tmp_path, capsys, mode
-):
+def test_cli_subcommands_emit_landscape_and_agreement_outputs(tmp_path, capsys, mode):
     inputs = _inputs(tmp_path)
     if mode == "temporal":
         inputs[1].date = "2025-06-01"
@@ -113,9 +111,7 @@ def test_temporal_validation_requires_distinct_dates():
     with pytest.raises(ValueError, match="unique acquisition date"):
         _validate_specs("temporal", inputs, "date")
     with pytest.raises(ValueError, match="requires a date"):
-        _validate_specs(
-            "temporal", [inputs[0], InputSpec("b", "b.tif", None)], "date"
-        )
+        _validate_specs("temporal", [inputs[0], InputSpec("b", "b.tif", None)], "date")
 
 
 def test_nodata_common_footprint_and_all_agree_patch_output(tmp_path):
@@ -139,9 +135,7 @@ def test_nodata_common_footprint_and_all_agree_patch_output(tmp_path):
         seed=4,
     )
     metadata = json.loads((out / "compare_metadata.json").read_text())
-    assert metadata["common_classification_footprint"][
-        "valid_native_area_m2"
-    ] == {
+    assert metadata["common_classification_footprint"]["valid_native_area_m2"] == {
         "a": 9900.0,
         "b": 9900.0,
     }
@@ -202,13 +196,8 @@ def test_pylandstats_units_and_boundary_rule(tmp_path):
         rows = list(csv.DictReader(stream))
     class_rows = [row for row in rows if row["input_label"] == "a"]
     assert len(class_rows) == 2
-    assert all(
-        float(row["proportion_pct"]) == pytest.approx(50)
-        for row in class_rows
-    )
-    assert all(
-        float(row["patch_density"]) == pytest.approx(50) for row in class_rows
-    )
+    assert all(float(row["proportion_pct"]) == pytest.approx(50) for row in class_rows)
+    assert all(float(row["patch_density"]) == pytest.approx(50) for row in class_rows)
     assert all(int(row["patch_count"]) == 2 for row in class_rows)
 
 
@@ -402,7 +391,9 @@ def test_square_metrics_labels_are_preserved_and_columns_are_distinct(tmp_path):
     out = tmp_path / "labels"
     result = run_analysis("spatial", inputs, out, width_m=20, n_samples=1)
     assert result.selection.found == 1
-    with open(out / "compare_squares_metrics.csv", newline="", encoding="utf-8") as stream:
+    with open(
+        out / "compare_squares_metrics.csv", newline="", encoding="utf-8"
+    ) as stream:
         reader = csv.DictReader(stream)
         fields = reader.fieldnames
         rows = list(reader)

@@ -15,9 +15,7 @@ from ..processing.reflectance_analysis import (
 
 def _key_value(value: str, option: str) -> Tuple[str, str]:
     if "=" not in value:
-        raise ValueError(
-            f"{option} must be LABEL=VALUE (or LABEL:BAND=VALUE)."
-        )
+        raise ValueError(f"{option} must be LABEL=VALUE (or LABEL:BAND=VALUE).")
     key, item = value.split("=", 1)
     if not key or not item:
         raise ValueError(f"{option} must have non-empty key and value.")
@@ -45,15 +43,9 @@ def _add_common_options(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument("--out-dir", required=True, help="Output directory.")
-    parser.add_argument(
-        "--prefix", default="compare", help="Output filename prefix."
-    )
-    parser.add_argument(
-        "--width", type=float, default=100.0, help="Square width (m)."
-    )
-    parser.add_argument(
-        "--samples", type=int, default=100, help="Squares to select."
-    )
+    parser.add_argument("--prefix", default="compare", help="Output filename prefix.")
+    parser.add_argument("--width", type=float, default=100.0, help="Square width (m).")
+    parser.add_argument("--samples", type=int, default=100, help="Squares to select.")
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
     parser.add_argument(
         "--search-limit",
@@ -246,11 +238,7 @@ def _input_specs(args) -> Sequence[InputSpec]:
             raise ValueError(f"--input: duplicate label {label!r}.")
         labels.add(label)
         inputs.append((label, path))
-    dates = (
-        _unique_pairs(args.date, "--date")
-        if args.mode == "temporal"
-        else {}
-    )
+    dates = _unique_pairs(args.date, "--date") if args.mode == "temporal" else {}
     if args.mode == "temporal" and set(dates) != labels:
         raise ValueError("--date labels must match --input labels exactly.")
     return [

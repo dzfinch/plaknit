@@ -166,9 +166,7 @@ def test_spatial_comparisons_pair_unit_medians_and_preserve_native_values(tmp_pa
 
     unit_rows = _read_csv(tmp_path / "out" / "reflectance_spatial_unit_summary.csv")
     assert len(unit_rows) == 80
-    assert {row["unit_id"] for row in unit_rows} == {
-        unit.unit_id for unit in _units()
-    }
+    assert {row["unit_id"] for row in unit_rows} == {unit.unit_id for unit in _units()}
 
     comparisons = _read_csv(tmp_path / "out" / "reflectance_spatial_comparisons.csv")
     assert len(comparisons) == 2
@@ -199,9 +197,7 @@ def test_spatial_comparisons_pair_unit_medians_and_preserve_native_values(tmp_pa
         bootstrap_replicates=200,
         min_independent_blocks=10,
     )
-    assert (
-        tmp_path / "out" / "reflectance_spatial_comparisons.csv"
-    ).read_text() == (
+    assert (tmp_path / "out" / "reflectance_spatial_comparisons.csv").read_text() == (
         tmp_path / "repeat" / "reflectance_spatial_comparisons.csv"
     ).read_text()
 
@@ -264,9 +260,7 @@ def test_class_filter_and_no_paired_units_are_explicit(tmp_path):
     } == {"2"}
 
     no_data = np.full((100, 100), -9999.0, dtype="float32")
-    no_data_path = _write(
-        tmp_path / "ndvi_no_data.tif", no_data, nodata=-9999.0
-    )
+    no_data_path = _write(tmp_path / "ndvi_no_data.tif", no_data, nodata=-9999.0)
     inputs[1].rasters = {"NDVI": no_data_path}
     run_reflectance(
         inputs,
@@ -275,9 +269,7 @@ def test_class_filter_and_no_paired_units_are_explicit(tmp_path):
         block_size_m=100,
         bootstrap_replicates=100,
     )
-    empty_rows = _read_csv(
-        tmp_path / "empty" / "reflectance_spatial_comparisons.csv"
-    )
+    empty_rows = _read_csv(tmp_path / "empty" / "reflectance_spatial_comparisons.csv")
     assert all(row["status"] == "no_paired_units" for row in empty_rows)
     assert all(row["p_value"] == "" for row in empty_rows)
 
@@ -321,9 +313,7 @@ def test_empirical_block_estimator_detects_correlated_spatial_differences():
 
     x, y = np.meshgrid(np.arange(30) * 1000, np.arange(30) * 1000)
     coords = np.column_stack((x.ravel(), y.ravel())).astype(float)
-    differences = gaussian_filter(
-        rng.normal(size=(30, 30)), sigma=1.5
-    ).ravel()
+    differences = gaussian_filter(rng.normal(size=(30, 30)), sigma=1.5).ravel()
     estimate = _estimate_block_size([(differences, coords)], minimum_size_m=100)
     assert estimate["status"] == "estimated"
     assert estimate["block_size_m"] >= 100
@@ -383,9 +373,7 @@ def test_grid_mismatch_resamples_values_and_validity(tmp_path):
     b = np.full((50, 50), 0.4, dtype="float32")
     b[0, 0] = -9999
     a_path = _write(tmp_path / "a.tif", a, nodata=-9999)
-    b_path = _write(
-        tmp_path / "b_coarse.tif", b, resolution=20, top=1000, nodata=-9999
-    )
+    b_path = _write(tmp_path / "b_coarse.tif", b, resolution=20, top=1000, nodata=-9999)
     inputs = [
         {
             "label": "a",

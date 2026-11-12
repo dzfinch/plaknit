@@ -329,7 +329,9 @@ def common_bounds(layers: Sequence[Layer]) -> Tuple[float, float, float, float]:
 # --------------------------------------------------------------------------- #
 # Square windows and metrics
 # --------------------------------------------------------------------------- #
-def _centroid_range(lo: float, hi: float, origin: float, step: float) -> Tuple[int, int]:
+def _centroid_range(
+    lo: float, hi: float, origin: float, step: float
+) -> Tuple[int, int]:
     """Indices ``c`` with centroid ``origin + (c + .5) * step`` in ``[lo, hi)``."""
     a = (lo - origin) / step - 0.5
     b = (hi - origin) / step - 0.5
@@ -373,7 +375,9 @@ def square_is_valid(
     return True
 
 
-def squares_overlap(a: Tuple[float, float], b: Tuple[float, float], width: float) -> bool:
+def squares_overlap(
+    a: Tuple[float, float], b: Tuple[float, float], width: float
+) -> bool:
     """True if axis-aligned squares of ``width`` centred at ``a`` and ``b`` overlap.
 
     Squares that only touch along an edge or corner do not overlap.
@@ -498,7 +502,9 @@ def select_squares(
     cxmin, cymin, cxmax, cymax = common_bounds(layers)
     half = width_m / 2.0
     if cxmax - cxmin < width_m - EPS or cymax - cymin < width_m - EPS:
-        return SelectionResult([], n_samples, 0, limit, 0, _message([], n_samples, 0, limit, 0))
+        return SelectionResult(
+            [], n_samples, 0, limit, 0, _message([], n_samples, 0, limit, 0)
+        )
 
     # Fine cells whose centroid lies within [cxmin + half, cxmax - half] (inclusive).
     c0 = math.ceil((cxmin + half - fine.left) / fine.res_x - 0.5 - EPS)
@@ -508,7 +514,9 @@ def select_squares(
     c0, r0 = max(c0, 0), max(r0, 0)
     c1, r1 = min(c1, fine.width - 1), min(r1, fine.height - 1)
     if c1 < c0 or r1 < r0:
-        return SelectionResult([], n_samples, 0, limit, 0, _message([], n_samples, 0, limit, 0))
+        return SelectionResult(
+            [], n_samples, 0, limit, 0, _message([], n_samples, 0, limit, 0)
+        )
 
     ncols = c1 - c0 + 1
     pool = ncols * (r1 - r0 + 1)
@@ -592,13 +600,17 @@ def overlap_maps(fine: Layer, other: Layer) -> Tuple[np.ndarray, np.ndarray]:
     x_lo = fine.left + cols * fine.res_x
     x_hi = x_lo + fine.res_x
     col_map = select_cells_1d(
-        (x_lo - other.left) / other.res_x, (x_hi - other.left) / other.res_x, other.width
+        (x_lo - other.left) / other.res_x,
+        (x_hi - other.left) / other.res_x,
+        other.width,
     )
     rows = np.arange(fine.height, dtype=float)
     y_top = fine.top - rows * fine.res_y
     y_bot = y_top - fine.res_y
     row_map = select_cells_1d(
-        (other.top - y_top) / other.res_y, (other.top - y_bot) / other.res_y, other.height
+        (other.top - y_top) / other.res_y,
+        (other.top - y_bot) / other.res_y,
+        other.height,
     )
     return row_map, col_map
 
@@ -874,9 +886,7 @@ def _resolve_jobs(n_jobs: Optional[int]) -> int:
     return int(n_jobs)
 
 
-def write_legend(
-    path: Path, layers: Sequence[Layer], counts: Dict[int, int]
-) -> None:
+def write_legend(path: Path, layers: Sequence[Layer], counts: Dict[int, int]) -> None:
     """Write grouping sequences and their fractions of valid agreement cells."""
     n = len(layers)
     total = bell_number(n)
@@ -886,21 +896,30 @@ def write_legend(
     with open(path, "w", newline="") as fh:
         writer = csv.writer(fh)
         writer.writerow(
-            ["pattern_id", "grouping_sequence", "compact_sequence", "n_groups",
-             "cell_count", "cell_proportion", "input_order"]
+            [
+                "pattern_id",
+                "grouping_sequence",
+                "compact_sequence",
+                "n_groups",
+                "cell_count",
+                "cell_proportion",
+                "input_order",
+            ]
         )
         for pid in ids:
             seq = sequence_from_id(pid, n)
             compact = format_sequence(seq, compact=True)
-            writer.writerow([
-                pid,
-                format_sequence(seq),
-                compact if "-" not in compact else "",
-                max(seq),
-                counts.get(pid, 0),
-                counts.get(pid, 0) / valid_count if valid_count else None,
-                order,
-            ])
+            writer.writerow(
+                [
+                    pid,
+                    format_sequence(seq),
+                    compact if "-" not in compact else "",
+                    max(seq),
+                    counts.get(pid, 0),
+                    counts.get(pid, 0) / valid_count if valid_count else None,
+                    order,
+                ]
+            )
 
 
 def compare_landcover(
