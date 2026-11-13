@@ -149,8 +149,7 @@ map to bands starting at 1; supply exactly as many names as the raster has
 bands. Single-band `LABEL:NAME=PATH` arguments remain supported and can be
 mixed with stacks. Each name must be unique within an input and supplied for
 at least two inputs. Matching names are compared, even if their band orders
-differ between inputs. Different names must also produce distinct plot
-filenames after punctuation is replaced with underscores.
+differ between inputs.
 For Python callers, `ReflectanceInput.rasters` also accepts `ReflectanceBand`
 values specifying `path`, one-based `band`, and the raster's `band_count`;
 existing single-band path strings remain supported.
@@ -164,25 +163,17 @@ named `unit_id`, `square_id`, or `id`. A CSV must contain that ID and
 
 Each raster is read on its input classification's native grid. If the grids
 differ, values are bilinear-resampled and validity masks nearest-neighbor
-resampled in memory within each spatial unit. Every input band, including NDVI
-and elevation, is independently min-max normalized to 0–1 using all valid,
-finite pixels across the full source raster, before resampling or class
-selection. Declared scale/offset metadata is recorded but not applied. The
-source range and normalization method are recorded in the output metadata.
-Constant valid bands cause an error because their range is zero; bands with no
-valid pixels yield missing summaries.
-
-These are relative values, not physical reflectance or elevation. Independent
-stretching can remove actual differences between inputs, and outliers or
-differences in raster extent can affect the range. It does not establish
-physical comparability. Source path, band, unit IDs, CRS, alignment, and
-inference settings are also recorded in metadata.
+resampled in memory within each spatial unit. Declared raster scale/offset
+metadata is applied. Without it, native values are preserved; inputs are not
+independently min/max stretched. Confirm that matching raster names have
+comparable units before interpreting their differences. Source path, band,
+scale method, unit IDs, CRS, alignment, and inference settings are recorded in
+metadata.
 
 For each input, raster name, class, and spatial unit, the analysis reports the
 median and quartiles of valid pixels selected by that input's own classification
 mask. Comparisons pair these unit-level medians by unit ID and class. The
-estimate is the median paired difference in normalized units (input B minus
-input A); the effect
+estimate is the median paired difference (input B minus input A); the effect
 size is paired rank-biserial correlation. Confidence intervals resample whole
 coordinate-based blocks, and p-values use paired block sign-flip permutations.
 Exact permutation is used for at most 15 blocks; larger tests use seeded Monte
@@ -200,15 +191,6 @@ not proof that blocks are independent. `--bootstrap-replicates` (default 2000),
 `--permutation-replicates` (default 9999), `--seed`, `--classes`, and block
 settings are recorded for reproducibility.
 
-Use `--n-jobs 4` to process spatial-unit summaries with four threads, or
-`--n-jobs -1` for all detected CPUs. The default is one worker; workers are
-capped at the number of spatial units. Each worker opens its own raster
-datasets, so additional workers increase I/O and open-file usage. Full-raster
-range scans, geometry-mask rasterization, reprojection, and statistical
-inference remain serial. Results are reproducible across worker counts, and
-the worker count is recorded in metadata.
-On a shared HPC system, set the count to your allocated CPUs.
-
 Results describe the supplied raster products, not a sensor-only causal effect.
 Acquisition dates, scene IDs, processing histories, and quality-mask provenance
 are not inferred; provide and evaluate those separately. Matching class codes
@@ -218,7 +200,7 @@ cannot be tested.
 Outputs: `*_spatial_unit_summary.csv` (one row per input/unit/class/raster),
 `*_class_summary.csv` (summary across unit medians),
 `*_spatial_comparisons.csv` (paired estimates, intervals, effects, p-values,
-and status), `*_methods_report.md`, `*_effect_estimates.png`, and
+and status), `*_methods_report.md`, and
 `*_metadata.json`.
 
 ### Agreement and output files

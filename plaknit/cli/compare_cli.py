@@ -121,8 +121,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Compare continuous rasters (bands, NDVI) by class.",
         description=(
             "Compare class-wise raster summaries across matched spatial units "
-            "using spatial-block inference. Each raster band is independently "
-            "min-max normalized over its full valid range."
+            "using spatial-block inference."
         ),
     )
     reflectance.add_argument(
@@ -186,12 +185,6 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=10,
         help="Minimum number of spatial blocks required for inferential results.",
-    )
-    reflectance.add_argument(
-        "--n-jobs",
-        type=int,
-        default=1,
-        help="Spatial-unit workers (-1 = all CPUs; default: 1).",
     )
     return parser
 
@@ -275,7 +268,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 bootstrap_replicates=args.bootstrap_replicates,
                 permutation_replicates=args.permutation_replicates,
                 min_independent_blocks=args.min_independent_blocks,
-                n_jobs=args.n_jobs,
             )
         except (OSError, ValueError) as exc:
             parser.error(str(exc))
