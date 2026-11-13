@@ -109,9 +109,8 @@ plaknit compare reflectance \
 
 The command pairs per-class raster summaries by spatial-unit ID and reports
 paired differences with spatial-block uncertainty. Supply a vector file with
-unique IDs and a CRS, or a bounds CSV plus `--spatial-units-crs`. Each band is
-independently min-max normalized over its full valid range. This produces
-relative values, not physically calibrated reflectance, and can hide real
-differences between inputs. See the
+unique IDs and a CRS, or a bounds CSV plus `--spatial-units-crs`. Declared raster
+scale/offset metadata is applied; otherwise native values are preserved rather
+than independently min-max stretched. See the
 [reflectance comparison guide](https://dzfinch.github.io/plaknit/usage.html#compare-reflectance)
 for assumptions, inference settings, and output definitions.
