@@ -319,10 +319,6 @@ four bars: Radiometry (optional) → Mask tiles → Binary mask → Mosaic
   `--skip-masking` is supplied.
 - `--skip-masking`: Use the provided inputs directly without applying the
   gdal-based UDM mask.
-- `--harmonize-radiometry`: Enable graph-based radiometric harmonization
-  (Harmoni-Planet style) before masking/projection.
-- `--metadata-jsons / -meta`: Metadata JSON files/directories used to build the
-  overlap/time graph; required only when `--harmonize-radiometry` is enabled.
 - `--sr-bands`: Surface reflectance bundle size (4 or 8).
 - `--target-crs`: Optional CRS override (for example `EPSG:32735`) applied to
   every tile before mosaicking.
@@ -505,26 +501,12 @@ ensemble.predict(
 
 ### Hyperparameter Guide
 
-- `--n-models`: Number of models in the ensemble (5-15 recommended). More models increase ensemble diversity.
-- `--n-estimators`: Boosting rounds per model (100-500). More rounds capture complex patterns but risk overfitting.
-- `--max-depth`: Tree depth (4-8). Shallower trees prevent overfitting; deeper trees capture interactions.
-- `--learning-rate`: Step size for boosting updates (0.01-0.3). Lower rates are more conservative.
-- `--subsample`: Fraction of samples per round (0.5-1.0). Lower values add stochasticity and reduce overfitting.
-- `--colsample-bytree`: Fraction of features per tree (0.5-1.0). Lower values increase diversity.
-- `--test-fraction`: Holdout fraction for evaluation (0.2-0.4). Per-model accuracy is recorded as a diagnostic.
+- `--n-models`: Number of models in the ensemble. More models increase ensemble diversity.
+- `--n-estimators`: Boosting rounds per model. More rounds capture complex patterns but risk overfitting.
+- `--max-depth`: Tree depth. Shallower trees prevent overfitting; deeper trees capture interactions.
+- `--learning-rate`: Step size for boosting updates. Lower rates are more conservative.
+- `--subsample`: Fraction of samples per round. Lower values add stochasticity and reduce overfitting.
+- `--colsample-bytree`: Fraction of features per tree. Lower values increase diversity.
+- `--test-fraction`: Holdout fraction for evaluation. Per-model accuracy is recorded as a diagnostic.
 
 Use `--feature-importance-out predictor_importance.csv` during ensemble prediction to write unweighted per-band summary statistics. `mean_importance` is a relative split-contribution ranking, not a linear coefficient or a causal effect.
-
-### Comparing BRT Ensemble vs Random Forest
-
-| Feature | BRT Ensemble | Random Forest |
-|---------|--------------|---------------|
-| Model Type | Gradient boosting | Bagging (ensemble) |
-| Training Time | Medium | Fast |
-| Prediction Accuracy | High | High |
-| Interpretability | Low | Medium |
-| GPU Support | Yes | No |
-| Hyperparameter Tuning | More involved | Less involved |
-| Ensemble within Ensemble | Yes (multiple BRTs) | Yes (multiple trees) |
-
-Both classifiers are suitable for PlanetScope data; choose BRT for potentially higher accuracy on complex scenes, or Random Forest for faster training with good accuracy.
